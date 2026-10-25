@@ -222,6 +222,12 @@ The [published S90D native Home work](https://github.com/splitcipher/couchroot/b
 
 Your agent must review or adapt a native helper implementation for your exact firmware and `<APP_ID>`, then prepare concrete query, apply and restore commands. Replacing an app name in a command is insufficient.
 
+### A TV where the method is unavailable
+
+A contributor checked a 2018 Samsung UE43NU7099 (Tizen 4.0, ARMv7, platform build `TIZEN-4.0-TRUNK2018-KantSU-HOTFIX-RELEASE_20260402.1`) on 25 October 2026, read-only. Its developer capability reported `sdbd_rootperm`, `rootonoff_support`, `intershell_support` and `appcmd_support` as disabled. SDB ran only `0 applist`, `0 debug` and `0 kill`; every other shell command, including `id` and `vconftool get`, returned `closed`. With no way to stage or run a helper, the method stops at the first recovery step on that TV. No native setting was read or written there. A signed web launcher still installed and ran normally.
+
+Check `sdb capability` and a harmless shell command such as `sdb shell id` before preparing a helper for an older TV.
+
 ### Prepare recovery before any native write
 
 1. Verify the exact model, firmware, architecture, SDK identity, native libraries and runtime. The reference helper used the TV's .NET 6 runtime on 32-bit ARM. Confirm your installed launcher is eligible for boot. Stop if compatibility differs; don't disable guards to force it through.
