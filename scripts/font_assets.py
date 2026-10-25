@@ -9,6 +9,8 @@ import json
 import re
 import zipfile
 
+from source_policy import CREDENTIAL_PATTERNS, is_private_path
+
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_FONT_IDS = ['geist', 'newsreader']
 PRIVATE_FONTS = [
@@ -64,10 +66,12 @@ def font_overlay(root=ROOT, include_private=True):
     return assets
 
 
-def write_widget_archive(output, root=ROOT, include_private=True):
+def write_widget_archive(output, root=ROOT, include_private=True, manifest=None):
     """Create an unsigned archive without reading signing or device settings."""
     app = root / 'app'
     overlay = font_overlay(root, include_private)
+    if manifest is not None:
+        overlay['config.xml'] = manifest
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED, allowZip64=False) as package:
         for source in sorted(app.rglob('*')):
             if source.is_symlink():
@@ -75,10 +79,13 @@ def write_widget_archive(output, root=ROOT, include_private=True):
             if not source.is_file():
                 continue
             name = source.relative_to(app).as_posix()
-            if name.startswith('assets/private-fonts/'):
-                raise ValueError('Private font binaries must stay in .local/, not app/.')
+            if is_private_path('app/' + name):
+                raise ValueError('Private material must stay outside app/: ' + name)
             if name not in overlay and is_runtime_source(name):
-                package.write(source, name)
+                data = source.read_bytes()
+                if any(pattern.search(data) for pattern in CREDENTIAL_PATTERNS):
+                    raise ValueError('Credential pattern in widget source: ' + name)
+                package.writestr(name, data)
         for name, source in sorted(overlay.items()):
             if isinstance(source, Path):
                 package.write(source, name)

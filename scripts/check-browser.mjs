@@ -13,14 +13,14 @@ const CATALOG = IDS.map((id, i) => ({ id, name: NAMES[i], show: true, iconPath: 
   { id: EXTRA, name: UNSAFE_NAME, show: true, iconPath: '' },
   { id: SPOTIFY, name: 'Spotify', show: true, iconPath: '' },
   { id: '5b8c3eb16b.BeamCTVDev', name: 'HBO Max', show: true, iconPath: '' },
-  { id: 'nClrkHome1.FrameHome', name: 'CleanFrame', show: true },
+  { id: 'TestHome01.CleanFrame', name: 'CleanFrame', show: true },
   { id: 'AbCdEf1234.worker', name: 'Background worker', show: true },
   { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true }
 ]);
 const walls = JSON.parse(readFileSync(root + 'app/assets/wallpapers/SOURCES.json', 'utf8'));
 const out = root + '.local/qa/';
 mkdirSync(out, { recursive: true });
-const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/config.xml', 'app/assets/wallpapers/SOURCES.json', 'app/assets/wallpapers/catalog.js', 'app/assets/adaptive-ink.js', 'app/assets/icons/metrics.js'];
+const sourceFiles = ['app/main.js', 'app/device.js', 'app/assets/apps/catalog.js', 'app/index.html', 'app/style.css', 'app/config.xml', 'app/assets/wallpapers/SOURCES.json', 'app/assets/wallpapers/catalog.js', 'app/assets/adaptive-ink.js', 'app/assets/icons/metrics.js'];
 const hashes = () => Object.fromEntries(sourceFiles.map(f => [f, createHash('sha256').update(readFileSync(root + f)).digest('hex')]));
 const report = { scope: 'Production UI in Chromium; mock public Tizen API only; no TV contacted.', sourceBefore: hashes(), checks: [], failures: [], pageErrors: [], expectedNetworkFailures: [] };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -69,6 +69,7 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
     ApplicationControlData: function (key, value) { this.key = key; this.value = value; },
     ApplicationControl: function (operation, uri, mime, category, data) { Object.assign(this, { operation, uri, mime, category, data }); },
     application: {
+      getCurrentApplication() { return { appInfo: { id: 'TestHome01.CleanFrame' } }; },
       getAppsInfo(ok, fail) {
         const tv = window.__tv;
         tv.catalogCalls++;
@@ -87,6 +88,7 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
   };
 }
 async function page(options = {}) {
+  const { beforeLoad, waitForNetworkIdle = true, ...harnessOptions } = options;
   current = await preview.browser.newPage({ viewport: { width: 1920, height: 1080 } });
   const owner = current;
   current.setDefaultTimeout(10000);
@@ -100,10 +102,11 @@ async function page(options = {}) {
     if (expected.some(s => request.url().includes(s))) report.expectedNetworkFailures.push(failure);
     else if (failure.error !== 'net::ERR_ABORTED') report.pageErrors.push(failure);
   });
-  await current.addInitScript(installHarness, { mock: true, catalog: CATALOG, minuteMs: 60000, seed: baseline(), ...options });
-  await current.goto(preview.baseURL + '/home/');
+  await current.addInitScript(installHarness, { mock: true, catalog: CATALOG, minuteMs: 60000, seed: baseline(), ...harnessOptions });
+  if (beforeLoad) await beforeLoad(current);
+  await current.goto(preview.baseURL + '/home/', { waitUntil: 'domcontentloaded' });
   await ready();
-  await current.waitForLoadState('networkidle');
+  if (waitForNetworkIdle) await current.waitForLoadState('networkidle');
   return current;
 }
 const state = () => current.evaluate(() => ShoreQA.state());
@@ -234,6 +237,27 @@ try {
     await page({ seed: baseline({ mode: 'open' }), storageFailure: true });
     check('Failed open-mode write retains prior photo', (await state()).wallpaper === walls[0].id && (await stored()).wallpaper === walls[0].id);
   });
+  await run('Delayed baseline font recovery refreshes layout', async () => {
+    const id = 'Qa12345678.LongLabel';
+    const seed = baseline({ dock: [id], lastApp: id, look: { bg: 'photo', layout: 'list', apps: 'both', font: 'manrope' },
+      appRecords: [{ id, appId: id, name: 'Samsung TV Plus', brand: '', icon: '' }] });
+    const plateWidth = () => current.locator('#phScene .ph-plate.is-current').evaluate(e => parseFloat(e.style.width));
+    await page({ seed });
+    const expected = await plateWidth();
+    await closePage();
+    let releaseFont;
+    const fontGate = new Promise(resolve => { releaseFont = resolve; });
+    try {
+      await page({ seed, waitForNetworkIdle: false, beforeLoad: async p => {
+        await p.route('**/manrope.woff2', async route => { await fontGate; await route.continue(); });
+      } });
+      check('Slow font starts with a usable fallback', (await state()).fonts.baselineFallback);
+      releaseFont();
+      await current.waitForFunction(() => !ShoreQA.state().fonts.baselineFallback && ShoreQA.ready());
+      const actual = await plateWidth();
+      check('Recovered font uses the same plate width as a normal startup', Math.abs(actual - expected) < 1, { actual, expected });
+    } finally { releaseFont(); }
+  });
   await run('Real catalogue and native launch boundary', async () => {
     await page(); await library();
     const names = await current.locator('[data-action^="apps.open."] .label').allTextContents();
@@ -258,6 +282,62 @@ try {
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.launchFailure = true; });
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
     check('Launch failure is shown', /could not|unavailable|try again/i.test(await current.locator('#stage').innerText()));
+  });
+  await run('Bundled Hulu Jellyfin and Tubi marks on saved pins', async () => {
+    const extras = [
+      { appId: 'LBUAQX1exg.Hulu', name: 'Hulu', brand: 'hulu' },
+      { appId: 'rTn6ClEurC.Jellyfin', name: 'Jellyfin', brand: 'jellyfin' },
+      { appId: '3KA0pm7a7V.TubiTV', name: 'Tubi', brand: 'tubi' }
+    ];
+    const ids = extras.map(a => a.appId);
+    await page({ seed: baseline({ dock: ids, lastApp: ids[0], appRecords: extras.map(a => ({ id: a.appId, appId: a.appId, name: a.name, brand: '', icon: '' })) }),
+      catalog: CATALOG.concat(extras.map(a => ({ id: a.appId, name: a.name, show: true, iconPath: '' }))) });
+    async function hasMarks(prefix) {
+      return current.evaluate(({ prefix, extras }) => extras.every(a => {
+        const tile = document.querySelector('[data-action="' + prefix + a.appId + '"]');
+        return tile && tile.querySelector('[data-mark="' + a.brand + '"] .mk') && !tile.querySelector('.monogram');
+      }), { prefix, extras });
+    }
+    check('Saved pins with missing brand metadata use bundled marks before discovery', await hasMarks('home.app.'));
+    for (const bg of ['photo', 'dark', 'light']) for (const layout of ['dock', 'list']) {
+      await look({ bg, layout, apps: 'both' });
+      check(bg + '/' + layout + ' uses all three matching marks', await hasMarks('home.app.'));
+    }
+    await library();
+    check('App discovery maps all three native IDs to bundled marks', await hasMarks('apps.open.'));
+    await scene('home'); await look({ bg: 'photo', layout: 'dock', apps: 'both' });
+    await current.reload(); await ready();
+    check('Matching marks survive a launcher restart', await hasMarks('home.app.'));
+    await current.screenshot({ path: out + 'hulu-jellyfin-tubi-dock.png' });
+  });
+  await run('Bundled installed utility app marks on saved pins', async () => {
+    const extras = [
+      { appId: 'org.tizen.browser', name: 'Internet', brand: 'browser' },
+      { appId: 'com.samsung.tv.SmartThingsApp', name: 'SmartThings', brand: 'smartthings' },
+      { appId: 'com.samsung.tv.AICompanionUILauncher', name: 'Vision AI Companion', brand: 'visionai' },
+      { appId: '25emanual1.emanual', name: 'User Guide', brand: 'userguide' },
+      { appId: 'HEPsqFNie0.tvplusstandalone', name: 'Samsung TV Plus', brand: 'tvplus' }
+    ];
+    const ids = extras.map(a => a.appId);
+    await page({ seed: baseline({ dock: ids, lastApp: ids[0], appRecords: extras.map(a => ({ id: a.appId, appId: a.appId, name: a.name, brand: '', icon: '' })) }),
+      catalog: CATALOG.concat(extras.map(a => ({ id: a.appId, name: a.name, show: true, iconPath: '' }))) });
+    async function hasMarks(prefix) {
+      return current.evaluate(({ prefix, extras }) => extras.every(a => {
+        const tile = document.querySelector('[data-action="' + prefix + a.appId + '"]');
+        return tile && tile.querySelector('[data-mark="' + a.brand + '"] .mk') && !tile.querySelector('.monogram');
+      }), { prefix, extras });
+    }
+    check('Saved pins with missing brand metadata use bundled marks before discovery', await hasMarks('home.app.'));
+    for (const bg of ['photo', 'dark', 'light']) for (const layout of ['dock', 'list']) {
+      await look({ bg, layout, apps: 'both' });
+      check(bg + '/' + layout + ' uses all five matching marks', await hasMarks('home.app.'));
+    }
+    await library();
+    check('App discovery maps all five native IDs to bundled marks', await hasMarks('apps.open.'));
+    await scene('home'); await look({ bg: 'photo', layout: 'dock', apps: 'both' });
+    await current.reload(); await ready();
+    check('Matching marks survive a launcher restart', await hasMarks('home.app.'));
+    await current.screenshot({ path: out + 'installed-utility-dock.png' });
   });
   await run('Catalogue failure and retry', async () => {
     await page({ catalogFailure: true }); await library();

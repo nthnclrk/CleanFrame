@@ -15,7 +15,7 @@ CLEANFRAME_PUBLIC_FONTS=1 npm run check:browser
 npm run check:public
 ```
 
-Keep runtime JavaScript ES5-compatible. Use existing focus, panel and preference logic. A new CSS/DOM API needs target-device evidence before it becomes a compatibility claim. Keep new dependencies in development tooling unless the runtime need is clear.
+Follow [the project code-quality rules](docs/code-quality.md). Keep runtime JavaScript ES5-compatible. Use existing focus, panel and preference logic. A new CSS/DOM API needs target-device evidence before it becomes a compatibility claim. Keep new dependencies in development tooling unless the runtime need is clear.
 
 ## Propose a change
 

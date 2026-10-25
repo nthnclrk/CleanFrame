@@ -12,7 +12,7 @@ I highly recommend forking it and building on top of it, ideally with a coding a
 
 ## Try the interface
 
-You need Node.js 22+ and Python 3.10+ to run the browser preview.
+You need Node.js 22.13+ or 24+ and Python 3.10+ to run the browser preview.
 
 ```sh
 git clone https://github.com/nthnclrk/CleanFrame.git

@@ -1,11 +1,11 @@
 {
   "name": "cleanframe",
-  "version": "0.6.1",
+  "version": "0.6.4",
   "private": true,
   "description": "A personal, uncluttered home interface for Samsung The Frame.",
   "scripts": {
     "dev": "python3 scripts/preview.py",
-    "check": "node --check app/main.js && node --check app/device.js && python3 scripts/check.py",
+    "check": "npm run lint && python3 scripts/check.py && npm run check:unit",
     "package": "python3 scripts/package.py",
     "tv:info": "python3 scripts/tv.py info",
     "tv:install": "python3 scripts/tv.py install",
@@ -13,10 +13,17 @@
     "check:browser": "node scripts/check-browser.mjs",
     "dev:public": "python3 scripts/preview.py --public-fonts",
     "export:public": "python3 scripts/export-public.py",
-    "check:public": "python3 scripts/check-public.py"
+    "check:public": "python3 scripts/check-public.py",
+    "lint": "eslint app",
+    "check:unit": "python3 -m unittest discover -s tests -v",
+    "check:performance": "node scripts/check-performance.mjs"
   },
   "devDependencies": {
+    "eslint": "10.13.0",
     "playwright": "1.64.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  }
 }

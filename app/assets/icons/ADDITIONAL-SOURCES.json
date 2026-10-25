@@ -16,5 +16,53 @@
     "source": "https://github.com/simple-icons/simple-icons/blob/develop/icons/tubi.svg",
     "licence": "CC0-1.0",
     "note": "Shape unchanged; white fill for launcher."
+  },
+  {
+    "icon": "hulu",
+    "source": "https://raw.githubusercontent.com/elax46/custom-brand-icons/a53cabf49bf439023a8f33585af30d783bffe51b/icon-svg/hulu.svg",
+    "licence": "MIT",
+    "source_sha256": "44720281eb0df4d55f87d3aea379b28834fc6514387d4da022c5a7f24929e0ac",
+    "shipped_sha256": "178741c5d80c9d779bc63cd70b07aae34a730861fc8b77da9def7c80039c32cd",
+    "note": "Shape unchanged; white fill for the launcher mask renderer."
+  },
+  {
+    "icon": "jellyfin",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/4d29a35c954699b389a834aacc97dd6e7e74143c/icons/jellyfin.svg",
+    "licence": "CC0-1.0",
+    "source_sha256": "244d6b19135189140acff6f8c1c7937a3064912b48229ab75f26f7e37124bb92",
+    "shipped_sha256": "3297deb4d8cfec21f1f4963089dbff80e11d5186b7ad2f8338f9caf9ed6f606a",
+    "note": "Shape unchanged; white fill for the launcher mask renderer."
+  },
+  {
+    "icon": "smartthings",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/4d29a35c954699b389a834aacc97dd6e7e74143c/icons/smartthings.svg",
+    "licence": "CC0-1.0",
+    "source_sha256": "32e0bb023fc18f55b8f589bb071beff1ad02941672edd6543428c14bed0201d6",
+    "shipped_sha256": "d4e6faac2c547d2f1bc2318991e424ca7b5aef331c6de6a61226fa294c5b51d5",
+    "note": "Shape unchanged; white fill for launcher masks."
+  },
+  {
+    "icon": "browser",
+    "source": "Original CleanFrame drawing",
+    "licence": "MIT",
+    "note": "Monochrome utility symbol; not an official service logo."
+  },
+  {
+    "icon": "userguide",
+    "source": "Original CleanFrame drawing",
+    "licence": "MIT",
+    "note": "Monochrome utility symbol; not an official service logo."
+  },
+  {
+    "icon": "visionai",
+    "source": "Original CleanFrame drawing",
+    "licence": "MIT",
+    "note": "Monochrome utility symbol; not an official service logo."
+  },
+  {
+    "icon": "tvplus",
+    "source": "Original CleanFrame drawing",
+    "licence": "MIT",
+    "note": "Monochrome utility symbol; not an official service logo."
   }
 ]

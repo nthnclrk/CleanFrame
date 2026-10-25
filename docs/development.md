@@ -2,62 +2,67 @@
 
 ## Browser preview
 
-Start with Node.js 22+ and Python 3.10+, then `npm ci`. These are the supported development baselines; lower versions have not been checked. Install Chromium once with `npx playwright install chromium` for the optional browser tools. Linux hosts may also need Playwright's documented system dependencies (`npx playwright install --with-deps chromium`).
+Start with Node.js 22.13+ or 24+ and Python 3.10+, then `npm ci`. These are the supported development baselines; lower versions have not been checked. Install Chromium once with `npx playwright install chromium` for the optional browser tools. Linux hosts may also need Playwright's documented system dependencies (`npx playwright install --with-deps chromium`).
 
 `npm run dev` starts http://localhost:4795/home/, bound to this computer only. `/home/` serves `app/`, the same source used in the signed widget. Arrow keys, Enter and Escape mirror remote navigation. Device controls report that they require the TV; no success is simulated.
 
 `npm run dev:public` serves the same interface using only the bundled public fonts, even when paid Pangram files exist locally. For a contributor's fresh clone, use the README and `docs/for-agents.md`; the signing/device setup below describes the reference machine and needs adaptation for another owner.
 
-All UI assets, public fonts and the fifteen wallpapers are bundled. This private build also includes the three locally installed Pangram families through an ignored build overlay; their binaries are not in the public source tree. Glass materials and blurred panel backgrounds are rendered ahead of time; see app/assets/wallpapers/README.md.
+All UI assets, public fonts and the fifteen wallpapers are bundled. An optional preview overlay supports locally installed Pangram families; their binaries are not in the public source tree. Glass materials and blurred panel backgrounds are rendered ahead of time; see app/assets/wallpapers/README.md.
 
 ## Runtime map and compatibility
 
-- `app/index.html` loads the device adapter, gallery/font/palette catalogues, `assets/icons/metrics.js` and `main.js`, with `style.css`.
+- `app/index.html` loads the shared app catalogue (`assets/apps/catalog.js`), device adapter, gallery/font/palette catalogues, `assets/icons/metrics.js` and `main.js`, with `style.css`.
 - `main.js` owns the List and Dock layouts, panel stack, focus, preferences and wallpaper timers. `device.js` owns installed-app discovery and Tizen calls. Keep device details in that adapter.
 - The logical stage is 1920 x 1080, scaled uniformly to the viewport. Check at 1920 x 1080 and 1280 x 720. Glass geometry and cached materials must stay aligned.
 - Preferences use localStorage key `cleanframe.home.v1`, with a fallback read from `cleanframe.shore.v1`. Legacy fields are `dock`, `wallpaper`, `mode`, `lastApp` and `theme`. The 0.6 migration preserves app order, wallpaper, rotation and selection. Legacy `list` becomes Dark / List / Type; `shore` and `grid` become Photo / Dock / Glass. Appearance axes are stored separately. A saved dynamic app keeps its real app ID and name; discovery refreshes the installed catalogue. Keep migration checks when changing this format.
 - `window.ShoreQA.state()` and `.where()` expose state and focus for browser tests. `minuteMs` can shorten rotation intervals in an isolated browser test.
 
-The tested target is the Tizen 9.0 TV in [TV status](tv-status.md). The manifest's `required_version="6.5"` is a package declaration, not proof that Tizen 6.5 has been tested. The exact TV Chromium/WebKit engine version has not been recorded. Keep runtime JavaScript ES5-compatible and verify any new DOM/CSS API on the target before claiming support. `node --check` checks syntax for Node; it does not enforce ES5 or TV API availability.
+The tested target is the Tizen 9.0 TV in [TV status](tv-status.md). The manifest's `required_version="6.5"` is a package declaration, not proof that Tizen 6.5 has been tested. The exact TV Chromium/WebKit engine version has not been recorded. Keep runtime JavaScript ES5-compatible and verify any new DOM/CSS API on the target before claiming support. `npm run lint` enforces ES5 syntax and checks undefined names, unused code, strict equality and several unsafe constructs. It cannot establish TV API availability.
 
 Keep material rendering in the development tools. See [asset generation](assets.md) and [testing](testing.md).
 
 ## Local TV tools and signing
 
-This Mac's setup lives under `.local/` and is excluded from Git:
+Per-installation settings live in ignored `.local/config.json`. Start with
+`config.example.json`; set your SDK location, TV host, SDK-generated package/app
+identity and signing profile. Keep author/distributor keys and SDK profiles in
+private local storage. See [independent setup](local-testing.md) for this fork's
+Linux workflow. Complete Samsung sign-in and certificate-password entry yourself.
 
-- `tizen-sdk/`: official Tizen SDK command-line tools, embedded Java and SDB.
-- `certificates/private/`: Samsung-issued author/distributor certificates, private keys, protected PKCS12 files and their generated password.
-- `certificates/ca/`: CA certificates from Samsung's Certificate Extension.
-- `device.json`: TV host address.
+`npm run package` runs the public-source guard, builds a public-font widget and
+signs it through the official Tizen CLI using the configured profile. It does
+not rewrite the SDK profile or copy keys into the widget. The source manifest
+keeps a generic template identity; only the generated widget receives the local
+installation identity. Keep that identity and author certificate stable for
+in-place updates.
 
-`npm run package` builds the widget from `app/`, configures the workspace-local SDK and signing profile, then signs it with the official SDK. It writes `dist/CleanFrame-unsigned.wgt` and `dist/CleanFrame.wgt`. `scripts/font_assets.py` adds only the six approved local Pangram files when complete pairs are available, plus their generated CSS/catalogue. It never copies private fonts into `app/`. Public checkouts use Manrope, Geist and Newsreader.
+Prefer the SDK's saved-password workflow. Set `signing.password_file` to `null`
+or omit it when no separate password file is needed. If the SDK prompts for a
+password, an optional owner-only file under `.local/` can supply it; the packager
+redacts that known password from private failure diagnostics. Different author
+and distributor passwords should be handled by the SDK's own profile workflow.
 
-`npm run export:public` is a separate offline, unsigned export. It always disables the proprietary overlay, includes the project/third-party notices and writes `dist/CleanFrame-public-unsigned.wgt`. It reads no signing credentials and contacts no TV. Use it for public build preparation; `npm run package` on this machine remains a personal build that can contain paid fonts. Asset release checks are listed in `docs/public-release.md`.
+`npm run export:public` is an offline unsigned export. It reads neither device
+configuration nor signing credentials and produces
+`dist/CleanFrame-public-unsigned.wgt` with public fonts and distribution notices.
+Both archive paths reject private-file names and recognizable credential
+patterns in runtime assets. These bounded checks do not recognize every secret.
 
-The SDK requires a terminal when it prompts for certificate passwords and whether to save them. The packaging script supplies the generated certificate password from the ignored private file and declines the optional password-saving prompts. It redacts that password from output. Login credentials are not required for routine packaging.
+The preview can optionally overlay complete private-font pairs from `.local/`;
+the signed and public exports in this fork always use bundled public fonts.
+Public checkouts need no proprietary font files.
 
-The initial custom XML-signature implementation was rejected by the TV. Use the official SDK packager for future builds; the installed test was signed with Tizen CLI 2.5.25.
-
-## Another checkout or Mac
-
-Install the official [Samsung TV SDK](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html) into `.local/tizen-sdk`, or copy this Mac's local tools when appropriate. To retain in-place app updates, securely transfer the existing author certificate and its password. Keep those credentials local.
-
-For new certificates, use Samsung's [certificate setup](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/creating-certificates.html). The distributor certificate must include the target TV's DUID. A generic emulator certificate does not establish compatibility with this consumer TV.
-
-Create `.local/device.json` with:
-
-```json
-{"host": "YOUR_TV_IP_ADDRESS"}
-```
-
-For developer access, connect the TV and Mac to the same network, enable Developer Mode in Apps → App Settings → 12345 and enter the Mac's local address. Fully restart the TV if the developer port remains closed.
+Install the official [Samsung TV SDK](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html)
+and [create your own certificates](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/creating-certificates.html).
+The distributor certificate must include the intended TV's DUID. A generic
+emulator certificate does not establish compatibility with a consumer TV.
 
 ## Install and launch
 
 `npm run tv:install` uploads the signed widget with a unique build filename and calls Samsung's `vd_appinstall` command. It checks for `install completed` and confirms the app appears in the installed-app list. `sdb install` on this TV only uploaded the widget and did not install it.
 
-`npm run tv:launch` opens the installed test. It does not change startup defaults. All device scripts use the app identity in `app/config.xml`; changing that identity would create a different application.
+`npm run tv:launch` opens the installed test. It does not change startup defaults. Device scripts use the identity in ignored `.local/config.json`; changing that identity would create a different application.
 
 ## Sources
 

@@ -7,23 +7,32 @@ from pathlib import Path
 import subprocess
 import time
 import xml.etree.ElementTree as XML
+import zipfile
+from local_config import load_config
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('action', choices=['info', 'install', 'launch'])
 parser.add_argument('--host')
 args = parser.parse_args()
-config_file = ROOT / '.local/device.json'
-config = json.loads(config_file.read_text()) if config_file.exists() else {}
-host = args.host or config.get('host')
-if not host:
-    raise SystemExit('Add the TV address to .local/device.json or pass --host.')
+config = load_config()
+host = args.host or config['tv']['host']
 ipaddress.ip_address(host)
-sdb = ROOT / '.local/tizen-sdk/tools/sdb'
+sdb = config['sdk'] / 'tools/sdb'
 if not sdb.exists():
     raise SystemExit('Local SDB tool missing. See docs/development.md.')
-manifest = XML.parse(ROOT / 'app/config.xml').getroot()
-app_id = manifest.find('{http://tizen.org/ns/widgets}application').get('id')
+app_id = config['application']['app_id']
+widget = ROOT / 'dist/CleanFrame.wgt'
+if args.action == 'install':
+    if not widget.is_file():
+        raise SystemExit('Run npm run package first.')
+    with zipfile.ZipFile(widget) as archive:
+        if not {'author-signature.xml', 'signature1.xml'}.issubset(archive.namelist()):
+            raise SystemExit('Widget is unsigned; no TV connection attempted.')
+        manifest = XML.fromstring(archive.read('config.xml'))
+        identity = manifest.find('{http://tizen.org/ns/widgets}application')
+        if identity is None or identity.get('id') != app_id or identity.get('package') != config['application']['package_id']:
+            raise SystemExit('Widget identity differs from local config; rebuild before installation.')
 
 
 def run(*command, quiet=False):
@@ -47,9 +56,6 @@ elif args.action == 'launch':
     if 'successfully launched' not in output:
         raise SystemExit('App launch was not confirmed. Check the TV.')
 else:
-    widget = ROOT / 'dist/CleanFrame.wgt'
-    if not widget.exists():
-        raise SystemExit('Run npm run package first.')
     digest = hashlib.sha256(widget.read_bytes()).hexdigest()[:12]
     remote = '/home/owner/share/tmp/sdk_tools/CleanFrame-' + digest + '-' + str(time.time_ns()) + '.wgt'
     pushed = run('-s', serial, 'push', str(widget), remote)

@@ -1,0 +1,14 @@
+{
+  "tv": {
+    "host": "YOUR_TV_IP"
+  },
+  "sdk_path": ".local/tizen-sdk",
+  "application": {
+    "package_id": "YOUR_SDK_PACKAGE_ID",
+    "app_id": "YOUR_SDK_PACKAGE_ID.CleanFrame"
+  },
+  "signing": {
+    "profile": "CleanFrameTest",
+    "password_file": ".local/certificates/private/certificate-password.txt"
+  }
+}

@@ -1,5 +1,10 @@
 # Machine-specific tools, signing keys and device configuration
 /.local/
+/config.local.json
+/config.json
+/signing.local.json
+/certificates/
+/workspace/
 /dist/
 /node_modules/
 .DS_Store
@@ -8,6 +13,10 @@ __pycache__/
 .env
 .env.*
 *.p12
+*.pfx
+*.pkcs12
+*.jks
+*.keystore
 *.pem
 *.key
 *.csr

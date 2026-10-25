@@ -10,8 +10,8 @@ manifest = XML.parse(app / 'config.xml').getroot()
 ns = {'w': 'http://www.w3.org/ns/widgets', 't': 'http://tizen.org/ns/widgets'}
 identity = manifest.find('t:application', ns)
 assert identity is not None, 'Missing application identity'
-assert identity.get('package') == 'nClrkHome1', 'Keep the installed package identity stable'
-assert identity.get('id') == 'nClrkHome1.FrameHome', 'Keep the installed application ID stable'
+assert identity.get('package') == 'CleanFrame', 'Source manifest must contain only the generic template identity'
+assert identity.get('id') == 'CleanFrame.Template', 'Installation identity belongs in ignored .local/config.json'
 assert manifest.get('version') == json.loads((root / 'package.json').read_text())['version'], 'Manifest/package versions differ'
 for tag in ['content', 'icon']:
     node = manifest.find('w:' + tag, ns)
@@ -41,6 +41,22 @@ for wall in walls:
     for suffix in ['study-soft', 'field-blur', 'field-frost', 'field-clear']:
         assert (app / ('assets/materials/' + wall_id + '-' + suffix + '.jpg')).is_file(), 'Missing registered material: ' + wall_id + '/' + suffix
     assert (app / ('assets/wallpapers/' + wall_id + '-panel.jpg')).is_file(), 'Missing panel backdrop: ' + wall_id
-for icon in ['stremio', 'netflix', 'disneyplus', 'youtube', 'appletv', 'primevideo', 'abciview', 'sbs', 'applemusic', 'art', 'apps', 'settings']:
+catalog_source = (app / 'assets/apps/catalog.js').read_text()
+catalog = json.loads(catalog_source.split(' = ', 1)[1].rstrip(';\n'))
+app_ids = set()
+brand_ids = set()
+for entry in catalog['primary']:
+    assert entry['id'] not in brand_ids, 'Duplicate default app key'
+    brand_ids.add(entry['id'])
+for entry in catalog['primary'] + catalog['extras']:
+    app_id = entry['appId']
+    assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,160}', app_id), 'Invalid app ID'
+    assert app_id not in app_ids, 'Duplicate app ID: ' + app_id
+    app_ids.add(app_id)
+marks = brand_ids | {entry['brand'] for entry in catalog['extras']} | {'art', 'apps', 'settings', 'home'}
+metrics = json.loads((app / 'assets/icons/metrics.js').read_text().split(' = ', 1)[1].rstrip(';\n'))
+for icon in marks:
+    assert re.fullmatch(r'[a-z][a-z0-9]*', icon), 'Invalid icon name'
     assert (app / ('assets/icons/' + icon + '.svg')).is_file(), 'Missing icon: ' + icon
-print('Widget identity, version and bundled resources are valid.')
+    assert icon in metrics, 'Missing optical metrics: ' + icon
+print('Widget identity, version, app catalogue and bundled resources are valid.')

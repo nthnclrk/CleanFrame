@@ -1,0 +1,5 @@
+#!/bin/sh
+# Block tracked private configuration and signing material before committing.
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+exec python3 scripts/check-public.py
