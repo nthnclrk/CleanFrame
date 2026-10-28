@@ -21,11 +21,14 @@
     'd0m1lV1nt2.emanual', '2022ePop01.SmartTV',
     'ZODRT12q2l.WebAccountExtension', 'ByJlgt0XeD.CastSettingsApp', 'tv6pbVMQFF.PrivacyChoices'];
   var SELF = 'nClrkHome1.FrameHome';
+  var HDMI_PORTS = [1, 2, 3, 4];
   function api() { return window.tizen && window.tizen.application; }
   function selfId() {
     try { return api().getCurrentApplication().appInfo.id || SELF; }
     catch (err) { return SELF; }
   }
+  function tvwindow() { return window.tizen && window.tizen.tvwindow; }
+  function sysinfo() { return window.tizen && window.tizen.systeminfo; }
   function unavailable(done) {
     done({ message: 'Open CleanFrame on the TV to use this control.', detail: 'The web preview cannot control the TV.' });
   }
@@ -36,6 +39,108 @@
     var finished = false, timer = setTimeout(function () { finish({ message: 'The TV did not respond. Please try again.' }); }, timeout || 8000);
     function finish(err, value) { if (finished) return; finished = true; clearTimeout(timer); done(err, value); }
     return finish;
+  }
+  function defaultInputs() {
+    return HDMI_PORTS.map(function (n) {
+      return { id: 'hdmi' + n, number: n, name: 'HDMI ' + n, type: 'HDMI', connected: false, active: false, source: { type: 'HDMI', number: n } };
+    });
+  }
+  function sources(done) {
+    var list = defaultInputs(), sys = sysinfo(), tvw = tvwindow();
+    if (!sys || typeof sys.getPropertyValue !== 'function') {
+      done(null, list);
+      return;
+    }
+    var finished = false, timer = setTimeout(function () { finish(list); }, 3000);
+    function finish(result) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      done(null, result);
+    }
+    try {
+      sys.getPropertyValue('VIDEOSOURCE', function (video) {
+        var byNum = {};
+        list.forEach(function (item) { byNum[item.number] = item; });
+        function record(src, isConnected) {
+          if (!src || src.type !== 'HDMI') return;
+          var n = Number(src.number);
+          if (!n || n < 1) return;
+          if (!byNum[n]) {
+            byNum[n] = { id: 'hdmi' + n, number: n, name: 'HDMI ' + n, type: 'HDMI', connected: false, active: false, source: src };
+            list.push(byNum[n]);
+          } else {
+            byNum[n].source = src;
+          }
+          if (isConnected) byNum[n].connected = true;
+        }
+        if (video && Array.isArray(video.disconnected)) video.disconnected.forEach(function (s) { record(s, false); });
+        if (video && Array.isArray(video.connected)) video.connected.forEach(function (s) { record(s, true); });
+        list.sort(function (a, b) { return a.number - b.number; });
+        if (tvw && typeof tvw.getSource === 'function') {
+          try {
+            tvw.getSource(function (active) {
+              if (active && active.type === 'HDMI' && byNum[Number(active.number)]) {
+                byNum[Number(active.number)].active = true;
+              }
+              finish(list);
+            }, function () { finish(list); });
+            return;
+          } catch (e) {}
+        }
+        finish(list);
+      }, function () { finish(list); });
+    } catch (err) { finish(list); }
+  }
+  function setSource(port, done) {
+    var num = typeof port === 'object' && port ? Number(port.number) : Number(String(port).replace(/^hdmi/i, ''));
+    if (!num || num < 1) { done({ message: 'This HDMI input is not available.' }); return; }
+    var tvw = tvwindow(), sys = sysinfo(), app = api();
+    if (!tvw && !app) { unavailable(done); return; }
+    var finish = bounded(done);
+    function switchView(srcObj) {
+      if (app) {
+        try {
+          app.launch('org.tizen.tv-viewer', function () { finish(null, srcObj); }, function () {
+            try { app.getCurrentApplication().hide(); } catch (e) {}
+            finish(null, srcObj);
+          });
+          return;
+        } catch (e) {
+          try { app.getCurrentApplication().hide(); } catch (he) {}
+        }
+      }
+      finish(null, srcObj);
+    }
+    function apply(srcObj) {
+      if (tvw && typeof tvw.setSource === 'function') {
+        try {
+          tvw.setSource(srcObj, function () {
+            switchView(srcObj);
+          }, function () {
+            switchView(srcObj);
+          });
+          return;
+        } catch (err) {}
+      }
+      switchView(srcObj);
+    }
+    if (sys && typeof sys.getPropertyValue === 'function') {
+      try {
+        sys.getPropertyValue('VIDEOSOURCE', function (video) {
+          var pool = [].concat(video && video.connected || [], video && video.disconnected || []);
+          var match = null, i;
+          for (i = 0; i < pool.length; i++) {
+            if (pool[i] && pool[i].type === 'HDMI' && Number(pool[i].number) === num) { match = pool[i]; break; }
+          }
+          apply(match || { type: 'HDMI', number: num });
+        }, function () {
+          apply({ type: 'HDMI', number: num });
+        });
+        return;
+      } catch (e) {}
+    }
+    apply({ type: 'HDMI', number: num });
   }
   function launchApp(id, done) {
     if (!api()) { unavailable(done); return; }
@@ -80,5 +185,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, inputs: sources, setSource: setSource, hdmi: setSource };
 }());
