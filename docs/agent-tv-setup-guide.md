@@ -234,6 +234,8 @@ A contributor reported that the tested SDB route on a 2018 Samsung UE43NU7099 (T
 
 During an explicitly authorised device task, check the developer capabilities and a harmless shell command before preparing a helper. Stop if the reviewed execution and recovery transport is unavailable. A native query can still require temporary staging.
 
+A `closed` result for arbitrary shell commands does not by itself rule out the transport. Test the exact staging, execution and readback path the helper needs: one Tizen 6.5 report (UN50AU8000FXZC, firmware T-NKLSAKUC-1720.7) had `sdb shell 0 <command>` closed while the whitelisted `appinstall` argument path still executed as the SDK user.
+
 ### Prepare recovery before any native write
 
 1. Verify the exact model, firmware, architecture, SDK identity, native libraries and runtime. The reference helper used the TV's .NET 6 runtime on 32-bit ARM. Confirm your installed launcher is eligible for boot. Stop if compatibility differs; don't disable guards to force it through.
