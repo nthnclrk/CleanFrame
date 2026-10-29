@@ -16,8 +16,11 @@ Updated 28 October 2026. App rendering and native Home reassignment need separat
 | QA55Q8FAAULXL, Tizen 9, firmware 1300.9 | Contributor reports navigation, launching and saved preferences work | No native experiment; independent recovery unresolved | [Issue #3](https://github.com/nthnclrk/CleanFrame/issues/3) |
 | UN65U7900FFXZA, Tizen 9, firmware 1300.8 | Contributor reports installation and navigation work | Helper correctly refuses this untested target | [Issue #9](https://github.com/nthnclrk/CleanFrame/issues/9) |
 | UN43M70HAFXZX, Tizen 10, firmware 1203.9 | No launcher result supplied | No verified native Home or restore result | [Issue #1 comment](https://github.com/nthnclrk/CleanFrame/issues/1#issuecomment-6351927784) |
+| UN50AU8000FXZC (AU8000), Tizen 6.5, firmware T-NKLSAKUC-1720.7 | Owner's own signed build installed and launched; Home shortcuts, settings persistence and return via Samsung Home → Apps confirmed | Query, apply, exact-value restore and reapply passed; Home from YouTube and power-on into CleanFrame confirmed physically | Independent owner report, 28 Oct 2026 (private local record) |
 
 Contributor reports have not been reproduced by the maintainer. Browser regression checks cannot verify a TV compositor, native Samsung destination, remote feel or cold boot. The exact Q60B production firmware revision remains to be established: its reported `Version` field was a placeholder, alongside a dated build ID. It is not an exact-firmware allowlist entry.
+
+One report (UN50AU8000FXZC, firmware T-NKLSAKUC-1720.7) used a shell-only helper. Arbitrary `sdb shell 0` commands were closed there, but the whitelisted `sdb shell 0 appinstall tpk` argument path still ran as the SDK user, and that firmware exposes `/usr/bin/aul_test` with `set_default_app_by_operation`. It ships .NET 3.1 rather than the reference .NET 6, so the maintained .NET helper could not run on it. The TV mirrored `booting_appid_backup` from the new startup value and left `first_screen/type` unchanged. Samsung Home escape after reassignment and behaviour after a firmware update remain unverified.
 
 ## Native Home limits
 
