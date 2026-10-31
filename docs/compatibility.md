@@ -1,12 +1,13 @@
 # TV compatibility evidence
 
-Updated 28 October 2026. App rendering and native Home reassignment need separate evidence. Tizen version alone does not establish support. The source manifest requires Tizen 6.5; older adapted builds do not change that requirement.
+Updated 31 October 2026. App rendering and native Home reassignment need separate evidence. Tizen version alone does not establish support. The source manifest requires Tizen 6.5; older adapted builds do not change that requirement.
 
 ## Recorded results
 
 | TV / platform | Web launcher | Native Home | Evidence |
 | --- | --- | --- | --- |
 | Maintainer LS03D, Tizen 9, firmware 2130.0 | Installation and selected remote flows confirmed; other checks remain pending | Exact-value restore/reapply and Home from Netflix confirmed | [Maintainer record](tv-status.md) |
+| QE65LS03TAUXXH (2020 Frame), Tizen 5.5, ARM32, firmware T-NKMDEUC-2743.0 | Owner reports signed adapted widget, Dock navigation and installed-app launching work with a local Tizen 5.5 manifest | TV-specific operation/first-screen apply and restore checked; separate signed Home rule required additional review and command tests | [2020 device report and helper source](frame-2020.md) |
 | QN43Q60BAFXZA, Tizen 6.5, Chromium 85 | Contributor reports rendering, navigation and hidden-boot work in their adapted fork; this branch reworks the boot path | Contributor reports query/apply/restore/reapply, cold boot and Home from Netflix | [PR #2](https://github.com/nthnclrk/CleanFrame/pull/2), [PR #5](https://github.com/nthnclrk/CleanFrame/pull/5) |
 | QA75LS03BASXNZ, Tizen 6.5, Chromium 85 | Contributor reports Dock labels and rounded utility focus fixed in their adapted build | No native Home result supplied | [PR #10](https://github.com/nthnclrk/CleanFrame/pull/10) |
 | Another 2025 Frame, Tizen 9 | Contributor reports saved apps, scrolling, Home from Netflix and appearance changes on their 0.6.4 build | Existing assignment retained during that update | [PR #7](https://github.com/nthnclrk/CleanFrame/pull/7) |
@@ -23,6 +24,11 @@ Contributor reports have not been reproduced by the maintainer. Browser regressi
 
 The maintained helper stays on its reference .NET 6 target and firmware guard. A .NET 3.1 build reported by a contributor has not been checked on the reference TV. Keep generated `bin/`, `obj/`, DLLs and debug symbols private; they can contain local paths and are not reviewed source.
 
-The current helper requires non-empty original Home and string values. It does not restore absent keys or an initially empty Home operation. Do not substitute Samsung Home for an empty or missing original value. That case needs a reviewed getter/reset contract and a separate reversible experiment.
+The [separate LS03T profile](../scripts/native-home/frame-2020/README.md) prepares
+owner-configured `netcoreapp3.0` helper source for the reported 2020 firmware.
+It does not extend the reference helper's allowlist. Its Home path supports the
+reviewed absent-default contract and rejects other original states.
+
+The reference helper requires non-empty original Home and string values. It does not restore absent keys or an initially empty Home operation. Do not substitute Samsung Home for an empty or missing original value. That case needs a reviewed getter/reset contract and a separate reversible experiment.
 
 Apply and restore use the same SDB execution transport. There is no independently verified recovery path if that transport stops working. Query/inspect also upload temporary files. Follow the [staged setup guide](agent-tv-setup-guide.md) under a separate device task, preserve the exact original values, and stop when transport, firmware, runtime, app identity or recovery differs. Keep DUIDs and recovery records private.
