@@ -42,3 +42,6 @@ PP*.woff2
 /explorations/
 /docs/research/
 /docs/articles/
+
+# Tizen CLI build output (signed artefacts; dist/ is already ignored).
+/app/.buildResult/
