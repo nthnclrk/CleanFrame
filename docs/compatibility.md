@@ -1,6 +1,6 @@
 # TV compatibility evidence
 
-Updated 28 October 2026. App rendering and native Home reassignment need separate evidence. Tizen version alone does not establish support. The source manifest requires Tizen 6.5; older adapted builds do not change that requirement.
+Updated 31 October 2026. App rendering and native Home reassignment need separate evidence. Tizen version alone does not establish support. The source manifest requires Tizen 6.5; older adapted builds do not change that requirement.
 
 ## Recorded results
 
@@ -14,10 +14,13 @@ Updated 28 October 2026. App rendering and native Home reassignment need separat
 | UE43NU7099, Tizen 4.0 | Contributor reports their signed launcher ran; current upstream Tizen 6.5 package remains outside this target | Tested developer transport could not stage/run the helper; no native settings read or written | [PR #8](https://github.com/nthnclrk/CleanFrame/pull/8) |
 | QN43LS03BAFXZA, Tizen 6.5, firmware 1720.7 | Contributor reports a derived launcher and Samsung Home escape work | Getter/setter/runtime activation and exact empty-value restoration unverified | [Issue #1](https://github.com/nthnclrk/CleanFrame/issues/1) |
 | QA55Q8FAAULXL, Tizen 9, firmware 1300.9 | Contributor reports navigation, launching and saved preferences work | No native experiment; independent recovery unresolved | [Issue #3](https://github.com/nthnclrk/CleanFrame/issues/3) |
+| QN55S85FAGXPE (2025 OLED S85F), Tizen 9, firmware T-PTMFUABC-0090-1301.0 | Contributor reports signed installation and launch through Apps2Samsung with a Public certificate, and normal remote use of the installed build | Contributor reports query, apply, restore and re-apply with a locally adapted firmware guard, Home and cold boot into the launcher, Home from YouTube, and Samsung Home from the launcher | [PR #18](https://github.com/nthnclrk/CleanFrame/pull/18) |
 | UN65U7900FFXZA, Tizen 9, firmware 1300.8 | Contributor reports installation and navigation work | Helper correctly refuses this untested target | [Issue #9](https://github.com/nthnclrk/CleanFrame/issues/9) |
 | UN43M70HAFXZX, Tizen 10, firmware 1203.9 | No launcher result supplied | No verified native Home or restore result | [Issue #1 comment](https://github.com/nthnclrk/CleanFrame/issues/1#issuecomment-6351927784) |
 
 Contributor reports have not been reproduced by the maintainer. Browser regression checks cannot verify a TV compositor, native Samsung destination, remote feel or cold boot. The exact Q60B production firmware revision remains to be established: its reported `Version` field was a placeholder, alongside a dated build ID. It is not an exact-firmware allowlist entry.
+
+The S85F entry was produced with a locally adapted firmware guard for `T-PTMFUABC-0090-1301.0`. The maintained guard is unchanged and still refuses that target; the adaptation and its diff were not proposed for merge.
 
 ## Native Home limits
 
