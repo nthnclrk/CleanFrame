@@ -57,7 +57,17 @@
     } catch (err) { finish(failure(err)); }
   }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
-  function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
+  /* A 2020 Frame on Tizen 5.5 starts com.samsung.tv.coba.setting without showing it;
+     org.tizen.menu opened its visible TV settings. Unknown versions keep the original target. */
+  function platformMajor() {
+    try { return parseInt(window.tizen.systeminfo.getCapability('http://tizen.org/feature/platform.version'), 10) || 0; }
+    catch (err) { return 0; }
+  }
+  function settingsTarget() {
+    var major = platformMajor();
+    return major > 0 && major < 6 ? 'org.tizen.menu' : 'com.samsung.tv.coba.setting';
+  }
+  function settings(done) { launchApp(settingsTarget(), done); }
   function apps(done) {
     if (!api()) { unavailable(done); return; }
     // Large installed catalogues can take longer than a launch response.

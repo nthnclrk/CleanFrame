@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../app/device.js', import.meta.url), 'utf8');
-function harness() {
+function harness(platformVersion) {
   let now = 0, next = 0;
   const timers = new Map(), requests = [], launches = [];
   const application = {
@@ -14,6 +14,13 @@ function harness() {
     launch: (id, ok, fail) => launches.push({ id, ok, fail })
   };
   const window = { tizen: { application } };
+  if (platformVersion !== undefined) {
+    window.tizen.systeminfo = { getCapability: key => {
+      assert.equal(key, 'http://tizen.org/feature/platform.version');
+      if (platformVersion instanceof Error) throw platformVersion;
+      return platformVersion;
+    } };
+  }
   vm.runInNewContext(source, {
     window, tizen: window.tizen,
     setTimeout: (callback, delay) => { const id = ++next; timers.set(id, { callback, at: now + delay }); return id; },
@@ -78,4 +85,16 @@ test('launch keeps its eight-second deadline independently of discovery', () => 
   assert.match(results[0].message, /did not respond/);
   h.launches[0].ok();
   assert.equal(results.length, 1);
+});
+
+test('TV settings uses the visible menu only on platforms before Tizen 6', () => {
+  const cases = [['5.5', 'org.tizen.menu'], ['5.0', 'org.tizen.menu'], ['6.5', 'com.samsung.tv.coba.setting'],
+    ['9.0', 'com.samsung.tv.coba.setting'], ['', 'com.samsung.tv.coba.setting'],
+    [new Error('Unsupported'), 'com.samsung.tv.coba.setting'], [undefined, 'com.samsung.tv.coba.setting']];
+  for (const [version, target] of cases) {
+    const h = harness(version);
+    h.device.settings(() => {});
+    assert.equal(h.launches.length, 1);
+    assert.equal(h.launches[0].id, target, String(version));
+  }
 });
