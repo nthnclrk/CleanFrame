@@ -42,6 +42,27 @@ def override_identity(data, identity):
     return result
 
 
+def override_required_version(data, version):
+    """Change only the declared platform minimum; the source manifest keeps its own value."""
+    validate_required_version(version)
+    tags = list(re.finditer(rb'<tizen:application\b[^>]*>', data))
+    if len(tags) != 1:
+        raise ValueError('Expected one tizen:application tag in the source manifest.')
+    pattern = rb'(?<![\w:.-])(required_version\s*=\s*)([\"\'])([^\"\']*)\2'
+    tag, count = re.subn(pattern, lambda match: match[1] + match[2] + version.encode() + match[2], tags[0].group())
+    if count != 1:
+        raise ValueError('Expected one required_version attribute in the application tag.')
+    result = data[:tags[0].start()] + tag + data[tags[0].end():]
+    if XML.fromstring(result).find(APPLICATION).get('required_version') != version:
+        raise ValueError('Manifest required_version override could not be verified.')
+    return result
+
+
+def validate_required_version(version):
+    if not isinstance(version, str) or not re.fullmatch(r'[1-9][0-9]?\.[0-9]', version):
+        raise ValueError('required_version must be a Tizen platform version such as 5.5.')
+
+
 def validate_identity(identity):
     package = identity.get('package_id')
     app = identity.get('app_id')
@@ -67,7 +88,7 @@ def load_settings(root=ROOT):
             config = json.loads(path.read_text())
         except (ValueError, OSError):
             raise ValueError('Cannot read .local/signing.json as JSON.') from None
-    allowed = {'sdk_path', 'profile', 'password_file', 'package_id', 'app_id'}
+    allowed = {'sdk_path', 'profile', 'password_file', 'package_id', 'app_id', 'required_version'}
     if not isinstance(config, dict) or set(config) - allowed:
         raise ValueError('Unknown signing setting. See signing.example.json; do not put passwords in JSON.')
     if path.exists() and 'profile' not in config:
@@ -81,11 +102,14 @@ def load_settings(root=ROOT):
     if 'package_id' in config:
         identity = {key: config[key] for key in ['package_id', 'app_id']}
         validate_identity(identity)
+    required_version = config.get('required_version')
+    if required_version is not None:
+        validate_required_version(required_version)
     legacy_password = root / '.local/certificates/private/certificate-password.txt'
     # Only an absent config enables the original maintainer password-file default.
     password = config.get('password_file') if path.exists() else (str(legacy_password) if legacy_password.exists() else None)
     return {'sdk_path': local_path(config.get('sdk_path', '.local/tizen-sdk'), root).resolve(),
-            'profile': profile, 'identity': identity,
+            'profile': profile, 'identity': identity, 'required_version': required_version,
             'password_file': local_path(password, root) if password is not None else None}
 
 

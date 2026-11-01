@@ -90,7 +90,7 @@ def main(root=ROOT):
     dist = root / 'dist'
     dist.mkdir(exist_ok=True)
     unsigned = dist / 'CleanFrame-unsigned.wgt'
-    write_widget_archive(unsigned, root=root, identity=settings['identity'])
+    write_widget_archive(unsigned, root=root, identity=settings['identity'], required_version=settings.get('required_version'))
     # A fresh folder prevents a previous signed widget masking a failed build.
     signed_dir = Path(tempfile.mkdtemp(prefix='signed-', dir=dist))
     command = [str(cli), 'package', '-t', 'wgt', '-s', settings['profile'], '-o', str(signed_dir), '--', str(unsigned)]

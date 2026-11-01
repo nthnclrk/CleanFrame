@@ -12,7 +12,7 @@ from unittest.mock import patch
 import zipfile
 
 from font_assets import write_widget_archive
-from local_config import ROOT, load_settings, manifest_identity, override_identity, read_password
+from local_config import ROOT, load_settings, manifest_identity, override_identity, override_required_version, read_password
 import package
 from private_files import check_signed_widget, check_widget, private_path, secret_content
 
@@ -130,6 +130,27 @@ class ToolTests(unittest.TestCase):
         (self.root / 'app/notes.txt').write_bytes(b'-----BEGIN ' + b'ENCRYPTED PRIVATE KEY-----')
         with self.assertRaises(ValueError):
             write_widget_archive(output, root=self.root, include_private=False)
+
+    def test_required_version_overlay_keeps_source_manifest(self):
+        original = (self.root / 'app/config.xml').read_bytes()
+        self.assertIsNone(self.config(profile='Synthetic profile')['required_version'])
+        settings = self.config(profile='Synthetic profile', required_version='5.5')
+        self.assertEqual(settings['required_version'], '5.5')
+        identity = {'package_id': 'AbCdEf1234', 'app_id': 'AbCdEf1234.MyHome'}
+        output = self.root / 'widget.wgt'
+        write_widget_archive(output, root=self.root, include_private=False, identity=identity, required_version='5.5')
+        with zipfile.ZipFile(output) as archive:
+            manifest = archive.read('config.xml')
+        self.assertEqual(manifest_identity(manifest), identity)
+        self.assertIn(b'required_version="5.5"', manifest)
+        self.assertEqual(manifest.replace(b'required_version="5.5"', b'required_version="6.5"'),
+                         original.replace(b'nClrkHome1.FrameHome', b'AbCdEf1234.MyHome').replace(b'nClrkHome1', b'AbCdEf1234'))
+        self.assertEqual((self.root / 'app/config.xml').read_bytes(), original)
+        for value in ['5', '5.5.0', 'latest', 5.5, '05.5']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.config(profile='Synthetic profile', required_version=value)
+        with self.assertRaises(ValueError):
+            override_required_version(original.replace(b' required_version="6.5"', b''), '5.5')
 
     def test_export_ignores_local_signing_config(self):
         output = self.root / 'public.wgt'
