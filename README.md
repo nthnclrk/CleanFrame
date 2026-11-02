@@ -6,7 +6,7 @@ A quieter home screen for Samsung The Frame. Your apps, a photograph and the tim
 
 I built CleanFrame for one TV: my own Samsung The Frame, running Tizen. I'm sharing the code and setup notes as a starting point for other people to build on.
 
-**Use it at your own risk.** Most of the work has gone into making it work well on my TV. Very little has gone into making it portable. The setup scripts reflect my computer, TV and firmware, so expect to adapt them and test the result on your own hardware.
+**Use it at your own risk.** The web launcher targets Tizen 5.0 and later for installation, with [owner reports](docs/compatibility.md) across several models. That minimum is not a promise that every device flow is verified. The TV setup scripts and native Home helpers still reflect specific computers and firmware, so adapt them and test on your own hardware.
 
 I highly recommend forking it and building on top of it, ideally with a coding agent that can help you understand and adapt the setup. Start with the browser preview, make the interface your own, then work through TV installation when you're ready. Native Home/startup changes need particular care; the setup guide covers the risks and recovery steps.
 
@@ -32,6 +32,7 @@ The public preview uses the included Manrope, Geist and Newsreader fonts.
 - Adjust typography, focus and glass materials through the same Settings interface.
 - Choose and reorder Home apps; discover installed apps on the TV.
 - Select from fifteen wallpapers and save your preferences locally.
+- Open Settings → Samsung → Inputs to choose a discovered HDMI source.
 
 The glass and blur are rendered ahead of time. The TV loads the finished images and uses transforms and opacity for focus feedback.
 
@@ -55,6 +56,8 @@ See [working with an agent](docs/for-agents.md) for the TV setup prompt and the 
 
 Use the staged [Samsung The Frame setup guide](docs/agent-tv-setup-guide.md) to understand the process used on my TV and adapt it to yours. It covers the remote's Developer Mode sequence, official Samsung tools, your own certificates and app identity, installation, visible checks and recovery.
 
+The [latest release](https://github.com/nthnclrk/CleanFrame/releases/latest) includes an unsigned, public-font widget for inspection and adaptation. For your installation, build from source using your own identity in `.local/signing.json` and sign with your own certificates. The download is not a ready-to-install signed package.
+
 Signing supports an ignored `.local/signing.json` based on `signing.example.json`: select your SDK, existing certificate profile and your own SDK-generated app identity. See [local signing setup](docs/development.md#local-tv-tools-and-signing). The TV installation commands and native Home helper still contain reference-machine assumptions. Your agent must check the installed-app IDs and each device stage with you. Installing the app and assigning the remote Home button are separate steps.
 
 | Area | Evidence and limits |
@@ -63,7 +66,9 @@ Signing supports an ignored `.local/signing.json` based on `signing.example.json
 | App installation | Signed installation and launch commands succeeded through 0.6.1. Latest rendering and remote feel still need physical observation. |
 | App launch and Home | Netflix/YouTube launch and physical Home from Netflix were confirmed on the reference setup. |
 | Still open | Normal power-on after streaming/Art Mode, corrected Smart Hub escape and native Art Mode destinations need definite physical checks. |
-| Other TVs | No compatibility claim. This is Tizen source; Android TV, Google TV, LG webOS and Roku need their own implementations. |
+| Other TVs | Web installation target: Tizen 5.0+. See the attributed [device reports](docs/compatibility.md) for tested flows and omissions. Android TV, Google TV, LG webOS and Roku need separate implementations. |
+
+The optional [2020 LS03T profile](scripts/native-home/frame-2020/README.md) supplies experimental owner-configured native source. It leaves the reference helper unchanged and is not an unattended installer.
 
 The detailed [device record](docs/tv-status.md) separates observed results from SDK responses. Native Home/startup uses undocumented, guarded helpers; it is optional and can fail after firmware changes. Keep a recovery baseline before attempting that work. The app can be opened manually without it.
 
@@ -78,7 +83,7 @@ npm run check:public
 npm run export:public
 ```
 
-The browser checks use isolated Chromium profiles and a loopback preview. They never contact a TV. The public export creates `dist/CleanFrame-public-unsigned.wgt`, with public fonts and notices. It needs your own identity and signing before installation. It does not certify asset redistribution rights or device compatibility.
+`npm run check`, including its `check:device` command, runs only source checks and synthetic device-adapter tests. It never connects to a TV. The browser checks use isolated Chromium profiles and a loopback preview. They never contact a TV. The public export creates `dist/CleanFrame-public-unsigned.wgt`, with public fonts and notices. It needs your own identity and signing before installation. It does not certify asset redistribution rights or device compatibility.
 
 | Location | Purpose |
 | --- | --- |

@@ -10,7 +10,7 @@ npx playwright install chromium
 npm run check:browser
 ```
 
-`check` runs ES5 runtime lint, validates package identity/version and bundled resources, then tests the production device adapter with a synthetic API/clock. It does not contact a TV. `check:browser` uses a fresh Playwright Chromium profile and its own loopback preview. It checks List and Dock navigation, single focus, Home controls, grouped Settings, explicit OK application, applied checkmarks, pending-load cancellation, retries, persistence, all fifteen wallpaper bundles, available fonts, 720p scaling, migrations, the Home editor and honest browser-only launch errors. Reports and screenshots are in ignored `.local/qa/`. A failed assertion exits with a nonzero status.
+`check` runs ES5 runtime lint, validates package identity/version and bundled resources, then tests the production device adapter with a synthetic API/clock. `check:device` is the synthetic adapter test included in this command, despite its name. Neither command contacts a TV. `check:browser` uses a fresh Playwright Chromium profile and its own loopback preview. It checks List and Dock navigation, single focus, Home controls, grouped Settings, explicit OK application, applied checkmarks, pending-load cancellation, retries, persistence, all fifteen wallpaper bundles, available fonts, 720p scaling, migrations, the Home editor and honest browser-only launch errors. Reports and screenshots are in ignored `.local/qa/`. A failed assertion exits with a nonzero status.
 
 For public-source validation, set `CLEANFRAME_PUBLIC_FONTS=1` when running `check:browser`; the preview helper then excludes the local proprietary overlay. Run `npm run check:public` for the bounded source/history checks and `npm run export:public` for a widget that always excludes private fonts. The GitHub Actions workflow uses this public path. Browser/package checks do not clear third-party asset rights or validate TV behaviour.
 
@@ -30,6 +30,10 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/.local/playwright" npm run check:browser
 For manual review, use `npm run dev` and open `/home/`. Use the arrow keys, Enter and Escape. Check the changed flow in List and Dock, on Photo, Light and Dark backgrounds. Check a single app and all nine apps when changing app layout. In Settings, browse without applying, apply with OK, return with both Back routes, and cancel a pending resource load. Check editor placement/undo, wallpaper rotation pausing during panels/background time, and restored focus on return when those flows change. Browser preferences are separate from TV preferences.
 
 `CLEANFRAME_PUBLIC_FONTS=1 npm run check:performance` runs the existing 4× CPU-throttled Chromium regression screen. Compare navigation work, frame stalls, retained DOM/heap and live-filter checks before and after rendering changes. This is not a physical-TV benchmark.
+
+## Optional native-profile checks
+
+`python3 -B scripts/native-home/frame-2020/check.py` checks owner-specific source preparation for the experimental LS03T profile. Adding `--dotnet <host-sdk-path>` also compiles its legacy TV targets and runs host-side policy checks with synthetic states. These checks do not call a native TV API or deploy the repackaged templates. The profile is outside the default `check:tools` command; see its [own instructions](../scripts/native-home/frame-2020/README.md).
 
 ## Physical TV checks
 

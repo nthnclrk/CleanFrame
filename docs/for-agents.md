@@ -1,12 +1,12 @@
 # Working with a coding agent
 
-CleanFrame was built for one TV, with very little work on portability. Treat the source and setup notes as a starting point to adapt, and explain that use is at the owner's risk. Inspect the actual scripts and hardware assumptions before proposing device commands.
+CleanFrame began on one TV. The web launcher now has a Tizen 5.0 installation floor, with attributed owner reports for other models. Treat the source and setup notes as a starting point to adapt, and explain that use is at the owner’s risk; the minimum does not establish every device flow. Inspect the actual scripts and hardware assumptions before proposing device commands.
 
 Choose the scope before starting: a browser contribution, an independently signed app or a native Home experiment. Each needs a different level of local access and owner authority.
 
 ## Change the interface
 
-Use the browser-only prompt in the README. Read `AGENTS.md`, then the development and interaction docs. Run the public-font preview so the result is reproducible on a clean clone. Finish with source validation, relevant browser checks, a screenshot for visual changes and a clear statement of what needs physical TV observation.
+Use the browser-only prompt in the README. Read `AGENTS.md`, then the development and interaction docs. `npm run check` and `check:device` are offline source/synthetic-adapter checks. Run the public-font preview so the result is reproducible on a clean clone. Finish with source validation, relevant browser checks, a screenshot for visual changes and a clear statement of what needs physical TV observation.
 
 The current app uses List and Dock, fifteen wallpapers and separate appearance settings. `app/main.js` handles interaction; `app/device.js` owns device calls. The existing storage migration keeps older installations usable.
 
@@ -38,6 +38,8 @@ The setup guide supplies the stage-by-stage instructions and completion criteria
 This is an optional, undocumented firmware-specific experiment. Read the native section of the setup guide and `scripts/native-home/README.md`. Check the actual model, firmware, API capability, user permissions and original values. Query/inspect also stages temporary files, so it is a device operation. The helper has hard-coded guards for the reference TV and requires private compiled output and a recovery baseline.
 
 Prepare exact-value apply and restore commands for the owner's own app ID before requesting authority to execute them. Test rollback, confirm the physical Home destination and keep unknown power-on/Art Mode behaviour marked unknown. The guide's native-stage prompt is the separate authorisation point. A successful launch callback or settings readback is insufficient proof.
+
+A separate [experimental 2020 LS03T profile](../scripts/native-home/frame-2020/README.md) prepares owner-configured native source offline. It does not widen the reference guard or supply a supported install/transport path. Its Home router registers a key rule during installation, before a C# guard can run. Require exact model/firmware and recovery preflight in the owner’s procedure; do not treat source preparation as authority for device use.
 
 ## Public distribution
 

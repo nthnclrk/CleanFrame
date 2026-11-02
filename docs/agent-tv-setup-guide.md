@@ -234,15 +234,21 @@ A contributor reported that the tested SDB route on a 2018 Samsung UE43NU7099 (T
 
 During an explicitly authorised device task, check the developer capabilities and a harmless shell command before preparing a helper. Stop if the reviewed execution and recovery transport is unavailable. A native query can still require temporary staging.
 
+A `closed` result for arbitrary shell commands does not by itself establish whether the exact helper route works. The AU8000 report in [PR #15](https://github.com/nthnclrk/CleanFrame/pull/15) had ordinary commands closed while its reviewed `appinstall` argument route executed as the SDK user. The LS03F report in [issue #16](https://github.com/nthnclrk/CleanFrame/issues/16) instead had the tested execution and readback routes blocked, so baseline capture could not start. During an authorised device task, check the exact staging, execution and recovery path. A return code alone is insufficient.
+
+The reference helper is not Home-only: apply also enables autostart and the recovery path handles startup settings. It accepts baseline autostart `0` or `1`, then requires the live state to match the saved original. After a settings change, an older query snapshot is stale. Do not use the reference apply command for a Home-only request or widen its guards just because Tizen, ARM architecture or a version number matches another TV. See [issues #21](https://github.com/nthnclrk/CleanFrame/issues/21) and [#24](https://github.com/nthnclrk/CleanFrame/issues/24).
+
+The separate [2020 LS03T profile](../scripts/native-home/frame-2020/README.md) is experimental source with its own operation/first-screen contracts. Its repackaged templates have not been deployed. Packaging, signing, exact-model preflight and transport remain owner-supplied. Installing its optional Home-router manifest registers a key rule before any companion C# guard runs; review that preflight and registry backup/removal procedure before installation.
+
 ### Prepare recovery before any native write
 
-1. Verify the exact model, firmware, architecture, SDK identity, native libraries and runtime. The reference helper used the TV's .NET 6 runtime on 32-bit ARM. Confirm your installed launcher is eligible for boot. Stop if compatibility differs; don't disable guards to force it through.
+1. Verify the exact model, firmware, architecture, SDK identity, native libraries and runtime. The reference helper used the TV's .NET 6 runtime on 32-bit ARM. If the proposed change includes startup, confirm the installed launcher is eligible for boot. Stop if compatibility differs; don't disable guards to force it through.
 2. Prepare a bounded helper targeting **your application ID and package**, with firmware/model checks, readback and exact-value restore. Review its source and transport before running it. A read-only query may still upload temporary files and needs device-operation permission.
 3. Capture **your TV's** original native Home operation and the typed settings below before applying anything. Save a private original snapshot once. Never substitute another owner's values or overwrite it with the applied state.
 4. Back up the snapshot, helper/source revision, compiled outputs and exact recovery instructions outside the working project. Ensure restore can reconnect and re-stage its files after temporary device files disappear.
 5. Show the owner the resolved target ID, proposed changes, query/apply/restore commands and risks. Obtain explicit authorisation before native settings are changed.
 
-The baseline must include the native Home assignment plus:
+For the reference helper, the baseline must include the native Home assignment plus:
 
 | Setting | Type |
 | --- | --- |
@@ -251,6 +257,8 @@ The baseline must include the native Home assignment plus:
 | `db/appfw/booting_appid_backup` | String |
 | `db/first_screen/type` | String |
 | `db/menu/smart_hub/ontvsetting/auto_start` | Integer |
+
+A separate reviewed profile may use a different original-state contract, such as the LS03T’s absent Home operation. Keep that profile’s baseline separate. Do not create missing keys or fill them with another TV’s values to imitate the reference snapshot.
 
 Use native value setters rather than direct database edits. Preserve permissions and unrelated settings. Keep the original snapshot and diagnostics private.
 
