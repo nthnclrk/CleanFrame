@@ -37,6 +37,65 @@
     function finish(err, value) { if (finished) return; finished = true; clearTimeout(timer); done(err, value); }
     return finish;
   }
+  var sourceCancel = null;
+  function cancelSource() { if (sourceCancel) sourceCancel(); }
+  function sources(done) {
+    var sys = window.tizen && window.tizen.systeminfo, tvw = window.tizen && window.tizen.tvwindow;
+    if (!sys || typeof sys.getPropertyValue !== 'function' || !tvw || typeof tvw.setSource !== 'function') { unavailable(done); return; }
+    var finish = bounded(done);
+    try {
+      sys.getPropertyValue('VIDEOSOURCE', function (video) {
+        var list = [], byPort = {}, active = null;
+        try { if (typeof tvw.getSource === 'function') active = tvw.getSource(); } catch (err) { /* Status may be unavailable while discovery still works. */ }
+        function record(src, connected) {
+          if (!src || src.type !== 'HDMI' || typeof src.number !== 'number' || !isFinite(src.number) || src.number < 0 || Math.floor(src.number) !== src.number) return;
+          var key = String(src.number), item = byPort[key];
+          if (!item) {
+            item = { number: src.number, name: 'HDMI ' + src.number, connected: false, active: !!(active && active.type === 'HDMI' && active.number === src.number), source: src };
+            byPort[key] = item; list.push(item);
+          }
+          if (connected) { item.connected = true; item.source = src; }
+        }
+        if (video && Array.isArray(video.disconnected)) video.disconnected.forEach(function (src) { record(src, false); });
+        if (video && Array.isArray(video.connected)) video.connected.forEach(function (src) { record(src, true); });
+        list.sort(function (a, b) { return a.number - b.number; });
+        finish(null, list);
+      }, function (err) { finish(failure(err)); });
+    } catch (err) { finish(failure(err)); }
+  }
+  function setSource(port, done) {
+    cancelSource();
+    var tvw = window.tizen && window.tizen.tvwindow, app = api(), finished = false;
+    if (typeof port !== 'number' || !isFinite(port) || port < 0 || Math.floor(port) !== port) { done({ message: 'This HDMI input is not available.' }); return; }
+    if (!tvw || typeof tvw.setSource !== 'function' || !app || typeof app.launch !== 'function') { unavailable(done); return; }
+    var timer = setTimeout(function () { finish({ message: 'The TV did not respond. Please try again.' }); }, 8000);
+    function finish(err, value) {
+      if (finished) return;
+      finished = true; clearTimeout(timer);
+      if (sourceCancel === cancel) sourceCancel = null;
+      done(err, value);
+    }
+    function cancel() { finish({ message: 'Input change cancelled.', cancelled: true }); }
+    sourceCancel = cancel;
+    sources(function (err, list) {
+      if (finished) return;
+      if (err) { finish(err); return; }
+      var input = null;
+      list.some(function (item) { if (item.number === port) { input = item; return true; } return false; });
+      if (!input) { finish({ message: 'This HDMI input is no longer available.' }); return; }
+      try {
+        tvw.setSource(input.source, function (selected) {
+          if (finished) return;
+          if (selected && (selected.type !== 'HDMI' || selected.number !== port)) { finish({ message: 'The TV selected a different input. Please try again.' }); return; }
+          try {
+            app.launch('org.tizen.tv-viewer', function () { finish(null, input); }, function () {
+              finish({ message: 'The input was selected, but the TV viewer could not open.', detail: 'Use the remote’s Source control to view the input.' });
+            });
+          } catch (error) { finish({ message: 'The input was selected, but the TV viewer could not open.' }); }
+        }, function (error) { if (!finished) finish(failure(error)); });
+      } catch (error) { finish(failure(error)); }
+    });
+  }
   function launchApp(id, done) {
     if (!api()) { unavailable(done); return; }
     var finish = bounded(done);
@@ -80,5 +139,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource };
 }());

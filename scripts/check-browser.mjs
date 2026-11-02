@@ -42,7 +42,7 @@ async function run(name, fn) {
 async function closePage() { if (current) { current.__closing = true; await current.close(); current = null; } }
 
 // Production still calls its unmodified device.js adapter.
-function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure, noFontAPI, storageFailure, currentAppId, initiallyHidden, pauseHiddenFrames, rejectDecode }) {
+function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure, noFontAPI, storageFailure, currentAppId, initiallyHidden, pauseHiddenFrames, rejectDecode, inputUnavailable }) {
   if (!sessionStorage.getItem('__cleanframe_seeded')) {
     if (seed !== undefined) localStorage.setItem('cleanframe.home.v1', typeof seed === 'string' ? seed : JSON.stringify(seed));
     if (legacy !== undefined) localStorage.setItem('cleanframe.shore.v1', typeof legacy === 'string' ? legacy : JSON.stringify(legacy));
@@ -98,6 +98,21 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
       }
     }
   };
+  if (!inputUnavailable) {
+    __tv.inputRequests = []; __tv.sourceFailure = false; __tv.currentInput = 2;
+    __tv.videoSources = { connected: [{ type: 'HDMI', number: 2 }], disconnected: [{ type: 'HDMI', number: 1 }, { type: 'HDMI', number: 3 }] };
+    tizen.systeminfo = { getPropertyValue(name, ok, fail) {
+      const finish = () => __tv.inputDiscoveryFailure ? fail({ name: 'SecurityError' }) : ok(__tv.videoSources);
+      if (__tv.holdInputs) __tv.inputRequests.push(finish); else setTimeout(finish, 0);
+    } };
+    tizen.tvwindow = {
+      getSource() { return { type: 'HDMI', number: __tv.currentInput }; },
+      setSource(source, ok, fail) {
+        __tv.calls.push({ method: 'setSource', number: source.number });
+        setTimeout(() => { if (__tv.sourceFailure) fail({ name: 'SecurityError' }); else { __tv.currentInput = source.number; ok(source); } }, 0);
+      }
+    };
+  }
 }
 async function page(options = {}, setup) {
   current = await preview.browser.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -395,6 +410,42 @@ try {
       });
       check('Wallpaper name and count retain their separation at ' + width, Math.abs(caption - 24) < .5, caption);
     }
+  });
+  await run('HDMI input chooser and recovery', async () => {
+    await page();
+    for (const width of [1920, 1280]) for (const layout of ['dock', 'list']) {
+      await current.setViewportSize({ width, height: width * 9 / 16 }); await look({ layout });
+      await group('samsung'); await act('samsung.inputs');
+      await current.waitForSelector('[data-action="input.1"]');
+      const entries = await current.locator('.section-inputs .setting-choice').allTextContents();
+      check('Inputs reflect actual ports and sleeping/active status ' + layout + '/' + width,
+        entries.length === 3 && entries.some(x => /HDMI 1.*Disconnected/.test(x)) && entries.some(x => /HDMI 2.*Active/.test(x)) && !entries.some(x => /HDMI 4/.test(x)), entries);
+      check('Inputs fit and retain one focus ' + layout + '/' + width, await current.locator('.section-inputs .setting-choice').evaluateAll(elements => {
+        const stage = document.getElementById('stage').getBoundingClientRect();
+        return ShoreQA.where().focusCount === 1 && elements.every(e => { const r=e.getBoundingClientRect(); return r.top>=stage.top && r.bottom<=stage.bottom && r.left>=stage.left && r.right<=stage.right; });
+      }));
+      await current.screenshot({ path: out + 'inputs-' + layout + '-' + width + '.png' });
+      await nav('back');
+      check('Inputs Back returns to Samsung entry ' + layout + '/' + width, (await state()).settingsGroup === 'samsung' && (await state()).focusAction === 'samsung.inputs');
+    }
+    await act('samsung.inputs'); await current.waitForSelector('[data-action="input.1"]');
+    await act('input.1'); await current.waitForFunction(() => __tv.calls.some(c => c.id === 'org.tizen.tv-viewer'));
+    check('Sleeping input selects its exact port before viewer handoff', await current.evaluate(() => __tv.calls[0].method === 'setSource' && __tv.calls[0].number === 1 && __tv.calls[1].id === 'org.tizen.tv-viewer'));
+    await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.sourceFailure = true; __tv.calls = []; });
+    await act('input.2'); await current.waitForFunction(() => ShoreQA.state().view === 'message');
+    check('Failed input selection displays an error and keeps viewer closed', (await current.locator('#stage').innerText()).includes('could not') && await current.evaluate(() => __tv.calls.length === 1));
+    await nav('back', 'back');
+    await current.evaluate(() => { __tv.holdInputs = true; });
+    await act('samsung.inputs'); await nav('back');
+    await current.evaluate(() => __tv.inputRequests.splice(0).forEach(f => f()));
+    check('Late discovery cannot reopen a closed chooser', (await state()).settingsGroup === 'samsung' && (await call('where')).focusCount === 1);
+    await closePage(); await page({ inputUnavailable: true }); await group('samsung'); await act('samsung.inputs');
+    check('Unavailable source API offers retry without invented ports', !(await current.locator('[data-action^="input."]').count()) && (await current.locator('#stage').innerText()).includes('Open CleanFrame on the TV'));
+    await nav('back'); check('Unavailable inputs remain escapable', (await state()).settingsGroup === 'samsung');
+    await closePage(); await page(); await current.evaluate(() => { __tv.videoSources = { connected: [], disconnected: [] }; });
+    await group('samsung'); await act('samsung.inputs');
+    await current.waitForSelector('[data-action="inputs.retry"]');
+    check('Empty inventory is truthful', (await current.locator('#stage').innerText()).includes('No HDMI inputs were reported'));
   });
   await run('Real catalogue and native launch boundary', async () => {
     await page(); await library();
