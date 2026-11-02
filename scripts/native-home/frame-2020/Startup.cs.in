@@ -1,0 +1,123 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text.Json;
+class Startup
+{
+    const string Target = "@@LAUNCHER_APP_ID@@", Original = "com.samsung.tv.csfs";
+    const string Firmware = "T-NKMDEUC-2743.0";
+    const string Key = "db/first_screen/type", Auto = "db/menu/smart_hub/ontvsetting/auto_start";
+    const string Folder = "/home/owner/share/tmp/sdk_tools/", Log = "/tmp/cf2020startup-result.txt";
+    [DllImport("libc")] static extern uint getuid();
+    [DllImport("libc")] static extern void free(IntPtr p);
+    [DllImport("libvconf.so.0")] static extern IntPtr vconf_get_str(string key);
+    [DllImport("libvconf.so.0")] static extern int vconf_get_int(string key, out int value);
+    [DllImport("libvconf.so.0")] static extern int vconf_set_str(string key, string value);
+    [DllImport("libapp-context-manager-common.so")] static extern int util_get_appbooting_supported_webapp_byappid(string app, out int supported);
+    static string Read()
+    {
+        IntPtr p = vconf_get_str(Key);
+        if (p == IntPtr.Zero) return null;
+        try { return Marshal.PtrToStringAnsi(p); }
+        finally { free(p); }
+    }
+    static string Hash(string path)
+    {
+        using (var sha = SHA256.Create()) using (var file = File.OpenRead(path))
+            return BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "").ToLowerInvariant();
+    }
+    static void Guard()
+    {
+        if (IntPtr.Size != 4 || getuid() != 901) throw new Exception("ARM32 SDK user required");
+        if (!File.ReadAllText("/etc/prd_info.ini").Contains("Version=" + Firmware + ";"))
+            throw new Exception("Firmware changed; review before use");
+        if (Hash("/usr/lib/libapp-context-manager-common.so") != "eae34517ca2cd39c29bfde2caee3d5ab665d8dba137e9a6c146f7bda84931997" ||
+            Hash("/usr/bin/app-boot-manager") != "b09445aaebe2ac6ce6b54252fe0506bbfd5010a0b673398e2f749c62fb05de3d")
+            throw new Exception("Native library or boot manager changed");
+    }
+    static void Set(string value)
+    {
+        int rc = vconf_set_str(Key, value);
+        string actual = Read();
+        if (rc != 0 || actual != value) throw new Exception("Startup write/readback failed: rc=" + rc + ", actual=" + actual);
+    }
+    public class Baseline
+    {
+        public string Firmware { get; set; }
+        public string TargetApp { get; set; }
+        public string FirstScreen { get; set; }
+        public int AutoStart { get; set; }
+    }
+    static string BaselinePath = Folder + "cf2020startup-original.json";
+    public static bool ValidBaseline(Baseline b)
+    {
+        return b != null && b.Firmware == Firmware && b.TargetApp == Target && b.FirstScreen == Original && b.AutoStart == 1;
+    }
+    public static bool CanApply(Baseline b, string current, bool installed, int autoReturn, int autoValue, bool eligible)
+    {
+        return ValidBaseline(b) && current == b.FirstScreen && installed && autoReturn == 0 &&
+            autoValue == 1 && autoValue == b.AutoStart && eligible;
+    }
+    public static bool CanRestore(Baseline b, string current)
+    {
+        return ValidBaseline(b) && (current == Target || current == b.FirstScreen);
+    }
+    static Baseline RequireBaseline()
+    {
+        var baseline = JsonSerializer.Deserialize<Baseline>(File.ReadAllText(BaselinePath));
+        if (!ValidBaseline(baseline)) throw new Exception("Original startup baseline is missing or does not match this profile");
+        return baseline;
+    }
+    static void Capture(string before, int autoReturn, int autoValue)
+    {
+        var baseline = new Baseline { Firmware = Firmware, TargetApp = Target, FirstScreen = before, AutoStart = autoValue };
+        if (autoReturn != 0 || !ValidBaseline(baseline))
+            throw new Exception("Capture requires the reviewed original first-screen and autostart values");
+        using (var file = new FileStream(BaselinePath, FileMode.CreateNew, FileAccess.Write))
+        using (var writer = new StreamWriter(file)) writer.Write(JsonSerializer.Serialize(baseline));
+    }
+    static int Main()
+    {
+        File.WriteAllText(Log, "");
+        try
+        {
+            string mode = File.ReadAllText(Folder + "cf2020startup-mode.txt").Trim();
+            if (mode != "query" && mode != "capture" && mode != "apply" && mode != "restore") throw new Exception("Unknown mode");
+            Guard();
+            string before = Read();
+            int autoValue;
+            int autoReturn = vconf_get_int(Auto, out autoValue);
+            if (mode == "capture") Capture(before, autoReturn, autoValue);
+            if (mode == "apply")
+            {
+                var baseline = RequireBaseline();
+                bool installed = Directory.Exists("/opt/usr/apps/@@LAUNCHER_PACKAGE_ID@@");
+                int supported = 0;
+                bool eligible = installed && util_get_appbooting_supported_webapp_byappid(Target, out supported) == 0 && supported == 1;
+                if (!CanApply(baseline, before, installed, autoReturn, autoValue, eligible))
+                    throw new Exception("Apply requires the original baseline, installed launcher, matching autostart and eligibility");
+                try { Set(Target); }
+                catch
+                {
+                    try { if (Read() == Target) Set(baseline.FirstScreen); }
+                    catch (Exception error) { File.AppendAllText(Log, "RECOVERY_FAILED=" + error.Message + "\n"); }
+                    throw;
+                }
+            }
+            else if (mode == "restore")
+            {
+                var baseline = RequireBaseline();
+                if (!CanRestore(baseline, before)) throw new Exception("Unexpected first-screen target; no restore write made");
+                if (before == Target) Set(baseline.FirstScreen);
+            }
+            string result = "CLEANFRAME_STARTUP_JSON=" + JsonSerializer.Serialize(new {
+                Mode = mode, Before = before, After = Read(), Target = Target, Original = Original, ChangedKey = Key,
+                AutoStartReturn = autoReturn, AutoStart = autoReturn == 0 ? (int?)autoValue : null
+            });
+            File.AppendAllText(Log, result + "\n");
+            return 0;
+        }
+        catch (Exception error) { File.AppendAllText(Log, "ERROR=" + error + "\n"); return 1; }
+    }
+}
