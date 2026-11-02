@@ -14,7 +14,7 @@ import zipfile
 from font_assets import write_widget_archive
 from local_config import ROOT, load_settings, manifest_identity, override_identity, read_password
 import package
-from private_files import check_signed_widget, check_widget, private_path, secret_content
+from private_files import check_signed_widget, check_widget, generated_path, private_path, secret_content
 
 
 class ToolTests(unittest.TestCase):
@@ -140,6 +140,41 @@ class ToolTests(unittest.TestCase):
         write_widget_archive(output, root=self.root, include_private=False)
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(before, {name: archive.read(name) for name in archive.namelist()})
+
+    def test_sdk_output_is_not_a_widget_input(self):
+        output = self.root / 'public.wgt'
+        write_widget_archive(output, root=self.root, include_private=False)
+        with zipfile.ZipFile(output) as archive:
+            before = {name: archive.read(name) for name in archive.namelist()}
+        for name in ['.buildResult/author.pfx', 'nested/.BUILDRESULT/assets/private-fonts/copied.ttf',
+                     '.buildResult/signature1.xml']:
+            path = self.root / 'app' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'-----BEGIN ' + b'PRIVATE KEY-----')
+        (self.root / 'app/.buildResult/copied-link').symlink_to(self.password())
+        original_read = Path.read_bytes
+        def read_source(path):
+            if generated_path(str(path)):
+                self.fail('SDK output must be skipped before its contents are read')
+            return original_read(path)
+        with patch.object(Path, 'read_bytes', read_source):
+            write_widget_archive(output, root=self.root, include_private=False)
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(before, {name: archive.read(name) for name in archive.namelist()})
+
+    def test_incoming_widget_rejects_sdk_output(self):
+        output = self.root / 'imported.wgt'
+        for name in ['.buildResult/index.html', 'nested/.BUILDRESULT/copy.txt',
+                     r'nested\.buildResult\copy.txt']:
+            for signed in [False, True]:
+                with self.subTest(name=name, signed=signed):
+                    with zipfile.ZipFile(output, 'w') as archive:
+                        archive.writestr(name, 'Synthetic copied build output')
+                        if signed:
+                            archive.writestr('author-signature.xml', '<Signature/>')
+                            archive.writestr('signature1.xml', '<Signature/>')
+                    with self.assertRaisesRegex(ValueError, 'Private material in widget'):
+                        check_widget(output, require_signed=signed)
 
     def test_signed_widget_allows_public_certificates(self):
         output = self.root / 'signed.wgt'
@@ -283,6 +318,18 @@ with zipfile.ZipFile(target, 'a') as archive:
         self.assertIn('Git index: scripts/native-home/Control.dll', result.stderr)
         git('-c', 'user.name=Offline Test', '-c', 'user.email=offline@example.invalid', 'commit', '-qm', 'Generated fixtures')
         self.assertIn('reachable Git history: scripts/native-home/obj/build.json', check().stderr)
+        # Ignoring SDK output must not hide an indexed or renamed historical copy.
+        sdk_output = self.root / 'app/.buildResult/metadata.json'
+        sdk_output.parent.mkdir(parents=True)
+        sdk_output.write_text('{"synthetic": "SDK build copy"}')
+        with (self.root / '.gitignore').open('a') as ignore:
+            ignore.write('/app/.buildResult/\n')
+        git('add', '-f', 'app/.buildResult/metadata.json')
+        self.assertIn('Git index: app/.buildResult/metadata.json', check().stderr)
+        git('-c', 'user.name=Offline Test', '-c', 'user.email=offline@example.invalid', 'commit', '-qm', 'SDK output fixture')
+        git('mv', 'app/.buildResult/metadata.json', 'sdk-output-renamed.json')
+        git('-c', 'user.name=Offline Test', '-c', 'user.email=offline@example.invalid', 'commit', '-qm', 'Rename SDK output fixture')
+        self.assertIn('reachable Git history: app/.buildResult/metadata.json', check().stderr)
         # A rename must not hide a private historical filename for an existing blob.
         (self.root / 'old-store.pfx').write_bytes(b'Synthetic opaque certificate store')
         git('add', '-f', 'old-store.pfx')
@@ -320,13 +367,13 @@ with zipfile.ZipFile(target, 'a') as archive:
         (self.root / '.local/device.json').write_text(json.dumps({'host': '127.0.0.1'}))
         widget = self.root / 'dist/CleanFrame.wgt'
         widget.parent.mkdir()
-        for contaminated in [False, True]:
+        for contaminated in [None, 'private.pfx', '.BUILDRESULT/copy.txt']:
             with zipfile.ZipFile(widget, 'w') as archive:
                 archive.writestr('config.xml', (self.root / 'app/config.xml').read_bytes())
                 archive.writestr('author-signature.xml', '<Signature/>')
                 archive.writestr('signature1.xml', '<Signature/>')
                 if contaminated:
-                    archive.writestr('private.pfx', 'Synthetic credential')
+                    archive.writestr(contaminated, 'Synthetic private or generated file')
             result = subprocess.run([sys.executable, '-B', 'scripts/tv.py', 'install'], cwd=self.root, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             expected = b'Private material in widget' if contaminated else b'Widget identity differs'
@@ -336,7 +383,8 @@ with zipfile.ZipFile(target, 'a') as archive:
 
     def test_shared_policy_covers_reported_names(self):
         for name in ['config.local.json', 'signing.local.json', 'author.pfx', 'author.pkcs12',
-                     'author.jks', 'author.keystore', 'profiles.xml', '.local/signing.json']:
+                     'author.jks', 'author.keystore', 'profiles.xml', '.local/signing.json',
+                     'app/.BUILDRESULT/copy.txt', r'app\.buildResult\copy.txt']:
             with self.subTest(name=name):
                 self.assertTrue(private_path(name))
         self.assertFalse(private_path('signing.example.json'))
