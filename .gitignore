@@ -32,6 +32,7 @@ certificate-password.txt
 
 # Proprietary fonts are injected from .local/ at preview/package time.
 /app/assets/private-fonts/
+/app/.buildResult/
 PP*.ttf
 PP*.otf
 PP*.woff

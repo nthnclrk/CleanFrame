@@ -14,9 +14,14 @@ SECRET_PATTERNS = [
 ]
 
 
+def generated_path(name):
+    """SDK output can contain copied fonts, signatures and local credentials."""
+    return '.buildresult' in PurePosixPath(name.replace('\\', '/').lower()).parts
+
+
 def private_path(name):
     path = PurePosixPath(name.replace('\\', '/').lower())
-    return (any(part in {'.local', '.git'} for part in path.parts)
+    return (generated_path(name) or any(part in {'.local', '.git'} for part in path.parts)
             or path.suffix in PRIVATE_SUFFIXES
             or path.name in PRIVATE_NAMES
             or path.name.startswith('.env.')

@@ -1,0 +1,11 @@
+{
+  "profile": "ls03t-t-nkmdeuc-2743.0",
+  "launcher": {
+    "package_id": "AbCdEf1234",
+    "app_id": "AbCdEf1234.FrameHome"
+  },
+  "router": {
+    "package_id": "ZyXwVu9876",
+    "app_id": "ZyXwVu9876.HomeRoute"
+  }
+}

@@ -1,0 +1,92 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text.Json;
+class HomeControl
+{
+    const string Target = "@@LAUNCHER_APP_ID@@", Op = "http://tizen.org/appcontrol/operation/main";
+    const string Folder = "/home/owner/share/tmp/sdk_tools/", Log = "/tmp/cf2020home-result.txt";
+    [DllImport("libc")] static extern uint getuid();
+    [DllImport("libc")] static extern void free(IntPtr p);
+    [DllImport("libcapi-appfw-app-operation-tv.so.0")] static extern int app_operation_get_current_app(string op, out IntPtr app);
+    [DllImport("libcapi-appfw-app-operation-tv.so.0")] static extern int app_operation_set_current_app(string op, string app);
+    // Owner-specific API removes defaults for one app. Guards prove its only default is the trial row.
+    [DllImport("libaul.so.0")] static extern int aul_svc_unset_defapp_for_uid(string app, int uid);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_open_v2(string path, out IntPtr db, int flags, IntPtr vfs);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_prepare_v2(IntPtr db, string sql, int bytes, out IntPtr statement, IntPtr tail);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_step(IntPtr statement);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_column_int(IntPtr statement, int column);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_finalize(IntPtr statement);
+    [DllImport("libsqlite3.so.0")] static extern int sqlite3_close(IntPtr db);
+    public class Rows { public string Path { get; set; } public bool Exists { get; set; } public int Count { get; set; } public int TargetCount { get; set; } public int AppCount { get; set; } }
+    public class State { public int NativeReturn { get; set; } public string NativeHome { get; set; } public Rows[] Databases { get; set; } }
+    static Rows ReadRows(string path)
+    {
+        var result = new Rows { Path = path, Exists = File.Exists(path) }; if (!result.Exists) return result;
+        IntPtr db; if (sqlite3_open_v2(path, out db, 1, IntPtr.Zero) != 0) { if (db != IntPtr.Zero) sqlite3_close(db); throw new Exception("Cannot open original database read-only: " + path); }
+        try
+        {
+            IntPtr statement; string sql = "SELECT coalesce(sum(CASE WHEN operation='" + Op + "' THEN 1 ELSE 0 END),0), coalesce(sum(CASE WHEN operation='" + Op + "' AND pkg_name='" + Target + "' AND mime_type='NULL' AND uri='NULL' THEN 1 ELSE 0 END),0), coalesce(sum(CASE WHEN pkg_name='" + Target + "' THEN 1 ELSE 0 END),0) FROM appsvc;";
+            if (sqlite3_prepare_v2(db, sql, -1, out statement, IntPtr.Zero) != 0) throw new Exception("Read-only query preparation failed");
+            try { if (sqlite3_step(statement) != 100) throw new Exception("Read-only query failed"); result.Count = sqlite3_column_int(statement, 0); result.TargetCount = sqlite3_column_int(statement, 1); result.AppCount = sqlite3_column_int(statement, 2); } finally { sqlite3_finalize(statement); }
+        }
+        finally { sqlite3_close(db); }
+        return result;
+    }
+    static State Query() { IntPtr p; int rc = app_operation_get_current_app(Op, out p); string value = null; if (p != IntPtr.Zero) { value = Marshal.PtrToStringAnsi(p); free(p); } return new State { NativeReturn = rc, NativeHome = value, Databases = new[] { ReadRows("/opt/dbspace/user/5001/.appsvc.db"), ReadRows("/opt/dbspace/.appsvc.db"), ReadRows("/opt/dbspace/user/901/.appsvc.db") } }; }
+    public static bool Empty(State s)
+    {
+        if (s == null || s.Databases == null || s.Databases.Length != 3 || s.NativeReturn != -2 || s.NativeHome != null) return false;
+        foreach (var r in s.Databases) if (r == null || r.Count != 0) return false;
+        return true;
+    }
+    public static bool TargetRows(State s) { return SafeToRemove(s) && s.NativeReturn == 0 && s.NativeHome == Target && s.Databases[0].Count == 1 && s.Databases[0].TargetCount == 1; }
+    public static bool SafeToRemove(State s)
+    {
+        if (s == null || s.Databases == null || s.Databases.Length != 3) return false;
+        foreach (var r in s.Databases)
+            if (r == null || r.Count < 0 || r.TargetCount < 0 || r.AppCount < 0) return false;
+        if (!s.Databases[0].Exists) return false;
+        if (s.NativeHome != null && s.NativeHome != Target) return false;
+        if (s.NativeHome == null && s.NativeReturn != -2) return false;
+        if (s.NativeHome == Target && s.NativeReturn != 0) return false;
+        // The removal API is owner-scoped. A record in another scope is not the
+        // reviewed trial, even if that record names the selected launcher.
+        for (int i = 1; i < s.Databases.Length; i++)
+            if (s.Databases[i].Count != 0 || s.Databases[i].AppCount != 0) return false;
+        var owner = s.Databases[0];
+        return owner.Count == owner.TargetCount && owner.AppCount == owner.TargetCount && owner.Count <= 1;
+    }
+    static string Hash(string p) { using (var s = SHA256.Create()) using (var f = File.OpenRead(p)) return BitConverter.ToString(s.ComputeHash(f)).Replace("-", "").ToLowerInvariant(); }
+    static void Guard()
+    {
+        if (IntPtr.Size != 4 || getuid() != 901) throw new Exception("Expected ARM32 SDK identity"); if (!File.ReadAllText("/etc/prd_info.ini").Contains("Version=T-NKMDEUC-2743.0;")) throw new Exception("Firmware changed");
+        if (Hash("/usr/lib/libcapi-appfw-app-operation-tv.so.0") != "661948c3879957c67e970a90e1bbe398bdb5e0d165026e855a69a026f6e97d17" || Hash("/usr/lib/libcapi-appfw-app-control.so.0") != "3483d8e4877a2de58f9e846c2623e5c8f844c6434ebb929950c79e11260134a2" || Hash("/usr/lib/libaul.so.0") != "a3a5e71ef06019b997735817209674fea632fc700c336c572157f5906df85029") throw new Exception("Reviewed API implementation changed");
+    }
+    public class Baseline { public string Firmware { get; set; } public string TargetApp { get; set; } public State Original { get; set; } }
+    static string BaselinePath = Folder + "cf2020home-original.json";
+    public static bool ValidBaseline(Baseline b) { return b != null && b.Firmware == "T-NKMDEUC-2743.0" && b.TargetApp == Target && b.Original != null && b.Original.Databases != null && b.Original.Databases.Length == 3 && Empty(b.Original) && SafeToRemove(b.Original); }
+    static void RequireBaseline() { var b = JsonSerializer.Deserialize<Baseline>(File.ReadAllText(BaselinePath)); if (!ValidBaseline(b)) throw new Exception("Original absence baseline is missing or does not match this profile"); }
+    static void Capture(State original) { if (!Empty(original) || !SafeToRemove(original)) throw new Exception("Capture requires the original absent Home operation"); using (var f = new FileStream(BaselinePath, FileMode.CreateNew, FileAccess.Write)) { using (var w = new StreamWriter(f)) { w.Write(JsonSerializer.Serialize(new Baseline { Firmware = "T-NKMDEUC-2743.0", TargetApp = Target, Original = original })); } } }
+    static void Restore() { var s = Query(); if (!SafeToRemove(s)) throw new Exception("Unexpected operation records; no restore write made"); if (!Empty(s)) { int rc = aul_svc_unset_defapp_for_uid(Target, 5001); if (rc != 0 || !Empty(Query())) throw new Exception("Exact absence restore failed: " + rc); } }
+    static int Main()
+    {
+        File.WriteAllText(Log, ""); try
+        {
+            Guard(); string mode = File.ReadAllText(Folder + "cf2020home-mode.txt").Trim(); if (mode != "query" && mode != "capture" && mode != "apply" && mode != "restore") throw new Exception("Unknown mode"); State before = Query();
+            if (mode == "capture") Capture(before);
+            if (mode == "apply" || mode == "restore") RequireBaseline();
+            if (mode == "apply")
+            {
+                if (!Directory.Exists("/opt/usr/apps/@@LAUNCHER_PACKAGE_ID@@")) throw new Exception("Installed CleanFrame is missing");
+                if (!Empty(before) || !SafeToRemove(before) || before.NativeReturn != -2 || before.NativeHome != null) throw new Exception("Original absent state changed; no apply write made");
+                try { int rc = app_operation_set_current_app(Op, Target); var after = Query(); if (rc != 0 || !TargetRows(after) || after.NativeReturn != 0 || after.NativeHome != Target) throw new Exception("Assignment/readback failed: " + rc); }
+                catch { try { var failed = Query(); if (!SafeToRemove(failed)) throw new Exception("Unexpected rows after apply; stop for recovery review"); if (!Empty(failed) || failed.NativeHome == Target) aul_svc_unset_defapp_for_uid(Target, 5001); if (!Empty(Query())) throw new Exception("Original absence was not restored"); } catch (Exception e) { File.AppendAllText(Log, "RECOVERY_FAILED=" + e + "\n"); } throw; }
+            }
+            else if (mode == "restore") Restore();
+            File.AppendAllText(Log, "CLEANFRAME_HOME_JSON=" + JsonSerializer.Serialize(new { Mode = mode, Before = before, After = Query(), Target = Target, Operation = Op }) + "\n"); return 0;
+        }
+        catch (Exception e) { File.AppendAllText(Log, "ERROR=" + e + "\n"); return 1; }
+    }
+}

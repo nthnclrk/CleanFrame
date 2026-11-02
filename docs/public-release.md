@@ -1,10 +1,10 @@
 # Public release review
 
-Prepared 20 October 2026. CleanFrame began on one personal Samsung The Frame. Very little portability work has been done. The README presents it as a starting point to fork and adapt at the user's own risk.
+The original publication record below was prepared 20 October 2026. For the current release, use the GitHub release notes and the validation results for its exact revision. CleanFrame began on one personal Samsung The Frame. Very little portability work has been done. The README presents it as a starting point to fork and adapt at the user's own risk.
 
 ## Source boundary
 
-The public source contains the current 0.6.1 app, public-font screenshot, development tools, browser tests, setup notes and asset notices. Research folders, design studies, draft writing, unused Grid/optics code and obsolete generated images were removed after the owner's approval. Recoverable copies remain outside the public source.
+That initial public source contained the 0.6.1 app, public-font screenshot, development tools, browser tests, setup notes and asset notices. Research folders, design studies, draft writing, unused Grid/optics code and obsolete generated images were removed after the owner's approval. Recoverable copies remain outside the public source.
 
 Paid Pangram fonts, signing keys, account tokens, local device addresses, recovery state and personal signed widgets remain in ignored local storage. Public preview and export use only Manrope, Geist and Newsreader. The public font check also verifies the expected font files and hashes.
 

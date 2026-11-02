@@ -1,0 +1,8 @@
+using System;
+using System.Runtime.InteropServices;
+class Route
+{
+    const string Target = "@@LAUNCHER_APP_ID@@";
+    [DllImport("libaul.so.0")] static extern int aul_launch_app(string app, IntPtr bundle);
+    static int Main() { if (IntPtr.Size != 4) return 1; try { return aul_launch_app(Target, IntPtr.Zero) < 0 ? 1 : 0; } catch { return 1; } }
+}
