@@ -431,7 +431,13 @@ try {
     await act('samsung.inputs'); await current.waitForSelector('[data-action="input.1"]');
     await act('input.1'); await current.waitForFunction(() => __tv.calls.some(c => c.id === 'org.tizen.tv-viewer'));
     check('Sleeping input selects its exact port before viewer handoff', await current.evaluate(() => __tv.calls[0].method === 'setSource' && __tv.calls[0].number === 1 && __tv.calls[1].id === 'org.tizen.tv-viewer'));
-    await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.sourceFailure = true; __tv.calls = []; });
+    await current.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await current.waitForFunction(() => [...document.querySelectorAll('.section-inputs .setting-choice')].some(e => /HDMI 1.*Active/.test(e.textContent)));
+    check('Returning from viewer refreshes the Active port', await current.locator('[data-action="input.1"]').innerText().then(text => text.includes('Active')));
+    await current.evaluate(() => { __tv.currentInput = 3; Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); });
+    await current.waitForFunction(() => document.querySelector('[data-action="input.3"]').textContent.includes('Active'));
+    check('Visibility return refreshes an externally changed input', !(await current.locator('[data-action="input.1"]').innerText()).includes('Active'));
+    await current.evaluate(() => { __tv.sourceFailure = true; __tv.calls = []; });
     await act('input.2'); await current.waitForFunction(() => ShoreQA.state().view === 'message');
     check('Failed input selection displays an error and keeps viewer closed', (await current.locator('#stage').innerText()).includes('could not') && await current.evaluate(() => __tv.calls.length === 1));
     await nav('back', 'back');
