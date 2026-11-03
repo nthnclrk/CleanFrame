@@ -44,10 +44,12 @@
     newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
-  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], logo: ['white', 'colour'] };
+  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material', logo: 'Logo colour' };
+  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', white: 'White', colour: 'Colour' };
+  /* Colour logos: the TV's own icon first, then a brand-colour mark where the brand publishes one. */
+  var COLOUR_MARKS = ['netflix', 'youtube', 'applemusic', 'spotify', 'stremio', 'tubi'];
+  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'], samsung: ['Samsung', 'home'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
@@ -85,7 +87,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, logo: c.logo }; }
   function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
 
   /* ---------- Helpers ---------- */
@@ -126,19 +128,23 @@
     im.src = ICONS + id + '.svg';
   }
   /* Optical placement is identical for the CSS mask and the image fallback. */
-  function markHtml(id, w, h, size) {
-    var m = window.FrameIconMetrics && window.FrameIconMetrics[id], st;
+  function markHtml(id, w, h, size, colour, native) {
+    var m = window.FrameIconMetrics && window.FrameIconMetrics[id], st, key = colour ? 'colour/' + id : id;
     if (m) {
       var weight = clamp(Math.pow(0.45 / m.fill, 0.3), 0.84, 1.25);
       var k = Math.min(w / m.w, h / m.h, size * weight / Math.sqrt(m.w * m.h)), s = m.n * k;
       st = 'width:' + px(s) + ';height:' + px(s) + ';left:' + px(w / 2 - (m.x + m.w / 2) * k) + ';top:' + px(h / 2 - (m.y + m.h / 2) * k);
     } else st = 'width:' + w + 'px;height:' + h + 'px;left:0;top:0;object-fit:contain';
-    probeMark(id);
-    return '<span class="mark' + (markProbes[id] === 'bad' ? ' is-bad' : '') + '" data-mark="' + id + '" style="width:' + w + 'px;height:' + h + 'px">'
-      + (maskSupport ? '<span class="mk" style="' + st + ';-webkit-mask-image:url(' + ICONS + id + '.svg);mask-image:url(' + ICONS + id + '.svg)"></span>' : '<img alt="" src="' + ICONS + id + '.svg" style="' + st + '">') + '</span>';
+    probeMark(key);
+    return '<span class="mark' + (native ? ' native-icon' : '') + (markProbes[key] === 'bad' && !native ? ' is-bad' : '') + '" data-mark="' + key + '" style="width:' + w + 'px;height:' + h + 'px">'
+      + (colour ? '<span class="mk-colour"><img alt="" src="' + ICONS + key + '.svg" style="' + st + '"></span>'
+        : maskSupport ? '<span class="mk" style="' + st + ';-webkit-mask-image:url(' + ICONS + id + '.svg);mask-image:url(' + ICONS + id + '.svg)"></span>' : '<img alt="" src="' + ICONS + id + '.svg" style="' + st + '">')
+      + (native ? '<img alt="" data-native-icon="true" src="' + esc(native) + '">' : '') + '</span>';
   }
   function appMark(a, w, h, size) {
-    if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
+    var colour = S.c.logo === 'colour', brand = a.brand || a.id, native = colour && a.icon ? a.icon : '';
+    if (a.mark && colour && COLOUR_MARKS.indexOf(brand) >= 0) return markHtml(brand, w, h, size, true, native);
+    if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(brand, w, h, size, false, native);
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
     return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
       + (a.icon ? '<img alt="" data-native-icon="true" src="' + esc(a.icon) + '">' : '') + '</span>';
@@ -297,7 +303,7 @@
     for (k in map) if (map.hasOwnProperty(k) && !seen[k]) { if (map[k].parentNode === parent) parent.removeChild(map[k]); delete map[k]; }
   }
   function setContent(el, sig, renderContent) {
-    sig += '|' + catalog.revision + '|' + fontRevision;
+    sig += '|' + catalog.revision + '|' + fontRevision + '|' + S.c.logo;
     if (el._sig === sig) return;
     el.innerHTML = renderContent();
     el._sig = sig;
@@ -338,13 +344,14 @@
       if (!app(id) && id.indexOf('.') > 0) APPS.push({ id: id, appId: id, name: id.split('.').pop(), mark: false });
       if (app(id)) h.push(id);
     });
+    if (s.icons && typeof s.icons === 'object') PRIMARY.forEach(function (id) { var path = safeIcon(s.icons[id]); if (path) app(id).icon = path; });
     if (!h.length) h = PRIMARY.slice();
     (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
-      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
+      logo: pick(modern.logo, LOOK_VALUES.logo, 'white'), font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
       mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
     };
@@ -354,9 +361,10 @@
     Object.keys(c).forEach(function (key) { out[key] = c[key]; });
     out.version = 2; out.look = lookOf(c); out.dock = c.home.slice(); out.wallpaper = c.wall;
     out.theme = c.layout === 'list' ? 'list' : 'shore';
-    out.appRecords = [];
+    out.appRecords = []; out.icons = {};
     c.home.concat(c.recent).forEach(function (key) {
       var a = app(key);
+      if (a && a.icon && PRIMARY.indexOf(key) >= 0) out.icons[key] = a.icon;
       if (a && PRIMARY.indexOf(key) < 0 && !out.appRecords.some(function (r) { return r.id === key; })) out.appRecords.push({ id: a.id, appId: a.appId, name: a.name, brand: a.brand || '', icon: a.icon || '' });
     });
     return out;
@@ -464,7 +472,7 @@
     perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
   }
   function refreshCatalog() {
-    var request, oldFocus;
+    var request, oldFocus, iconSig;
     if (catalog.loading) return;
     request = ++catalog.request; catalog.loading = true; catalog.error = null;
     FrameDevice.apps(function (err, entries) {
@@ -472,6 +480,7 @@
       catalog.loading = false;
       if (err) { catalog.error = err.message || 'Could not read installed apps.'; if (!catalog.loaded) ALPHA = []; render(); return; }
       oldFocus = top().id === 'apps' ? ALPHA[top().f.i] : null;
+      iconSig = JSON.stringify(serialise(S.c).icons);
       ALPHA = [];
       entries.forEach(function (entry) {
         var id = PRIMARY.indexOf(entry.brand) >= 0 ? entry.brand : entry.appId, a;
@@ -485,13 +494,15 @@
       });
       ALPHA.sort(function (a, b) { return app(a).name.toLowerCase().localeCompare(app(b).name.toLowerCase()); });
       catalog.loaded = true; catalog.error = null; catalog.revision++;
+      // Keep the TV's own icons for Home apps so Colour logos appear before the next catalogue read.
+      if (S.c.logo === 'colour' && JSON.stringify(serialise(S.c).icons) !== iconSig) write(next(S.c.home.slice(), S.c.recent.slice()), 'App icons');
       if (top().id === 'apps' && oldFocus && ALPHA.indexOf(oldFocus) >= 0) top().f.i = ALPHA.indexOf(oldFocus);
       norm(); render();
     });
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings']; }
+  function utils() { return ['art', 'apps', 'settings', 'samsung']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
@@ -500,6 +511,7 @@
   function utilAction(u) {
     if (u === 'art') perform('Art Mode', FrameDevice.art);
     else if (u === 'apps') openApps();
+    else if (u === 'samsung') perform('Samsung Home', FrameDevice.home);
     else openSettings();
   }
   function addAppsRoute() { openEditor('home'); }
@@ -861,7 +873,8 @@
     if (t.group === 'layout') return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
       { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
-      { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
+      { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) },
+      { id: 'logo', title: 'Logo colour', horizontal: true, items: options('logo', ['white', 'colour']) }
     ];
     if (t.group === 'typography') return [{ id: 'font', title: '', items: options('font', LOOK_VALUES.font) }];
     if (t.group === 'focus') return [
@@ -1041,7 +1054,7 @@
   function render() {
     var t = top(), sheet = !!V[t.id].sheet, shown = wall(S.shown ? S.shown.wall : S.c.wall), palette = ADAPTIVE_INK[shown.id];
     var adaptive = applyAdaptiveInk(palette), tr = adaptive && palette.tr ? palette.tr.pol : shown.ut.tr, br = adaptive && palette.br ? palette.br.pol : shown.ut.br;
-    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
+    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' logo-' + S.c.logo + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
     if (!adaptive && shown.clockInk) stage.style.setProperty('--clock-ink', shown.clockInk);
     else stage.style.removeProperty('--clock-ink');
     if (!adaptive && shown.dockClockInk) stage.style.setProperty('--dock-clock-ink', shown.dockClockInk);
@@ -1711,6 +1724,7 @@
       if (bundle) committedBundle = bundle;
       S.lookError = null; S.previewBundle = null;
       render(); syncRotation();
+      if (target.logo === 'colour' && changed && !catalog.loaded && !document.hidden) refreshCatalog();
       if (reflow) window.requestAnimationFrame(function () { window.requestAnimationFrame(function () {
         if (frame !== reflowToken) return;
         S.reflow = false; stage.className = stage.className.replace(/\s+is-reflow/g, '');
