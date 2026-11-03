@@ -2,9 +2,9 @@
 
 ## Home
 
-- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
-- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
-- OK opens the selected item. Focus alone never launches an app.
+- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps, Settings and Samsung. Down or Back returns to the selected app. The clock is at the top left.
+- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps, Settings and Samsung. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
+- OK opens the selected item. Focus alone never launches an app. The Samsung control launches Samsung’s own Home (`com.samsung.tv.csfs`), the same destination as the Back leave prompt and Settings → Samsung → Samsung Home.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
 - A panel keeps focus within its own controls. Back closes one panel at a time.
@@ -17,7 +17,7 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 | Group | Choices |
 | --- | --- |
 | Background | Photo, Light, Dark; Wallpaper and Rotation when Photo is active |
-| Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
+| Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls; Logo colour White or Colour |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
 | Focus | Type or Glass; Soft, Frost or Clear tint material |
 | Apps on Home | Membership and arrangement editor |
@@ -37,7 +37,7 @@ The nine default apps keep their known native IDs. Other installed consumer apps
 
 ## All apps
 
-The panel reads `tizen.application.getAppsInfo` on entry and shows the filtered consumer apps alphabetically. Samsung's visibility flag alone also exposes system utilities, so EP packages, background services, ad players, account utilities, placeholders and duplicates are omitted. Known brands use bundled marks. Other apps use their local installed icon, with initials as a fallback.
+The panel reads `tizen.application.getAppsInfo` on entry and shows the filtered consumer apps alphabetically. Samsung's visibility flag alone also exposes system utilities, so EP packages, background services, ad players, account utilities, placeholders and duplicates are omitted. Known brands use bundled marks. Other apps use their local installed icon, with initials as a fallback. Logo colour White keeps the monochrome marks. Colour uses the TV’s own installed icon for each app where Tizen reports one, otherwise a brand-colour mark for brands that publish a colour (Netflix, YouTube, Apple Music, Spotify, Stremio, Tubi); monochrome brands keep their mark. Choosing Colour reads the installed-app catalogue once, and the icon paths of Home and recently removed apps are saved with the other preferences so Home shows them before the next catalogue read.
 
 The five-column grid scrolls with remote focus. OK launches an app; its On Home badge shows membership. Up from the first row reaches Apps on Home, which opens the editor. An API failure shows a retry and keeps saved Home choices. Browser previews report that installed-app discovery and launching require the TV.
 

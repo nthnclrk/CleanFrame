@@ -113,6 +113,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .monogram span{position:relative;width:1.65em;height:1.65em;display:flex;align-items:center;justify-content:center;border-radius:.4em}.monogram span::after{content:"";position:absolute;top:0;right:0;bottom:0;left:0;border:2px solid currentColor;border-radius:inherit;opacity:.38}
 .native-icon img{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;object-fit:contain}
 .native-icon.has-native-icon>span{visibility:hidden}
+.mark .mk-colour{position:absolute;top:0;left:0;width:100%;height:100%}
 .tile .mark{position:absolute;left:84px;top:34px;opacity:.84;transition:opacity 160ms linear,transform var(--t) var(--ease)}
 .tile .label{position:absolute;left:4px;right:4px;top:128px;text-align:center;font-size:36px;line-height:44px;letter-spacing:-.8px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.84;transition:opacity 160ms linear}
 .tile .t-name{position:absolute;left:12px;right:12px;top:72px;text-align:center;font-size:40px;line-height:56px;letter-spacing:-1px;font-weight:600;white-space:nowrap;overflow:hidden;opacity:.84;transition:opacity 160ms linear}
@@ -506,7 +507,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .is-horizontal .setting-tick .ico{width:26px;height:26px}
 .section-material .setting-choice:last-child{flex:1.4}
 .detail-background .section-rotation .setting-choice{padding-left:128px}
-.detail-layout .setting-section+.setting-section,.detail-focus .setting-section+.setting-section{margin-top:64px}
+.detail-focus .setting-section+.setting-section{margin-top:64px}
+.detail-layout .setting-section+.setting-section{margin-top:40px}
 .detail-typography .setting-choice,.detail-rotation .setting-choice{min-height:88px}
 .detail-typography .appearance-rows,.detail-rotation .appearance-rows,.detail-samsung .appearance-rows{top:260px}
 .setting-choice.has-description{min-height:120px}

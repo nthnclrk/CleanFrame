@@ -149,7 +149,7 @@ async function group(name) {
 }
 const settingsSnapshot = () => current.evaluate(() => {
   const s = ShoreQA.state();
-  const rendered = [...document.getElementById('stage').classList].filter(c => /^(bg|l|a|u|f|m|font)-/.test(c)).sort();
+  const rendered = [...document.getElementById('stage').classList].filter(c => /^(bg|l|a|u|logo|f|m|font)-/.test(c)).sort();
   return { stored: localStorage.getItem('cleanframe.home.v1'), committed: s.committed, shown: s.shown, rendered, writes: s.writes, storageAttempts: window.__storageAttempts };
 });
 const choice = (axis, value) => act('choice.' + axis + '.' + value);
@@ -243,6 +243,21 @@ try {
     check('Next completed edit writes stable home key', (await stored()).dock[0] === 'netflix');
     await current.reload(); await ready();
     check('Migrated preferences survive reload', (await state()).look.controls === 'text' && (await state()).dock[0] === 'netflix');
+    check('Migrated preferences keep white logos', (await state()).look.logo === 'white');
+  });
+  await run('Logo colour uses TV icons, then brand colours', async () => {
+    await page({ catalog: CATALOG.map(a => a.id === '9Ur5IzDKqV.TizenYouTube' ? { ...a, iconPath: '/home/icon.png' } : a), seed: baseline({ dock: ['netflix', 'youtube', 'sbs'], lastApp: 'netflix', look: { bg: 'photo', layout: 'dock', apps: 'both', font: 'manrope', controls: 'both', focus: 'glass', material: 'soft', logo: 'white' } }) });
+    const marks = () => current.evaluate(() => [...document.querySelectorAll('#track .tile .mark')].map(m => ({ mark: m.dataset.mark, native: !!m.querySelector('[data-native-icon]'), colour: !!m.querySelector('.mk-colour'), loaded: m.classList.contains('has-native-icon') })));
+    const white = await marks();
+    check('White logos keep monochrome marks', white.length === 3 && white.every(m => !m.colour && !m.native), white);
+    await look({ logo: 'colour' }); await current.waitForTimeout(150);
+    const colour = await marks();
+    check('Colour reads and uses the TV icon first', colour[1].native && colour[1].loaded && (await stored()).icons.youtube === '/home/icon.png', colour);
+    check('Colour falls back to brand colour', colour[0].mark === 'colour/netflix' && colour[0].colour && !colour[0].native, colour);
+    check('Brands without a published colour keep their mark', colour[2].mark === 'sbs' && !colour[2].colour, colour);
+    await current.reload(); await ready();
+    await current.waitForTimeout(150);
+    check('Logo colour and saved TV icons survive reload before discovery', (await state()).look.logo === 'colour' && (await marks())[1].native, await marks());
   });
   await run('Invalid preferences and saved native pins', async () => {
     await page({ seed: '{broken', legacy: baseline({ dock: ['netflix'], lastApp: 'netflix' }) });
@@ -348,7 +363,7 @@ try {
         await look({ bg: 'photo', layout, controls, focus: 'glass', font: 'manrope' }); await scene('home');
         if ((await call('where')).zone === 'util') await nav('back');
         await nav(layout === 'dock' ? 'up' : 'right');
-        await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+        await nav(...Array(4).fill(layout === 'dock' ? 'left' : 'up'));
         await current.waitForTimeout(180);
         const spacing = await current.evaluate(({ layout, controls }) => {
           const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -361,9 +376,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === 4 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 4; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -598,7 +613,7 @@ try {
     check('Overview has all six settings groups', same((await call('actions')).filter(a => expected.includes(a)).sort(), expected.slice().sort()));
     const specs = {
       background: { bg: ['dark', 'light', 'photo'] },
-      layout: { layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], controls: ['icons', 'both', 'text'] },
+      layout: { layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], controls: ['icons', 'both', 'text'], logo: ['white', 'colour'] },
       typography: { font: (await state()).fonts.available },
       focus: { focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] }
     };
@@ -670,6 +685,7 @@ try {
       ['layout', 'layout', ['list', 'dock']],
       ['layout', 'apps', ['icons', 'text', 'both']],
       ['layout', 'controls', ['text', 'both', 'icons']],
+      ['layout', 'logo', ['colour', 'white']],
       ['typography', 'font', (await state()).fonts.available],
       ['focus', 'focus', ['type', 'glass']],
       ['focus', 'material', ['frost', 'tint', 'soft']]
@@ -683,7 +699,7 @@ try {
         const after = await settingsSnapshot(), rows = await radios();
         const expectedWrites = before.writes + (before.committed[axis] === value ? 0 : 1);
         const untouched = { ...after.committed, [axis]: before.committed[axis] };
-        const prefix = { bg: 'bg', layout: 'l', apps: 'a', controls: 'u', focus: 'f', material: 'm', font: 'font' }[axis];
+        const prefix = { bg: 'bg', layout: 'l', apps: 'a', controls: 'u', logo: 'logo', focus: 'f', material: 'm', font: 'font' }[axis];
         const shown = !Object.hasOwn(after.shown, axis) || after.shown[axis] === value;
         check(axis + ' OK applies ' + value + ' once', after.committed[axis] === value && shown && after.rendered.includes(prefix + '-' + value) && same(untouched, before.committed) && expectedWrites === after.writes && after.storageAttempts - before.storageAttempts === expectedWrites - before.writes && rows.some(r => r.action === 'choice.' + axis + '.' + value && r.checked === 'true'), { before, after, rows });
       }
