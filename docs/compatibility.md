@@ -1,6 +1,6 @@
 # TV compatibility evidence
 
-Updated 2 November 2026. The web launcher has a Tizen 5.0 installation minimum. This admits older packages; it does not establish that every rendering path, Samsung destination or native Home operation works on every admitted TV. Contributor observations and the maintainer’s checks are listed separately. Tizen 4.0 remains an owner-adapted experiment.
+Updated 5 November 2026. The web launcher has a Tizen 5.0 installation minimum. This admits older packages; it does not establish that every rendering path, Samsung destination or native Home operation works on every admitted TV. Contributor observations and the maintainer’s checks are listed separately. Tizen 4.0 remains an owner-adapted experiment.
 
 ## Recorded results
 
@@ -24,6 +24,7 @@ Updated 2 November 2026. The web launcher has a Tizen 5.0 installation minimum. 
 | TQ50LS03FAUXXC (2025 Frame), Tizen 9, ARMv7, firmware T-PTMFDEUC-0090-1301.0 | A separate third-party web launcher ran; no CleanFrame source/build result supplied | Tested execution and readback routes blocked; no native baseline or writes. Supported power-on option resumed a source rather than the web app | [Issue #16](https://github.com/nthnclrk/CleanFrame/issues/16) |
 | QN55Q60BAFXZC, Tizen 6.5, ARMv7, firmware T-NKLBAKUC-1710.0 | No CleanFrame launcher result supplied; a separately signed UI app queried Home as UID 5001 | No verified UID 901 transport or Home-only assignment; same-value operation call failed; saved query predates a later settings change | [Issue #21](https://github.com/nthnclrk/CleanFrame/issues/21) |
 | GQ65QN85DBTXZG (QN85D), Tizen 9, ARMv7, firmware 2130.0 / T-PTMDDEUC | Contributor reports adapted CleanFrame-DE 0.6.2 installs, navigates and opens YouTube; last-app autorun works when it was last used | No native writes performed; exact native transport, API contract and restore path unverified | [Issue #24](https://github.com/nthnclrk/CleanFrame/issues/24) |
+| QE65LS03FWUXXU (2025 Frame), Tizen 9.0.0, aarch64 kernel with 32-bit ARM userland, firmware T-RSMFDEUC-0090-1301.0 | Owner reports an adapted 0.7.12 build installs in place with the original identity and runs with normal remote use | Home, startup and autostart were already assigned to CleanFrame before these checks; the assignment route is not part of this report. Home from Art Mode opens CleanFrame. Home from YouTube, Netflix or ITVX hangs on Samsung's launch screen when CleanFrame is already running; an external remote rule avoids it | [PR #30](https://github.com/nthnclrk/CleanFrame/pull/30) |
 
 Contributor reports have not been reproduced by the maintainer. Browser regression checks cannot verify a TV compositor, native Samsung destination, remote feel or cold boot. The exact Q60B production firmware revision remains to be established: its reported `Version` field was a placeholder, alongside a dated build ID. It is not an exact-firmware allowlist entry.
 
@@ -32,6 +33,25 @@ The AU8000 result used a shell-only helper rather than the maintained .NET 6 hel
 The S85F report used a local guard adaptation for `T-PTMFUABC-0090-1301.0`; the maintained guard still refuses that target. Apps2Samsung is the contributor’s signing route, not a separately reviewed replacement for the official SDK workflow in this repo.
 
 For the LS03F, a blocked execution/readback path stopped the experiment before baseline capture. Its source-resume result is distinct from native app startup. These observations concern that tested route and firmware; they do not prove that every 2025 TV has the same limitation.
+
+### Home resume hang on the QE65LS03FWUXXU
+
+With CleanFrame assigned as native Home and already running behind another app, the physical Home key left Samsung's loading spinner on screen. CleanFrame did not come forward. Back cleared the spinner and CleanFrame closed about a second later; the next Home press then worked because CleanFrame started fresh. Reports above of Home from YouTube on other TVs are not contradicted: this result is specific to this firmware and setup.
+
+The owner traced it with a root shell and the compositor's window list (`enlightenment_info -topvwins`):
+
+| Case | Result |
+| --- | --- |
+| CleanFrame running, Home from YouTube, Netflix or ITVX | `Launchscreen Winsys` (PID 0) stays on top for 13 s or more; CleanFrame's window stays below the app |
+| CleanFrame not running, Home from YouTube | Launch screen for about 0.5 s, then CleanFrame |
+| CleanFrame running, `app_launcher -s` or `aul_test launch` (also with `operation/main` and the splash keys below) | CleanFrame comes forward without a lasting launch screen |
+| Home from Art Mode | CleanFrame opens |
+
+The firmware's Home handler, `ContextProduct::LaunchHomeApp` in `libapp-context-manager.so`, launches the Home app with `__NO_RAISE_WINDOW=enable` and `__K_EX_FORCE_BOOST`. When its first-screen checks apply, it also adds `__K_SPLASH_SCREEN=LA_UI_DEFAULT` and `__K_EX_SPLASH_SCREEN_FORCE_SHOW=enable`. This was read from the library's strings and disassembly; it was not observed in logs, because `dlogutil` returned nothing on this release firmware even with `plog` enabled. An instrumented build showed that CleanFrame's page kept running while hidden but received no `appcontrol` event for the Home press.
+
+These changes did not help: `prelaunch.support` metadata, an `operation/main` app control with `reload="disable"`, a self-launch from an `appcontrol` listener (it never fired), and `background-support="disable"`. None of them is part of this change.
+
+The owner's workaround is outside CleanFrame. The third-party [Vetro](https://github.com/andrearicci93/vetro) remapper intercepts the physical remote (code 63, `XF86Home`) and runs `app_launcher -s` for CleanFrame. CleanFrame then comes forward at once, and the system Home handler is not reached. It depends on Vetro's root agent, and does not cover Home sent from SmartThings or over the network. It is not a recommendation to install root tooling.
 
 ## Native Home limits
 
