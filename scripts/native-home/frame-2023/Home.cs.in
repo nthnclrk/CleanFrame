@@ -1,0 +1,245 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+// Home-only profile. The only native setter in this source is SetHome.
+public class HomeState {
+    public string Operation { get; set; }
+    public string DefaultApp { get; set; }
+    public Dictionary<string, string> Settings { get; set; }
+    public int Autostart { get; set; }
+}
+public class HomeBaseline {
+    public string Model { get; set; }
+    public string Firmware { get; set; }
+    public string TargetApp { get; set; }
+    public string DeviceIdentitySha256 { get; set; }
+    public HomeState Original { get; set; }
+}
+public interface IHomeBackend {
+    HomeState Read();
+    int SetHome(string app);
+    bool TargetInstalled();
+}
+
+public static class HomePolicy {
+    public const string Model = "QN32LS03CBFXZA";
+    public const string Firmware = "T-KSU2ECAKUC-0090-2230.0";
+    public static readonly string[] Keys = { "db/appfw/home_appid", "db/appfw/startup_appid",
+        "db/appfw/booting_appid_backup", "db/first_screen/type" };
+
+    public static bool FreshPreflight(string timestamp, DateTimeOffset now) {
+        DateTimeOffset issued;
+        if (timestamp == null || !(timestamp.EndsWith("Z", StringComparison.Ordinal) ||
+            timestamp.EndsWith("+00:00", StringComparison.Ordinal)) ||
+            !DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out issued) || issued.Offset != TimeSpan.Zero) return false;
+        var age = now.ToUniversalTime() - issued;
+        return age >= TimeSpan.FromSeconds(-15) && age <= TimeSpan.FromSeconds(120);
+    }
+    static bool ValidIdentity(string identity) {
+        return identity != null && Regex.IsMatch(identity, "\\A[0-9a-f]{64}\\z");
+    }
+    static bool ValidSettings(HomeState state) {
+        if (state == null || state.Settings == null || state.Settings.Count != Keys.Length ||
+            (state.Autostart != 0 && state.Autostart != 1)) return false;
+        foreach (string key in Keys)
+            if (!state.Settings.ContainsKey(key) || String.IsNullOrWhiteSpace(state.Settings[key])) return false;
+        return true;
+    }
+    static bool ValidOwner(HomeState state) {
+        return state != null && !String.IsNullOrWhiteSpace(state.Operation) &&
+            state.Operation == state.DefaultApp;
+    }
+    static bool SameSettings(HomeState a, HomeState b) {
+        if (!ValidSettings(a) || !ValidSettings(b) || a.Autostart != b.Autostart) return false;
+        foreach (string key in Keys) if (a.Settings[key] != b.Settings[key]) return false;
+        return true;
+    }
+    public static bool Same(HomeState a, HomeState b) {
+        return a != null && b != null && a.Operation == b.Operation &&
+            a.DefaultApp == b.DefaultApp && SameSettings(a, b);
+    }
+    public static HomeBaseline Capture(HomeState state, string target, string identityHash) {
+        if (!ValidIdentity(identityHash) || String.IsNullOrWhiteSpace(target) ||
+            !ValidOwner(state) || !ValidSettings(state) || state.Operation == target)
+            throw new InvalidOperationException("Cannot capture an absent, inconsistent, applied, or incomplete original state.");
+        var original = new HomeState { Operation = state.Operation, DefaultApp = state.DefaultApp,
+            Settings = new Dictionary<string, string>(state.Settings), Autostart = state.Autostart };
+        return new HomeBaseline { Model = Model, Firmware = Firmware, TargetApp = target,
+            DeviceIdentitySha256 = identityHash, Original = original };
+    }
+    public static byte[] EncodeBaseline(HomeBaseline baseline) {
+        return new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(baseline));
+    }
+    public static string FormatBaseline(byte[] bytes) {
+        return "CLEANFRAME_2023_BASELINE=" + Encoding.UTF8.GetString(bytes);
+    }
+    public static bool ValidBaseline(HomeBaseline b, string target, string identityHash) {
+        return b != null && b.Model == Model && b.Firmware == Firmware &&
+            b.TargetApp == target && ValidIdentity(identityHash) && b.DeviceIdentitySha256 == identityHash &&
+            !String.IsNullOrWhiteSpace(target) && ValidOwner(b.Original) && ValidSettings(b.Original) &&
+            b.Original.Operation != target;
+    }
+    static void RequireBaseline(HomeBaseline b, string target, string identityHash) {
+        if (!ValidBaseline(b, target, identityHash)) throw new InvalidOperationException("Original Home baseline does not match this profile or preflight.");
+    }
+    static bool Recoverable(HomeState state, HomeState original, string target) {
+        if (!SameSettings(state, original)) return false;
+        return (state.Operation == original.Operation || state.Operation == target) &&
+            (state.DefaultApp == original.DefaultApp || state.DefaultApp == target);
+    }
+    static HomeState Recover(IHomeBackend backend, HomeBaseline baseline, string target) {
+        HomeState now = backend.Read();
+        if (!Recoverable(now, baseline.Original, target))
+            throw new InvalidOperationException("Unexpected owner or non-Home state; recovery refused.");
+        if (!Same(now, baseline.Original)) {
+            int rc = backend.SetHome(baseline.Original.Operation);
+            if (rc != 0) throw new InvalidOperationException("Original Home assignment failed: " + rc);
+        }
+        now = backend.Read();
+        if (!Same(now, baseline.Original)) throw new InvalidOperationException("Original Home readback differs from baseline.");
+        return now;
+    }
+    public static HomeState Apply(IHomeBackend backend, HomeBaseline baseline, string target, string identityHash) {
+        RequireBaseline(baseline, target, identityHash);
+        if (!backend.TargetInstalled()) throw new InvalidOperationException("Target package is not installed.");
+        HomeState before = backend.Read();
+        if (!Same(before, baseline.Original)) throw new InvalidOperationException("Current state differs from the captured baseline.");
+        try {
+            int rc = backend.SetHome(target);
+            if (rc != 0) throw new InvalidOperationException("Home assignment failed: " + rc);
+            HomeState after = backend.Read();
+            if (!SameSettings(after, baseline.Original) || after.Operation != target || after.DefaultApp != target)
+                throw new InvalidOperationException("Home assignment readback or unchanged-settings check failed.");
+            return after;
+        } catch (Exception failure) {
+            try { Recover(backend, baseline, target); }
+            catch (Exception recovery) { throw new InvalidOperationException("Home assignment failed and automatic recovery was not verified.", new AggregateException(failure, recovery)); }
+            throw new InvalidOperationException("Home assignment failed; original Home state was read back.", failure);
+        }
+    }
+    public static HomeState Restore(IHomeBackend backend, HomeBaseline baseline, string target, string identityHash) {
+        RequireBaseline(baseline, target, identityHash);
+        // Explicit restore is never automatically retried after a failure.
+        return Recover(backend, baseline, target);
+    }
+}
+
+class NativeHomeBackend : IHomeBackend {
+    const string Target = "@@LAUNCHER_APP_ID@@";
+    const string Operation = "http://tizen.org/appcontrol/operation/main";
+    const string AutoKey = "db/menu/smart_hub/ontvsetting/auto_start";
+    [DllImport("libc.so.6")] static extern void free(IntPtr value);
+    [DllImport("libbundle.so.0")] static extern IntPtr bundle_create();
+    [DllImport("libbundle.so.0")] static extern void bundle_free(IntPtr bundle);
+    [DllImport("libaul.so.0")] static extern int aul_svc_set_operation(IntPtr bundle, string op);
+    [DllImport("libaul.so.0")] static extern int aul_get_default_app(IntPtr bundle, out IntPtr app);
+    [DllImport("libcapi-appfw-app-operation-tv.so.0")] static extern int app_operation_get_current_app(string op, out IntPtr app);
+    [DllImport("libcapi-appfw-app-operation-tv.so.0")] static extern int app_operation_set_current_app(string op, string app);
+    [DllImport("libvconf.so.0")] static extern IntPtr vconf_get_str(string key);
+    [DllImport("libvconf.so.0")] static extern int vconf_get_int(string key, out int value);
+    readonly bool exactTargetInstalled;
+    public NativeHomeBackend(bool exactTargetInstalled) { this.exactTargetInstalled = exactTargetInstalled; }
+    static string Take(IntPtr value) {
+        if (value == IntPtr.Zero) throw new InvalidOperationException("Native getter returned null.");
+        try { return Marshal.PtrToStringAnsi(value); } finally { free(value); }
+    }
+    static string ReadOperation() {
+        IntPtr value; int rc = app_operation_get_current_app(Operation, out value);
+        if (rc != 0) throw new InvalidOperationException("Home getter failed: " + rc);
+        return Take(value);
+    }
+    static string ReadDefault() {
+        IntPtr bundle = bundle_create();
+        if (bundle == IntPtr.Zero) throw new InvalidOperationException("Unable to create Home query.");
+        try {
+            if (aul_svc_set_operation(bundle, Operation) != 0) throw new InvalidOperationException("Unable to prepare Home query.");
+            IntPtr value; int rc = aul_get_default_app(bundle, out value);
+            if (rc != 0) throw new InvalidOperationException("Default-app getter failed: " + rc);
+            return Take(value);
+        } finally { bundle_free(bundle); }
+    }
+    public HomeState Read() {
+        var state = new HomeState { Operation = ReadOperation(), DefaultApp = ReadDefault(), Settings = new Dictionary<string, string>() };
+        foreach (string key in HomePolicy.Keys) state.Settings[key] = Take(vconf_get_str(key));
+        int value; int rc = vconf_get_int(AutoKey, out value);
+        if (rc != 0) throw new InvalidOperationException("Autostart getter failed: " + rc);
+        state.Autostart = value;
+        return state;
+    }
+    public int SetHome(string app) { return app_operation_set_current_app(Operation, app); }
+    public bool TargetInstalled() { return exactTargetInstalled && Directory.Exists("/opt/usr/apps/@@LAUNCHER_PACKAGE_ID@@"); }
+}
+
+class HomeControl {
+    const string Target = "@@LAUNCHER_APP_ID@@";
+    const string Folder = "/home/owner/share/tmp/sdk_tools/";
+    const string Attestation = Folder + "cf2023home-preflight.json";
+    const string Baseline = Folder + "cf2023home-original.json";
+    const string Lock = "/tmp/cf2023home.lock";
+    [DllImport("libc.so.6")] static extern uint getuid();
+    [DllImport("libc.so.6")] static extern uint umask(uint mask);
+    class Preflight {
+        public Preflight() {} public string Model { get; set; } public string DeviceIdentitySha256 { get; set; }
+        public string Action { get; set; } public string TargetApp { get; set; } public bool TargetInstalled { get; set; }
+        public string TimeUtc { get; set; }
+    }
+    static void Guard() {
+        if (IntPtr.Size != 4 || RuntimeInformation.ProcessArchitecture != Architecture.Arm || getuid() != 901)
+            throw new InvalidOperationException("Expected ARM32 SDK identity.");
+        if (!File.ReadAllText("/etc/prd_info.ini").Contains("Version=" + HomePolicy.Firmware + ";"))
+            throw new InvalidOperationException("Firmware does not match this profile.");
+    }
+    static int Main(string[] args) {
+        FileStream actionLock = null;
+        try {
+            if (args.Length != 1 || (args[0] != "query" && args[0] != "capture" && args[0] != "apply" && args[0] != "restore"))
+                throw new InvalidOperationException("Use query, capture, apply, or restore.");
+            Guard();
+            uint lockMask = umask(63);
+            try { actionLock = new FileStream(Lock, FileMode.CreateNew, FileAccess.Write); }
+            finally { umask(lockMask); }
+            var preflight = JsonSerializer.Deserialize<Preflight>(File.ReadAllText(Attestation));
+            if (preflight == null || preflight.Model != HomePolicy.Model || preflight.Action != args[0] ||
+                preflight.TargetApp != Target || preflight.DeviceIdentitySha256 == null ||
+                !Regex.IsMatch(preflight.DeviceIdentitySha256, "\\A[0-9a-f]{64}\\z") ||
+                !HomePolicy.FreshPreflight(preflight.TimeUtc, DateTimeOffset.UtcNow))
+                throw new InvalidOperationException("Host preflight is missing or invalid.");
+            // Consume the staged preflight before every action. The host must still
+            // freshly verify the target and stage it on that same TV connection.
+            File.Delete(Attestation);
+            if (File.Exists(Attestation)) throw new InvalidOperationException("Unable to consume host preflight.");
+            var backend = new NativeHomeBackend(preflight.TargetInstalled);
+            HomeState result;
+            if (args[0] == "query") result = backend.Read();
+            else if (args[0] == "capture") {
+                result = backend.Read();
+                var captured = HomePolicy.Capture(result, Target, preflight.DeviceIdentitySha256);
+                byte[] originalJson = HomePolicy.EncodeBaseline(captured);
+                uint oldMask = umask(63); // 077: private backup even if the caller's umask is permissive.
+                try {
+                    using (var f = new FileStream(Baseline, FileMode.CreateNew, FileAccess.Write)) {
+                        f.Write(originalJson, 0, originalJson.Length);
+                        f.Flush(true);
+                    }
+                } finally { umask(oldMask); }
+                // This line is private recovery data. Its payload is byte-for-byte
+                // identical to the UTF-8 JSON file, without the output newline.
+                Console.WriteLine(HomePolicy.FormatBaseline(originalJson));
+            } else {
+                var baseline = JsonSerializer.Deserialize<HomeBaseline>(File.ReadAllText(Baseline));
+                result = args[0] == "apply" ? HomePolicy.Apply(backend, baseline, Target, preflight.DeviceIdentitySha256)
+                    : HomePolicy.Restore(backend, baseline, Target, preflight.DeviceIdentitySha256);
+            }
+            Console.WriteLine("CLEANFRAME_2023_HOME=" + JsonSerializer.Serialize(new { Mode = args[0], State = result }));
+            return 0;
+        } catch (Exception error) { Console.Error.WriteLine("ERROR=" + error); return 1; }
+        finally { if (actionLock != null) { actionLock.Dispose(); File.Delete(Lock); } }
+    }
+}
