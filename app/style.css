@@ -483,6 +483,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .settings-back{position:absolute;left:124px;top:60px;pointer-events:auto}
 .settings-title{position:absolute;left:140px;top:132px;font-size:56px;line-height:68px;font-weight:500;letter-spacing:-1.6px}
 .appearance-rows{position:absolute;left:140px;top:244px;width:640px;pointer-events:auto}
+/* Long option lists (e.g. Weather cities) scroll within the panel; the focused row is kept in view from main.js. */
+.appearance-rows:not(.wallpaper-picker){bottom:150px;overflow:hidden}
 .setting-section+.setting-section{margin-top:32px}
 .setting-label{margin-bottom:12px;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.2px;color:var(--mute)}
 .setting-options{display:flex;flex-direction:column}

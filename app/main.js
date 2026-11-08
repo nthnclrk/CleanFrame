@@ -1500,6 +1500,10 @@
         }).join('') + '</div>'
         + (section.reason ? '<p class="setting-reason">' + esc(section.reason) + '</p>' : '') + '</section>';
     }).join(''));
+    // Keep the focused option visible when a list is taller than the panel (e.g. Weather cities).
+    var focusedEl = appearanceRows.querySelector('.setting-choice.is-focus');
+    if (focusedEl && focusedEl.scrollIntoView) focusedEl.scrollIntoView({ block: 'nearest' });
+    else appearanceRows.scrollTop = 0;
     if (S.pending) status = '<p>Loading ' + esc(S.pending.row === 'font' ? FONTS[S.pending.target.font].name : 'your choice') + '…</p><p>Back cancels this change.</p>';
     else if (error) {
       status = '<p class="setting-error">' + (error.type === 'save' ? 'Couldn’t save this change.' : error.type === 'font' ? 'Couldn’t load ' + esc(FONTS[error.font].name) + '.' : 'Couldn’t load this appearance.') + ' Your current choice is kept.</p>'
