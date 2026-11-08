@@ -45,8 +45,8 @@
     newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
-  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
+  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], place: [] /* filled from PLACES */ };
+  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material', place: 'Weather' };
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
   var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
@@ -93,7 +93,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, place: c.place }; }
   function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
 
   /* ---------- Helpers ---------- */
@@ -354,7 +354,7 @@
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'icons'), controls: pick(modern.controls, LOOK_VALUES.controls, 'icons'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
-      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
+      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), place: pick(modern.place, LOOK_VALUES.place, 'kochi'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
       mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
     };
@@ -501,7 +501,12 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['apps', 'settings']; } // No Art Mode: this TV (AU7700) is not a Frame.
+  // Art Mode is a Frame-only feature; show the control only where the TV supports it.
+  var artChecked = false, artOk = false;
+  function utils() {
+    if (!artChecked) { artChecked = true; try { artOk = FrameDevice.artSupported(); } catch (e) { artOk = false; } }
+    return artOk ? ['art', 'apps', 'settings'] : ['apps', 'settings'];
+  }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
@@ -515,7 +520,7 @@
   function addAppsRoute() { openEditor('home'); }
   function openSettings() { push({ id: 'settings', f: { id: S.settingsFocus } }); }
   function openAppearance(group) {
-    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
+    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', weather: 'place' }[group];
     var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'samsung.home');
     push({ id: 'appearance', group: group, f: { action: action } });
   }
@@ -831,6 +836,7 @@
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
+      { id: 'weather', label: 'Weather', value: placeOf(S.c.place).name },
       { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
@@ -851,10 +857,10 @@
     if (id === 'editor') openEditor('settings');
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', weather: 'Weather', samsung: 'Samsung', inputs: 'Inputs' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
-      label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
+      label: axis === 'font' ? FONTS[value].name : axis === 'place' ? placeOf(value).name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
   }
   function detailSections(t) {
     var flat = S.c.bg !== 'photo', inactive = !materialApplies();
@@ -874,6 +880,7 @@
       { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
     ];
     if (t.group === 'typography') return [{ id: 'font', title: '', items: options('font', LOOK_VALUES.font) }];
+    if (t.group === 'weather') return [{ id: 'place', title: 'Location', items: options('place', LOOK_VALUES.place), reason: 'Weather uses your city’s coordinates only, via Open-Meteo.' }];
     if (t.group === 'focus') return [
       { id: 'focus', title: 'Focus style', horizontal: true, items: options('focus', ['type', 'glass']) },
       { id: 'material', title: 'Material', horizontal: true, items: options('material', ['soft', 'frost', 'tint'], inactive),
@@ -936,6 +943,7 @@
       if (error && error.row === 'mode') applyRotation(error.patch.mode);
       else if (error) setLook(error.patch, { row: error.row });
     } else if (item.axis === 'mode') applyRotation(item.value);
+    else if (item.axis === 'place') { setLook({ place: item.value }, { row: 'place' }); weather = null; refreshWeather(); }
     else if (item.axis) { patch[item.axis] = item.value; setLook(patch, { row: item.axis }); }
     else if (item.action === 'background.wallpaper') openWallpaper();
     else if (item.action === 'background.rotation') openAppearance('rotation');
@@ -953,7 +961,7 @@
   V.appearance = {
     norm: function (t) {
       var rows = detailRows(t), exists = false, applied = null;
-      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode' }[t.group];
+      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode', weather: 'place' }[t.group];
       rows.forEach(function (items) { items.forEach(function (item) {
         if (item.action === t.f.action) exists = true;
         if (item.axis === axis && item.value === S.c[axis]) applied = item;
@@ -1101,7 +1109,25 @@
     if (!metrics || !metrics.digitCell) return text;
     return text.replace(/[0-9]/g, function (digit) { return '<span class="clock-digit">' + digit + '</span>'; });
   }
-  var PLACE = 'Kochi', WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=9.93988&longitude=76.26022&current=temperature_2m,weather_code,is_day', weather = null, DAYS =['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  // Weather locations shown in Settings; the chosen id is saved per TV. 'off' disables weather.
+  var PLACES = [
+    { id: 'off', name: 'Weather off' },
+    { id: 'kochi', name: 'Kochi', lat: 9.9312, lon: 76.2673 },
+    { id: 'mumbai', name: 'Mumbai', lat: 19.0760, lon: 72.8777 },
+    { id: 'delhi', name: 'New Delhi', lat: 28.6139, lon: 77.2090 },
+    { id: 'bengaluru', name: 'Bengaluru', lat: 12.9716, lon: 77.5946 },
+    { id: 'chennai', name: 'Chennai', lat: 13.0827, lon: 80.2707 },
+    { id: 'kolkata', name: 'Kolkata', lat: 22.5726, lon: 88.3639 },
+    { id: 'hyderabad', name: 'Hyderabad', lat: 17.3850, lon: 78.4867 },
+    { id: 'london', name: 'London', lat: 51.5072, lon: -0.1276 },
+    { id: 'newyork', name: 'New York', lat: 40.7128, lon: -74.0060 },
+    { id: 'sydney', name: 'Sydney', lat: -33.8688, lon: 151.2093 },
+    { id: 'dubai', name: 'Dubai', lat: 25.2048, lon: 55.2708 },
+    { id: 'singapore', name: 'Singapore', lat: 1.3521, lon: 103.8198 }
+  ];
+  function placeOf(id) { for (var i = 0; i < PLACES.length; i++) if (PLACES[i].id === id) return PLACES[i]; return PLACES[0]; }
+  LOOK_VALUES.place = PLACES.map(function (p) { return p.id; });
+  var weather = null, DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function dateText() { var d = new Date(); return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   function greeting() { var h = new Date().getHours(); return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night'; }
@@ -1110,8 +1136,10 @@
   }
   // Weather is optional: a failed or malformed response keeps the last reading, or none.
   function refreshWeather() {
+    var p = placeOf(S.c.place);
+    if (typeof p.lat !== 'number') { weather = null; return; }
     var xhr = new window.XMLHttpRequest();
-    xhr.open('GET', WEATHER_URL); xhr.timeout = 10000;
+    xhr.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m,weather_code,is_day'); xhr.timeout = 10000;
     xhr.onload = function () {
       var c;
       try { c = JSON.parse(xhr.responseText).current; } catch (e) { return; }
@@ -1122,7 +1150,9 @@
     xhr.send();
   }
   function renderCaption(t, hs) {
-    var html = '<span class="cap-greet">' + greeting() + '</span><span class="clock">' + clockHtml() + '<span class="clock-sec">' + secText() + '</span></span><span class="cap-date">' + dateText() + '</span><span class="cap-place">' + icon('pin') + '<span>' + esc(PLACE) + '</span>'
+    var p = placeOf(S.c.place);
+    var html = '<span class="cap-greet">' + greeting() + '</span><span class="clock">' + clockHtml() + '<span class="clock-sec">' + secText() + '</span></span><span class="cap-date">' + dateText() + '</span>';
+    if (p.id !== 'off') html += '<span class="cap-place">' + icon('pin') + '<span>' + esc(p.name) + '</span>'
       + (weather ? '<span class="cap-weather">' + icon(weather.icon) + '<span>' + weather.temp + '°C</span></span>' : '') + '</span>';
     if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
     setHTML(caption, html);
