@@ -6,7 +6,7 @@
   var ASSETS = 'assets/', ICONS = ASSETS + 'icons/', WP = ASSETS + 'wallpapers/';
   var CAP = 9, SCRIM_Y = 560;
   // Dock tile geometry per Style: 'apple' = compact brand cards, 'normal' = stock CleanFrame dock.
-  var DOCK_MODES_APPLE = { both: { tw: 240, th: 150, pitch: 252 }, text: { tw: 240, th: 96, pitch: 252 }, icons: { tw: 168, th: 100, pitch: 176 } };
+  var DOCK_MODES_APPLE = { both: { tw: 236, th: 148, pitch: 248 }, text: { tw: 236, th: 96, pitch: 248 }, icons: { tw: 176, th: 108, pitch: 188 } };
   var DOCK_MODES_NORMAL = { both: { tw: 288, th: 200, pitch: 296 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
   function dockModes() { return S.c.style === 'normal' ? DOCK_MODES_NORMAL : DOCK_MODES_APPLE; }
   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
@@ -1273,7 +1273,9 @@
     if (it.kind === 'add') return '<span class="add">' + icon('plus') + '</span><span class="label">' + (full ? 'Home is full' : 'Add app') + '</span>';
     a = app(it.id);
     var apple = S.c.style !== 'normal';
-    body = S.c.apps === 'text' ? '' : (apple ? appMark(a, 72, 40, 38) : appMark(a, S.c.apps === 'icons' ? 136 : 120, S.c.apps === 'icons' ? 88 : 72, S.c.apps === 'icons' ? 72 : 58));
+    body = S.c.apps === 'text' ? '' : (apple
+      ? (S.c.apps === 'icons' ? appMark(a, 104, 60, 56) : appMark(a, 56, 34, 34))
+      : appMark(a, S.c.apps === 'icons' ? 136 : 120, S.c.apps === 'icons' ? 88 : 72, S.c.apps === 'icons' ? 72 : 58));
     // Apple cards centre their content with flex, so the label needs no absolute top.
     var label = S.c.apps === 'icons' ? '' : '<span class="label" style="font-size:' + dockLabelSize(a.id) + 'px' + (apple ? '' : ';top:' + ((S.c.apps === 'text' ? 28 : 128) + fontShift('primary', dockLabelSize(a.id))) + 'px') + '"><span class="label-ink">' + esc(a.name) + '</span></span>';
     return body + label + '<span class="nudge nudge-l">' + icon('left') + '</span><span class="nudge nudge-r">' + icon('right') + '</span>';
