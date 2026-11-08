@@ -884,7 +884,7 @@
       { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
     ];
     if (t.group === 'typography') return [{ id: 'font', title: '', items: options('font', LOOK_VALUES.font) }];
-    if (t.group === 'style') return [{ id: 'style', title: '', horizontal: true, items: options('style', ['apple', 'normal']), reason: 'Apple shows compact brand cards, a large clock, weather and animations. Normal is the classic CleanFrame dock.' }];
+    if (t.group === 'style') return [{ id: 'style', title: '', horizontal: true, items: options('style', ['apple', 'normal']), reason: 'Dock look only. Apple shows compact brand cards with animations; Normal uses the classic CleanFrame dock. The clock, greeting and weather stay the same in both.' }];
     if (t.group === 'weather') return [{ id: 'place', title: 'Location', items: options('place', LOOK_VALUES.place), reason: 'Weather uses your city’s coordinates only, via Open-Meteo.' }];
     if (t.group === 'focus') return [
       { id: 'focus', title: 'Focus style', horizontal: true, items: options('focus', ['type', 'glass']) },
