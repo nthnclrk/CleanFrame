@@ -1244,8 +1244,10 @@
   }
 
   function dockGeom(n) {
-    var m = dockModes()[S.c.apps], vis = Math.max(1, Math.min(5, n)), shelfW = vis * m.pitch - 8, w = shelfW + 32;
-    var broad = S.geom === 'broad' && n > 5;
+    // Apple: the dock is exactly as wide as its tiles (up to the 1696px screen shelf) and stays centred.
+    var m = dockModes()[S.c.apps], apple = S.c.style !== 'normal', fit = Math.floor((1696 + 8) / m.pitch);
+    var vis = Math.max(1, Math.min(apple ? fit : 5, n)), shelfW = vis * m.pitch - 8, w = shelfW + 32;
+    var broad = !apple && S.geom === 'broad' && n > 5;
     if (n < 0) { w = 912; shelfW = 880; }
     else if (broad) { w = 1728; shelfW = 1696; }
     return { x: Math.round((1920 - w) / 2), y: 908 - m.th - 32, h: m.th + 32, w: w, shelf: shelfW, vis: vis, broad: broad, empty: n < 0, tw: m.tw, th: m.th, pitch: m.pitch };
