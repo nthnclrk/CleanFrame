@@ -115,6 +115,14 @@
       api().launchAppControl(control, 'org.tizen.art-app', function () { finish(null); }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
+  // Art Mode exists on Frame TVs only. getAppInfo throws for a missing app, so a present
+  // art-app is a reliable Frame signal; the web preview (no tizen) reports unsupported.
+  function artSupported() {
+    var app = api();
+    if (!app || typeof app.getAppInfo !== 'function') return false;
+    try { return !!app.getAppInfo('org.tizen.art-app'); }
+    catch (err) { return false; }
+  }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
   function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
   function apps(done) {
@@ -139,5 +147,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, artSupported: artSupported, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource };
 }());

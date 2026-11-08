@@ -483,6 +483,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .settings-back{position:absolute;left:124px;top:60px;pointer-events:auto}
 .settings-title{position:absolute;left:140px;top:132px;font-size:56px;line-height:68px;font-weight:500;letter-spacing:-1.6px}
 .appearance-rows{position:absolute;left:140px;top:244px;width:640px;pointer-events:auto}
+/* Long option lists (e.g. Weather cities) scroll within the panel; the focused row is kept in view from main.js. */
+.appearance-rows:not(.wallpaper-picker){bottom:150px;overflow:hidden}
 .setting-section+.setting-section{margin-top:32px}
 .setting-label{margin-bottom:12px;font-size:28px;line-height:36px;font-weight:500;letter-spacing:-.2px;color:var(--mute)}
 .setting-options{display:flex;flex-direction:column}
@@ -633,3 +635,51 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .l-list .quiet-utils.is-text .u-content>*+*{margin-left:0;margin-right:0}
 .quiet-utils.is-text .u-content>*+*{margin-left:0}
 .l-list .quiet-utils.is-text .u .u-content>*+*{margin-right:0}
+
+/* Apple TV-style Dock (icons only): solid brand cards, focus lifts the card. The card is inset
+   8px in its slot so the 1.1 lift stays inside the clipped shelf. */
+.l-dock.style-apple .mat,.l-dock.style-apple .plate{display:none}
+.l-dock.style-apple .tile-content{top:8px;right:8px;bottom:8px;left:8px;border-radius:14px;overflow:hidden;will-change:transform;transition:transform 360ms cubic-bezier(.34,1.4,.5,1),box-shadow 280ms ease,background-color 280ms ease;animation:cf-rise 620ms cubic-bezier(.2,.8,.2,1) backwards;background:#2c2c2e;color:#fff;background-image:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 55%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 6px 14px rgba(0,0,0,.34)}
+.l-dock.style-apple .tile.is-focus .tile-content,.l-dock.style-apple .tile.is-lifted .tile-content{transform:scale(1.12);box-shadow:inset 0 0 0 2px rgba(255,255,255,.6),0 14px 22px rgba(0,0,0,.5);background-image:linear-gradient(150deg,rgba(255,255,255,.34),rgba(255,255,255,.06) 45%,rgba(255,255,255,0) 60%)}
+/* Smoother dock scroll and reflow than the default 180ms. */
+.l-dock.style-apple .track,.l-dock.style-apple .tile{transition:transform 440ms cubic-bezier(.22,.61,.36,1)}
+.l-dock.style-apple .tile-content{display:flex;flex-direction:column;align-items:center;justify-content:center}.l-dock.style-apple .tile .mark{position:relative;left:auto;top:auto;margin:0 auto;opacity:1;transform:none}.l-dock.style-apple .tile .label{position:static;left:auto;right:auto;top:auto;margin-top:6px;max-width:88%;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}.l-dock.style-apple .b-youtube .label{color:#111;text-shadow:none}
+/* Motion: tiles rise in one after another, focus springs, and a light sweep crosses the focused card. */
+.l-dock.style-apple .tile:nth-child(3) .tile-content{animation-delay:70ms}
+.l-dock.style-apple .tile:nth-child(4) .tile-content{animation-delay:140ms}
+.l-dock.style-apple .tile:nth-child(n+5) .tile-content{animation-delay:210ms}
+.l-dock.style-apple .tile-content::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:50%;background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.38),rgba(255,255,255,0));opacity:0;pointer-events:none}
+.l-dock.style-apple .tile.is-focus .tile-content::after{animation:cf-shine 900ms 150ms ease-out}
+.l-dock .caption{animation:cf-fade 700ms ease-out backwards}
+@keyframes cf-rise{from{opacity:0;transform:translateY(28px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes cf-shine{0%{opacity:0;transform:translateX(0)}15%{opacity:1}100%{opacity:0;transform:translateX(420%)}}
+@keyframes cf-fade{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.l-dock.style-apple .tile-content,.l-dock.style-apple .tile-content::after,.l-dock .caption{animation:none!important}}
+.l-dock.style-apple .tile.is-sel .tile-content{opacity:.85}
+.l-dock.style-apple .b-netflix .tile-content{background-color:#000;color:#e50914}
+.l-dock.style-apple .b-youtube .tile-content{background-color:#fff;color:#ff0033}
+.l-dock.style-apple .b-disneyplus .tile-content{background-color:#0e2a6b}
+.l-dock.style-apple .b-primevideo .tile-content{background-color:#0f171e;color:#1a98ff}
+.l-dock.style-apple .b-appletv .tile-content{background-color:#000}
+.l-dock.style-apple .b-applemusic .tile-content{background-color:#fa2d48}
+.l-dock.style-apple .b-spotify .tile-content{background-color:#121212;color:#1ed760}
+.l-dock.style-apple .b-hbomax .tile-content{background-color:#002be7}
+.l-dock.style-apple .b-stremio .tile-content{background-color:#7b5bf5}
+.l-dock.style-apple .b-channels .tile-content{background-color:#1f4fd8}
+
+/* Time, day and place: a large light clock over two quieter lines; Dock only. */
+.cap-greet,.cap-date,.cap-place,.wall-name{display:none}
+.l-dock .cap-greet{display:block;margin-bottom:-6px;font-family:Manrope,Arial,sans-serif;font-size:30px;line-height:40px;font-weight:400;letter-spacing:.5px;color:#fff;opacity:.85;text-shadow:0 1px 6px rgba(0,0,0,.45)}
+.l-dock.bg-photo .wall-name{display:block;position:absolute;left:140px;top:1000px;font-family:Manrope,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:#fff;opacity:.55;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.is-sheet .wall-name{visibility:hidden}
+.l-dock .caption{top:56px}
+.l-dock .caption .clock{font-size:120px;line-height:132px;font-weight:300;letter-spacing:-4px;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+.l-dock .caption .clock-digit{width:calc(var(--font-clock-digit) * 2.5)}
+.clock-sec{display:none}
+.l-dock .caption .clock-sec{display:inline-block;width:1.3em;margin-left:14px;font-size:48px;line-height:1;letter-spacing:0;opacity:.6;font-variant-numeric:tabular-nums}
+.l-dock .cap-date,.l-dock .cap-place{display:flex;align-items:center;white-space:nowrap;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.45);font-family:Manrope,Arial,sans-serif}
+.l-dock .cap-date{margin-top:4px;font-size:34px;line-height:44px;font-weight:500;letter-spacing:-.3px}
+.l-dock .cap-place{margin-top:10px;font-size:26px;line-height:34px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;opacity:.78}
+.l-dock .cap-place .ico{width:28px;height:28px;margin-right:8px;stroke-width:1.8;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45))}
+.l-dock .cap-weather{display:flex;align-items:center;margin-left:28px;padding-left:28px;border-left:2px solid rgba(255,255,255,.4);letter-spacing:.5px}
+.l-dock .cap-weather .ico{width:32px;height:32px;margin-right:10px}
