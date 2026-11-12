@@ -34,6 +34,7 @@
     { id: '60', name: 'Every hour', min: 60 }
   ];
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
+  var INPUTS = [], inputScan = { loading: false, request: 0 };
   var QA = window.ShoreQA = { minuteMs: window.ShoreQA && window.ShoreQA.minuteMs || 60000 };
   var FONTS = {
     manrope: { name: 'Manrope', family: 'Manrope', display: 600, ui: 500, clock: 500 },
@@ -90,6 +91,14 @@
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
+  /* HDMI inputs reported by the TV can be pinned like apps. Their IDs contain no dot, so they never fall back to a native app ID. */
+  function inputPort(n) { return typeof n === 'number' && isFinite(n) && n >= 0 && n <= 99 && Math.floor(n) === n; }
+  function inputApp(n) {
+    var id = 'hdmi-' + n, a = app(id);
+    if (!a) { a = { id: id, appId: id, name: 'HDMI ' + n, mark: false, input: n }; APPS.push(a); }
+    return a;
+  }
+  function isInput(a) { return !!a && a.input !== undefined; }
   function wall(id) { for (var i = 0; i < WALLS.length; i++) if (WALLS[i].id === id) return WALLS[i]; return null; }
   function wallIndex(id) { for (var i = 0; i < WALLS.length; i++) if (WALLS[i].id === id) return i; return 0; }
   function frostClass(w) { var i = [.12, .20, .30, .36, .44].indexOf(w.frostVeil); return i > 0 ? ' fv-' + (i + 1) : ''; }
@@ -330,6 +339,7 @@
     var s = saved && typeof saved === 'object' ? saved : {}, modern = s.look && typeof s.look === 'object' ? s.look : s;
     var legacyList = s.theme === 'list', h = [], recent = [], records = Array.isArray(s.appRecords) ? s.appRecords : [];
     records.slice(0, 256).forEach(function (a) {
+      if (a && inputPort(a.input) && a.id === 'hdmi-' + a.input) { inputApp(a.input); return; }
       if (!a || !safeId(a.id) || !safeId(a.appId) || typeof a.name !== 'string' || !a.name.trim() || app(a.id)) return;
       APPS.push({ id: a.id, appId: a.appId, name: a.name.slice(0, 160), brand: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0 ? a.brand : '', mark: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0, icon: safeIcon(a.icon) });
     });
@@ -357,7 +367,8 @@
     out.appRecords = [];
     c.home.concat(c.recent).forEach(function (key) {
       var a = app(key);
-      if (a && PRIMARY.indexOf(key) < 0 && !out.appRecords.some(function (r) { return r.id === key; })) out.appRecords.push({ id: a.id, appId: a.appId, name: a.name, brand: a.brand || '', icon: a.icon || '' });
+      if (!a || PRIMARY.indexOf(key) >= 0 || out.appRecords.some(function (r) { return r.id === key; })) return;
+      out.appRecords.push(isInput(a) ? { id: a.id, appId: a.appId, name: a.name, input: a.input } : { id: a.id, appId: a.appId, name: a.name, brand: a.brand || '', icon: a.icon || '' });
     });
     return out;
   }
@@ -461,7 +472,21 @@
     if (!a || busy) return;
     if (S.c.home.indexOf(id) >= 0) { c = next(S.c.home.slice(), S.c.recent.slice()); c.lastApp = id; write(c, 'Last app'); }
     S.press = id; S.lastLaunch = a.name;
-    perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
+    if (isInput(a)) perform(a.name, function (done) { FrameDevice.setSource(a.input, function (err) { done(err && err.cancelled ? null : err); }); });
+    else perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
+  }
+  /* Discovery runs only from the visible editor; failures list no inputs rather than guessed ports. */
+  function refreshInputs() {
+    var request;
+    if (inputScan.loading) return;
+    request = ++inputScan.request; inputScan.loading = true;
+    FrameDevice.sources(function (err, list) {
+      if (request !== inputScan.request) return;
+      inputScan.loading = false;
+      INPUTS = [];
+      if (!err) (list || []).forEach(function (s) { if (s && inputPort(s.number) && INPUTS.indexOf('hdmi-' + s.number) < 0) INPUTS.push(inputApp(s.number).id); });
+      norm(); render();
+    });
   }
   function refreshCatalog() {
     var request, oldFocus;
@@ -517,7 +542,7 @@
   function openEditor(origin) {
     var i = ensureSel();
     clearSession();
-    refreshCatalog();
+    refreshCatalog(); refreshInputs();
     push({ id: 'editor', origin: origin, lifted: null, top: 0, otherReturn: { id: otherList()[0] || null, index: 0, top: 0 }, f: { zone: S.c.home.length ? 'home' : 'other', i: Math.max(0, i), part: 'name', h: 1, j: 0 } });
   }
   function openWallpaper() {
@@ -711,15 +736,24 @@
   /* ---------- B: two-zone Home editor ---------- */
   function otherGroups() {
     var rec = S.c.recent.filter(function (id) { return !onHome(id) && app(id); });
-    return { recent: rec, rest: ALPHA.filter(function (id) { return !onHome(id) && rec.indexOf(id) < 0; }) };
+    function addable(id) { return !onHome(id) && rec.indexOf(id) < 0; }
+    return { recent: rec, rest: ALPHA.filter(addable), inputs: INPUTS.filter(addable) };
   }
-  function otherList() { var o = otherGroups(); return o.recent.concat(o.rest); }
+  function otherList() { var o = otherGroups(); return o.recent.concat(o.rest, o.inputs); }
+  /* Row positions for the addable list. A section heading precedes Recently removed, Inputs, and other apps when recent apps exist. */
+  function otherLayout() {
+    var o = otherGroups(), out = { entries: [], ys: [], headed: [], height: 0 }, y = 0;
+    [['sep-recent', 'Recently removed', o.recent, true], ['sep-rest', 'Other installed apps', o.rest, o.recent.length > 0], ['sep-inputs', 'Inputs', o.inputs, true]].forEach(function (g) {
+      if (!g[2].length) return;
+      if (g[3]) { out.entries.push({ key: g[0], sep: g[1], y: y }); y += ED_SEP; }
+      g[2].forEach(function (id, k) { out.entries.push({ key: id, id: id, y: y }); out.ys.push(y); out.headed.push(g[3] && k === 0); y += ED_ROW; });
+    });
+    out.height = y;
+    return out;
+  }
   function editorCut() { return 5; }
   function editorHomeY(i) { return i * ED_ROW + (i >= editorCut() ? 24 : 0); }
-  function editorOtherY(j) {
-    var o = otherGroups();
-    return j * ED_ROW + (o.recent.length ? ED_SEP : 0) + (o.recent.length && j >= o.recent.length ? ED_SEP : 0);
-  }
+  function editorOtherY(j) { return otherLayout().ys[j] || 0; }
   function rememberOther(t) {
     var list = otherList();
     t.otherReturn = { id: list[t.f.j] || null, index: t.f.j, top: t.top };
@@ -1568,9 +1602,9 @@
       el.after.className = 'row-cue grid-after' + (rows - t.top > vis ? ' is-on' : '');
     },
     editor: function (t, el) {
-      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, O = otherGroups(), list = O.recent.concat(O.rest), full = S.c.home.length >= CAP;
-      var entries = [], ys = [], y = 0, yf, minTop, maxTop = 0, rowEnd, before = false, afterRows = false;
-      var hint = catalog.error ? catalog.error : catalog.loading ? 'Loading installed apps…' : f.zone === 'head' && f.h === 0 ? undoCaption() : f.zone === 'home' && f.part === 'remove' ? (H.length <= 1 ? LAST : app(H[f.i]).name + ' stays installed.') : '';
+      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, layout = otherLayout(), list = otherList(), full = S.c.home.length >= CAP;
+      var entries = layout.entries, ys = layout.ys, y = layout.height, yf, minTop, maxTop = 0, rowEnd, before = false, afterRows = false;
+      var hint = catalog.error ? catalog.error : catalog.loading ? 'Loading installed apps…' : f.zone === 'head' && f.h === 0 ? undoCaption() : f.zone === 'home' && f.part === 'remove' ? (H.length <= 1 ? LAST : app(H[f.i]).name + (isInput(app(H[f.i])) ? ' stays in Inputs.' : ' stays installed.')) : '';
       setHTML(el.sub, editStatus(hint, t.lifted ? 'Moving ' + app(t.lifted.id).name + '. OK places it, Back puts it back.' : ''));
       setHTML(el.head, headButtons([['undo', 'Undo', S.undo.length ? '' : 'is-idle', 'undo'], ['done', 'Done', '', 'check']], f.zone === 'head' ? f.h : -1, 'editor'));
       el.head.className = 's-head' + (f.zone === 'head' ? ' is-awake' : '');
@@ -1593,12 +1627,8 @@
       el.origin.className = 'ed-origin' + (t.lifted && t.lifted.from !== f.i ? ' is-on' : '');
       if (t.lifted) el.origin.style.transform = 'translate3d(0,' + (264 + editorHomeY(t.lifted.from) + 16) + 'px,0)';
 
-      if (O.recent.length) { entries.push({ key: 'sep-recent', sep: 'Recently removed', y: y }); y += ED_SEP; }
-      O.recent.forEach(function (id) { entries.push({ key: id, id: id, y: y }); ys.push(y); y += ED_ROW; });
-      if (O.recent.length && O.rest.length) { entries.push({ key: 'sep-rest', sep: 'Other installed apps', y: y }); y += ED_SEP; }
-      O.rest.forEach(function (id) { entries.push({ key: id, id: id, y: y }); ys.push(y); y += ED_ROW; });
       if (f.zone === 'other' && ys.length) {
-        yf = ys[f.j] - (O.recent.length && (f.j === 0 || f.j === O.recent.length) ? ED_SEP : 0);
+        yf = ys[f.j] - (layout.headed[f.j] ? ED_SEP : 0);
         if (yf < t.top) t.top = yf;
         if (ys[f.j] + 72 > t.top + ED_VIEW) {
           minTop = ys[f.j] + 72 - ED_VIEW;
@@ -1891,6 +1921,7 @@
     out.committed = S.c; out.shown = S.shown; out.pending = S.pending; out.view = t.id; out.selected = S.sel;
     out.focusAction = focusedAction(); out.writes = S.writes; out.failedWrites = S.failed; out.error = S.err;
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
+    out.inputs = { loading: inputScan.loading, ids: INPUTS.slice() };
     out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
     out.rotation = { activeMs: activeMs + (activeSince ? Date.now() - activeSince : 0), active: !!activeSince };
     out.draft = t.lifted ? { id: t.lifted.id, order: t.lifted.order.slice() } : null;

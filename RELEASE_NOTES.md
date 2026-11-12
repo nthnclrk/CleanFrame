@@ -1,3 +1,7 @@
+# Unreleased
+
+- HDMI inputs reported by the TV can be added to Home from the Home editor's new Inputs section. A Home input switches through the same bounded source selection and viewer handoff as Settings → Samsung → Inputs, and survives a restart from its saved port record.
+
 # CleanFrame 0.7.0
 
 CleanFrame remains a starting point to fork and adapt for your own Samsung TV.
