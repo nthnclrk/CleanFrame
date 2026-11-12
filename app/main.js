@@ -8,13 +8,14 @@
   var DOCK_MODES = { both: { tw: 288, th: 200, pitch: 296 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
   var ED_ROW = 80, ED_SEP = 56, ED_VIEW = 752;
+  var ECOLS = 6, ECW = 288, ECH = 152, EOVIEW = 470;
   var PH_TOP = 220, PH_PITCH = 128, PH_FULL = 5, PH_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9;
   var WALL_VISIBLE = 6, WALL_ROW = 92, WALL_DELAY = 200;
-  var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
+  var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back', 10073: 'gohome', 36: 'gohome' };
   var FULL = 'Home holds nine apps. Remove one first.', LAST = 'Home needs one app';
 
   var PRIMARY_APPS = [
-    { id: 'stremio', name: 'Stremio', mark: true, appId: 'IkWsFHtOY9.Stremio' },
+    { id: 'samsungtvplus', name: 'Samsung TV Plus', mark: true, appId: 'HEPsqFNie0.tvplusstandalone' },
     { id: 'netflix', name: 'Netflix', mark: true, appId: 'org.tizen.netflix-app' },
     { id: 'disneyplus', name: 'Disney+', mark: true, appId: 'MCmYXNxgcu.DisneyPlus' },
     { id: 'youtube', name: 'YouTube', mark: true, appId: '9Ur5IzDKqV.TizenYouTube' },
@@ -31,7 +32,7 @@
   var MODES = [
     { id: 'fixed', name: 'Fixed', min: 0 }, { id: 'open', name: 'Each time Home opens', min: 0 },
     { id: '5', name: 'Every 5 minutes', min: 5 }, { id: '15', name: 'Every 15 minutes', min: 15 },
-    { id: '60', name: 'Every hour', min: 60 }
+    { id: '60', name: 'Every hour', min: 60 }, { id: 'custom', name: 'Custom', min: 0 }
   ];
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = { minuteMs: window.ShoreQA && window.ShoreQA.minuteMs || 60000 };
@@ -47,12 +48,14 @@
   var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var UTIL = { wallpaper: ['Wallpaper', 'wallpaper'], slideshow: ['Slideshows', 'slideshow'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
   var SVG = {
     art: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.8" r="1.5"/><path d="m4.5 17.5 4.5-4.5 3 3 2.5-2.5 5 5"/>',
+    wallpaper: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.8" r="1.5"/><path d="m4.5 17.5 4.5-4.5 3 3 2.5-2.5 5 5"/>',
+    slideshow: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m10 9.5 5 2.5-5 2.5z"/><path d="M6 3.5h12M4.5 21.5h15"/>',
     apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
     settings: '<path d="m9 3-.6 2.4-2 1.2L4 6l-2 3.5L3.8 11v2L2 14.5 4 18l2.4-.6 2 1.2L9 21h6l.6-2.4 2-1.2 2.4.6 2-3.5-1.8-1.5v-2L22 9.5 20 6l-2.4.6-2-1.2L15 3Z"/><circle cx="12" cy="12" r="3.2"/>',
@@ -140,7 +143,8 @@
   function appMark(a, w, h, size) {
     if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
-    return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
+    var nativeCls = a.icon ? ' native-icon ' + ((S.c.unblended || []).indexOf(a.appId) >= 0 ? 'original' : 'blended') : '';
+    return '<span class="mark monogram' + nativeCls + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
       + (a.icon ? '<img alt="" data-native-icon="true" src="' + esc(a.icon) + '">' : '') + '</span>';
   }
   function smallMark(a) { return appMark(a, 56, 44, 36); }
@@ -314,6 +318,20 @@
   /* ---------- Saved preferences ---------- */
   function safeId(id) { return typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,160}$/.test(id) && ['constructor', 'prototype', '__proto__'].indexOf(id) < 0; }
   function safeIcon(path) { return typeof path === 'string' && path.length < 2048 && /^(?:\/[^\/]|file:\/\/\/|wgt-package:\/\/\/)/.test(path) ? path : ''; }
+  function cleanSlideshows(s) {
+    var out = [];
+    if (Array.isArray(s.slideshows)) s.slideshows.slice(0, 32).forEach(function (sh) {
+      if (!sh || !safeId(sh.id) || typeof sh.name !== 'string') return;
+      var walls = Array.isArray(sh.walls) ? sh.walls.filter(function (id) { return safeId(id) && wall(id); }).slice(0, 128) : [];
+      var sec = (typeof sh.sec === 'number' && sh.sec >= 3 && sh.sec <= 86400) ? Math.round(sh.sec) : 30;
+      out.push({ id: sh.id, name: sh.name.slice(0, 60) || 'Slideshow', walls: walls, sec: sec });
+    });
+    if (!out.length && Array.isArray(s.slideshow) && s.slideshow.length) {
+      var w = s.slideshow.filter(function (id) { return safeId(id) && wall(id); });
+      if (w.length) out.push({ id: 'sg1', name: 'My slideshow', walls: w, sec: 600 });
+    }
+    return out;
+  }
   function load() {
     var keys = [KEY, 'cleanframe.shore.v1'], raw, saved, i;
     for (i = 0; i < keys.length; i++) {
@@ -334,6 +352,7 @@
       APPS.push({ id: a.id, appId: a.appId, name: a.name.slice(0, 160), brand: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0 ? a.brand : '', mark: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0, icon: safeIcon(a.icon) });
     });
     (Array.isArray(s.home) ? s.home : Array.isArray(s.dock) ? s.dock : []).forEach(function (id) {
+      if (id === 'stremio') id = 'samsungtvplus';
       if (!safeId(id) || h.indexOf(id) >= 0 || h.length >= CAP) return;
       if (!app(id) && id.indexOf('.') > 0) APPS.push({ id: id, appId: id, name: id.split('.').pop(), mark: false });
       if (app(id)) h.push(id);
@@ -346,7 +365,13 @@
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
-      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
+      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed'),
+      slideshows: cleanSlideshows(s),
+      activeSlideshow: typeof s.activeSlideshow === 'string' ? s.activeSlideshow : '',
+      hiddenApps: Array.isArray(s.hiddenApps) ? s.hiddenApps.filter(function (id) { return safeId(id); }).slice(0, 256) : [],
+      unblended: Array.isArray(s.unblended) ? s.unblended.filter(function (id) { return safeId(id); }).slice(0, 256) : [],
+      appsOrder: Array.isArray(s.appsOrder) ? s.appsOrder.filter(function (id) { return safeId(id); }).slice(0, 512) : [],
+      rotateMin: (typeof s.rotateMin === 'number' && s.rotateMin >= 1 && s.rotateMin <= 180) ? Math.round(s.rotateMin) : 10
     };
   }
   function serialise(c) {
@@ -371,13 +396,13 @@
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
-  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; return c; }
+  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.slideshows = S.c.slideshows; c.activeSlideshow = S.c.activeSlideshow; c.hiddenApps = S.c.hiddenApps; c.unblended = S.c.unblended; c.appsOrder = S.c.appsOrder; c.rotateMin = S.c.rotateMin; return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
     try { localStorage.setItem(KEY, JSON.stringify(serialise(c))); }
     catch (e) { storageOk = false; S.failed++; S.err = label; log('Not saved: ' + label); return false; }
-    if (c.wall !== S.c.wall || c.mode !== S.c.mode) resetRotation();
+    if (c.wall !== S.c.wall || c.mode !== S.c.mode || c.rotateMin !== S.c.rotateMin || c.slideshows !== S.c.slideshows || c.activeSlideshow !== S.c.activeSlideshow) resetRotation();
     storageOk = true; S.c = c; S.writes++; S.err = null; log('Saved: ' + label);
     return true;
   }
@@ -418,6 +443,14 @@
     if (!write(next(h, without(S.c.recent, id)), 'Add ' + a.name + ' to Home')) return false;
     S.undo.push({ label: 'Add ' + a.name, snap: before });
     return true;
+  }
+  function swapHome(i, j) {
+    var h = S.c.home.slice(), tmp = h[i]; h[i] = h[j]; h[j] = tmp;
+    if (write(next(h, S.c.recent.slice()), 'Move')) setSel(h[j]);
+  }
+  function persistAppsOrder() {
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.appsOrder = ALPHA.slice();
+    write(c, 'Apps order');
   }
   function homeMove(order, id, before) {
     var a = app(id);
@@ -463,6 +496,7 @@
     S.press = id; S.lastLaunch = a.name;
     perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
   }
+  var hiddenNames = {};
   function refreshCatalog() {
     var request, oldFocus;
     if (catalog.loading) return;
@@ -476,6 +510,7 @@
       entries.forEach(function (entry) {
         var id = PRIMARY.indexOf(entry.brand) >= 0 ? entry.brand : entry.appId, a;
         if (!safeId(id) || !safeId(entry.appId) || ALPHA.indexOf(id) >= 0) return;
+        if ((S.c.hiddenApps || []).indexOf(entry.appId) >= 0) { hiddenNames[entry.appId] = entry.name; return; }
         a = app(id);
         if (!a) { a = { id: id }; APPS.push(a); }
         a.appId = entry.appId; a.brand = entry.brand || ''; a.mark = !!entry.brand;
@@ -483,7 +518,14 @@
         a.name = PRIMARY.indexOf(id) >= 0 ? PRIMARY_APPS[PRIMARY.indexOf(id)].name : String(entry.name).slice(0, 160);
         ALPHA.push(id);
       });
-      ALPHA.sort(function (a, b) { return app(a).name.toLowerCase().localeCompare(app(b).name.toLowerCase()); });
+      var ord = S.c.appsOrder || [];
+      ALPHA.sort(function (a, b) {
+        var ia = ord.indexOf(a), ib = ord.indexOf(b);
+        if (ia >= 0 && ib >= 0) return ia - ib;
+        if (ia >= 0) return -1;
+        if (ib >= 0) return 1;
+        return app(a).name.toLowerCase().localeCompare(app(b).name.toLowerCase());
+      });
       catalog.loaded = true; catalog.error = null; catalog.revision++;
       if (top().id === 'apps' && oldFocus && ALPHA.indexOf(oldFocus) >= 0) top().f.i = ALPHA.indexOf(oldFocus);
       norm(); render();
@@ -491,14 +533,15 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings']; }
+  function utils() { return ['wallpaper', 'apps', 'settings']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
   function utilAction(u) {
-    if (u === 'art') perform('Art Mode', FrameDevice.art);
+    if (u === 'wallpaper') openWallpaper();
+    else if (u === 'slideshow') openSlideshows();
     else if (u === 'apps') openApps();
     else openSettings();
   }
@@ -534,6 +577,14 @@
   V.home = {
     key: function (t, k) {
       var f = t.f, h = S.c.home, U = utils(), x = axes(), i = ensureSel();
+      if (t.moving) {
+        var mi = S.c.home.indexOf(t.moving);
+        if (mi < 0) { t.moving = null; }
+        else if (k === x.prev && mi > 0) swapHome(mi, mi - 1);
+        else if (k === x.next && mi < S.c.home.length - 1) swapHome(mi, mi + 1);
+        else if (k === 'ok' || k === 'back') { t.moving = null; S.note = null; }
+        return;
+      }
       if (S.c.layout === 'list') { listHomeKey(t, k, i, U); return; }
       if (f.zone === 'util') {
         f.u = clamp(f.u, 0, U.length - 1);
@@ -546,6 +597,7 @@
       }
       f.zone = 'apps';
       if (k === x.out) { f.zone = 'util'; f.u = clamp(S.lastUtil, 0, U.length - 1); }
+      else if (k === x.inn) { openApps(); return; }
       else if (k === 'back') openMessage('leave');
       else if (!h.length) { if (k === 'ok') addAppsRoute(); }
       else if (k === x.prev && i > 0) setSel(h[i - 1]);
@@ -575,6 +627,7 @@
     if (k === 'up' && i > 0) setSel(h[i - 1]);
     else if (k === 'right') { f.zone = 'util'; f.u = clamp(S.lastUtil, 0, U.length - 1); }
     else if (k === 'down' && i < h.length - 1) setSel(h[i + 1]);
+    else if (k === 'down') { openApps(); return; }
     else if (k === 'back') openMessage('leave');
     else if (k === 'ok') { if (h.length) launch(S.sel); else addAppsRoute(); }
   }
@@ -656,7 +709,14 @@
       if (k === 'back') { closeWallpaper(t); return; }
       if (t.f.zone === 'back') {
         if (k === 'ok') closeWallpaper(t);
-        else if (k === 'down' || k === 'right') t.f.zone = 'photo';
+        else if (k === 'right') t.f.zone = 'slides';
+        else if (k === 'down') t.f.zone = 'photo';
+        return;
+      }
+      if (t.f.zone === 'slides') {
+        if (k === 'ok') openSlideshows();
+        else if (k === 'left') t.f.zone = 'back';
+        else if (k === 'down') t.f.zone = 'photo';
         return;
       }
       if (t.f.zone === 'retry') {
@@ -672,6 +732,7 @@
     },
     point: function (t, z, i) {
       if (z === 'wall-back') closeWallpaper(t);
+      else if (z === 'wall-slides') openSlideshows();
       else if (z === 'wall-retry') retryWallpaper(t);
       else if (z === 'wall-choice' && i >= 0 && i < WALLS.length) {
         if (i === t.i) { t.f.zone = 'photo'; this.key(t, 'ok'); }
@@ -692,6 +753,13 @@
     },
     key: function (t, k) {
       var f = t.f, items = appsItems(), n = items.length, col = f.i % COLS, row = Math.floor(f.i / COLS);
+      if (t.moving) {
+        if (k === 'ok' || k === 'back') { t.moving = false; return; }
+        if (catalog.error) { t.moving = false; return; }
+        var tgt = clamp(f.i + (k === 'left' ? -1 : k === 'right' ? 1 : k === 'up' ? -COLS : k === 'down' ? COLS : 0), 0, n - 1);
+        if (tgt !== f.i) { var it = ALPHA.splice(f.i, 1)[0]; ALPHA.splice(tgt, 0, it); f.i = tgt; persistAppsOrder(); S.appsFocus = ALPHA[f.i] || null; }
+        return;
+      }
       if (k === 'back') { pop(); return; }
       if (f.zone === 'head') {
         if (k === 'down' && n) f.zone = 'grid';
@@ -748,44 +816,43 @@
       if (f.zone === 'other' && !no) f.zone = nh ? 'home' : 'head';
     },
     key: function (t, k) {
-      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, O = otherList(), nh = H.length, no = O.length, d, tmp;
+      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, O = otherList(), nh = H.length, no = O.length, tgt, item, col, row, rows;
       if (t.lifted) {
-        d = k === 'up' ? -1 : k === 'down' ? 1 : 0;
-        if (d && f.i + d >= 0 && f.i + d < nh) { tmp = H[f.i + d]; H[f.i + d] = H[f.i]; H[f.i] = tmp; f.i += d; S.err = null; }
-        else if (k === 'ok') editorPlace(t);
-        else if (k === 'back') { f.i = t.lifted.from; t.lifted = null; S.err = null; }
+        if (k === 'ok') { editorPlace(t); return; }
+        if (k === 'back') { f.i = t.lifted.from; t.lifted = null; S.err = null; return; }
+        tgt = clamp(f.i + (k === 'left' ? -1 : k === 'right' ? 1 : k === 'up' ? -ECOLS : k === 'down' ? ECOLS : 0), 0, nh - 1);
+        if (tgt !== f.i) { item = H.splice(f.i, 1)[0]; H.splice(tgt, 0, item); f.i = tgt; S.err = null; }
         return;
       }
       if (k === 'back') { closeEditor(t); return; }
       if (f.zone === 'head') {
         if (k === 'left' && f.h > 0) f.h--;
         else if (k === 'right' && f.h < 1) f.h++;
-        else if (k === 'down') { if (no) returnOther(t); else if (nh) f.zone = 'home'; }
+        else if (k === 'down') { if (nh) f.zone = 'home'; else if (no) f.zone = 'other'; }
         else if (k === 'ok') { begin(); if (f.h === 0) undoLast(null); else closeEditor(t); }
-      } else if (f.zone === 'home') {
-        if (k === 'up') { if (f.i > 0) f.i--; else f.zone = 'head'; }
-        else if (k === 'down') { if (f.i < nh - 1) f.i++; }
-        else if (k === 'right') { if (f.part === 'name') f.part = 'remove'; else if (no) returnOther(t); }
-        else if (k === 'left') { if (f.part === 'remove') f.part = 'name'; }
-        else if (k === 'ok') {
-          begin();
-          if (f.part === 'name') t.lifted = { id: H[f.i], from: f.i, order: H.slice(), snap: snap() };
-          else editorRemove(t, H[f.i]);
-        }
-      } else {
-        if (k === 'up') { if (f.j > 0) { f.j--; rememberOther(t); } else f.zone = 'head'; }
-        else if (k === 'down') { if (f.j < no - 1) { f.j++; rememberOther(t); } }
-        else if (k === 'left') { if (nh) { rememberOther(t); f.i = nearestHome(t, nh); f.zone = 'home'; f.part = 'name'; } }
-        else if (k === 'ok') { begin(); editorAdd(t, O[f.j]); }
+        return;
       }
+      if (f.zone === 'home') {
+        col = f.i % ECOLS; row = Math.floor(f.i / ECOLS); rows = Math.ceil(nh / ECOLS);
+        if (k === 'up') { if (row > 0) f.i -= ECOLS; else f.zone = 'head'; }
+        else if (k === 'down') { if (row < rows - 1) f.i = Math.min(f.i + ECOLS, nh - 1); else if (no) f.zone = 'other'; }
+        else if (k === 'left') { if (col > 0) f.i--; }
+        else if (k === 'right') { if (col < ECOLS - 1 && f.i < nh - 1) f.i++; }
+        else if (k === 'ok') { begin(); t.lifted = { id: H[f.i], from: f.i, order: H.slice(), snap: snap() }; }
+        return;
+      }
+      col = f.j % ECOLS; row = Math.floor(f.j / ECOLS); rows = Math.ceil(no / ECOLS);
+      if (k === 'up') { if (row > 0) f.j -= ECOLS; else f.zone = nh ? 'home' : 'head'; }
+      else if (k === 'down') { if (row < rows - 1) f.j = Math.min(f.j + ECOLS, no - 1); }
+      else if (k === 'left') { if (col > 0) f.j--; }
+      else if (k === 'right') { if (col < ECOLS - 1 && f.j < no - 1) f.j++; }
+      else if (k === 'ok') { begin(); editorAdd(t, O[f.j]); }
     },
     point: function (t, z, i) {
-      if (t.lifted) { if (z === 'name' && i === t.f.i) this.key(t, 'ok'); return; }
-      if (z === 'name' || z === 'remove') { t.f.zone = 'home'; t.f.i = i; t.f.part = z; }
-      else if (z === 'other') { t.f.zone = 'other'; t.f.j = i; rememberOther(t); }
-      else if (z === 'head') { t.f.zone = 'head'; t.f.h = i; }
-      else return;
-      this.key(t, 'ok');
+      if (t.lifted) { if (z === 'ehome' && i === t.f.i) this.key(t, 'ok'); return; }
+      if (z === 'ehome') { t.f.zone = 'home'; t.f.i = i; this.key(t, 'ok'); }
+      else if (z === 'eother') { t.f.zone = 'other'; t.f.j = i; this.key(t, 'ok'); }
+      else if (z === 'head') { t.f.zone = 'head'; t.f.h = i; this.key(t, 'ok'); }
     }
   };
   /* Focus follows the app between zones, so a repeated OK toggles the same app. */
@@ -795,11 +862,8 @@
     S.note = app(id).name + ' is in Recently removed. OK puts it back.';
   }
   function editorAdd(t, id) {
-    rememberOther(t);
     if (!homeAdd(id)) return;
-    var remaining = otherList(), at = clamp(t.otherReturn.index, 0, Math.max(0, remaining.length - 1));
-    t.otherReturn.id = remaining[at] || null; t.otherReturn.index = at;
-    t.f.zone = 'home'; t.f.i = S.c.home.indexOf(id); t.f.part = 'remove';
+    t.f.zone = 'home'; t.f.i = S.c.home.indexOf(id);
     S.note = app(id).name + ' is on Home, position ' + (t.f.i + 1) + '.';
   }
   function editorPlace(t) {
@@ -821,6 +885,7 @@
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
+      { id: 'hidden', label: 'Hidden apps', value: (S.c.hiddenApps || []).length + ' hidden' },
       { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
@@ -839,12 +904,13 @@
   };
   function settingsOk(id) {
     if (id === 'editor') openEditor('settings');
+    else if (id === 'hidden') openHiddenApps();
     else openAppearance(id);
   }
   var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
-      label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
+      label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? (value === 'custom' ? 'Custom · ' + (S.c.rotateMin || 10) + ' min' : MODES.filter(function (m) { return m.id === value; })[0].name) : value === 'both' ? 'Both' : VALUE_NAMES[value] };
   }
   function detailSections(t) {
     var flat = S.c.bg !== 'photo', inactive = !materialApplies();
@@ -959,6 +1025,9 @@
         row = clamp(row + (k === 'up' ? -1 : 1), 0, at.rows.length - 1);
         column = Math.min(t.f.column || 0, at.rows[row].length - 1);
         detailFocus(t, at.rows[row][column]);
+      } else if ((k === 'left' || k === 'right') && t.group === 'rotation' && at.item && at.item.value === 'custom') {
+        var mn = clamp((S.c.rotateMin || 10) + (k === 'left' ? -1 : 1), 1, 180);
+        if (mn !== S.c.rotateMin) { var cc = next(S.c.home.slice(), S.c.recent.slice()); cc.rotateMin = mn; write(cc, 'Rotation interval'); }
       } else if (k === 'left' || k === 'right') {
         column = clamp(column + (k === 'left' ? -1 : 1), 0, at.rows[row].length - 1);
         detailFocus(t, at.rows[row][column], column);
@@ -980,7 +1049,7 @@
       if (k === 'left') t.f.b = Math.max(0, t.f.b - 1);
       else if (k === 'right') t.f.b = Math.min(A.length - 1, t.f.b + 1);
       else if (k === 'back') pop();
-      else if (k === 'ok') { a = A[t.f.b][0]; pop(); if (a === 'samsung') perform('Samsung Home', FrameDevice.home); }
+      else if (k === 'ok') { a = A[t.f.b][0]; var run = messageContent(t).run; pop(); if (a === 'samsung') perform('Samsung Home', FrameDevice.home); else if (run) run(a); }
     },
     point: function (t, z, i) { if (z === 'act') { t.f.b = i; this.key(t, 'ok'); } }
   };
@@ -999,6 +1068,15 @@
   /* ---------- Rendering ---------- */
   var $ = function (id) { return document.getElementById(id); };
   var stage = $('stage'), homeEl = $('home'), caption = $('caption'), utilsEl = $('utils');
+  var moveHintEl = document.createElement('div');
+  moveHintEl.className = 'move-hint';
+  try { stage.appendChild(moveHintEl); } catch (e) {}
+  function movingNow() { var t = top(); return !!((t.id === 'home' && t.moving) || (t.id === 'apps' && t.moving)); }
+  function updateMoveHint() {
+    var on = movingNow();
+    moveHintEl.className = 'move-hint' + (on ? ' is-on' : '');
+    if (on) moveHintEl.textContent = top().id === 'home' ? 'Moving — ◀ ▶ to reposition · OK to place' : 'Moving — arrows to reposition · OK to place';
+  }
   var utilFocusLabel = $('utilFocusLabel'), utilFocusKey = '', appFocusName = $('appFocusName');
   var dock = $('dock'), shelf = $('shelf'), track = $('track'), plate = $('plate'), matScrim = $('matScrim'), dockEmpty = $('dockEmpty');
   var cueL = $('cueL'), cueR = $('cueR'), dockAction = $('dockAction');
@@ -1051,6 +1129,7 @@
     renderSheet(t, sheet);
     renderAppearance(t);
     renderFocusStatus(t);
+    updateMoveHint();
   }
 
   function applyHomeFont() {
@@ -1079,16 +1158,24 @@
   }
 
   function clockText() {
-    var d = new Date(), h = d.getHours() % 12 || 12, m = d.getMinutes();
-    return h + ':' + (m < 10 ? '0' : '') + m;
+    var d = new Date(), h = d.getHours(), m = d.getMinutes();
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function clockSeconds() {
+    var s = new Date().getSeconds();
+    return (s < 10 ? '0' : '') + s;
   }
   function clockHtml() {
     var text = clockText(), metrics = fontMetrics[homeFont()];
-    if (!metrics || !metrics.digitCell) return text;
-    return text.replace(/[0-9]/g, function (digit) { return '<span class="clock-digit">' + digit + '</span>'; });
+    var body = (!metrics || !metrics.digitCell) ? text : text.replace(/[0-9]/g, function (digit) { return '<span class="clock-digit">' + digit + '</span>'; });
+    return body + '<span class="clock-seconds">' + clockSeconds() + '</span>';
+  }
+  function dateText() {
+    var d = new Date(), M = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return M[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
   }
   function renderCaption(t, hs) {
-    var html = '<span class="clock">' + clockHtml() + '</span>';
+    var html = '<span class="clock">' + clockHtml() + '</span><span class="clock-date">' + esc(dateText()) + '</span>';
     if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
     setHTML(caption, html);
   }
@@ -1449,7 +1536,8 @@
     appearanceEl.className = 'appearance detail-wallpaper';
     appearanceTitle.textContent = 'Wallpaper';
     appearanceRows.className = 'appearance-rows wallpaper-picker';
-    setHTML(appearanceBack, '<button type="button" tabindex="-1" class="setting-choice setting-back' + (t.f.zone === 'back' ? ' is-focus' : '') + '" data-z="wall-back" data-action="wallpaper.back">' + icon('left') + '<span>Background</span></button>');
+    setHTML(appearanceBack, '<button type="button" tabindex="-1" class="setting-choice setting-back' + (t.f.zone === 'back' ? ' is-focus' : '') + '" data-z="wall-back" data-action="wallpaper.back">' + icon('left') + '<span>Background</span></button>'
+      + '<button type="button" tabindex="-1" class="setting-choice wall-slides' + (t.f.zone === 'slides' ? ' is-focus' : '') + '" data-z="wall-slides" data-action="wallpaper.slides">' + icon('slideshow') + '<span>Slideshows</span></button>');
     setHTML(appearanceRows, '<div class="wallpaper-edge wallpaper-before" aria-hidden="true">' + icon('up') + '</div><div class="wallpaper-list" role="radiogroup" aria-label="Wallpaper"><div class="wallpaper-rows"></div></div><div class="wallpaper-edge wallpaper-after" aria-hidden="true">' + icon('down') + '</div>');
     var rows = appearanceRows.querySelector('.wallpaper-rows'), shown = wall(S.wallShown) || wall(S.c.wall), candidate = WALLS[t.i], status, note, hint;
     keyed(rows, WALLS.map(function (w) { return { key: w.id, wall: w }; }), function (row, item, i) {
@@ -1531,8 +1619,9 @@
     },
     editor: function () {
       return '<h2 class="s-title">Apps on Home</h2><p class="s-sub" data-slot="sub"></p><div class="s-head" data-slot="head"></div>'
-        + '<p class="s-label z-home" data-slot="lh"></p><p class="s-label z-other">Not on Home</p>'
-        + '<div class="ed-home" data-slot="home"></div><div class="ed-order-break" data-slot="break">Then scroll</div><div class="ed-other-view" data-slot="ov"><div class="ed-other" data-slot="other"></div></div><div class="ed-origin" data-slot="origin"></div>'
+        + '<p class="s-label z-home" data-slot="lh"></p><div class="ed-home" data-slot="home"></div>'
+        + '<p class="s-label z-other" data-slot="ol">Not on Home</p>'
+        + '<div class="ed-other-view" data-slot="ov"><div class="ed-other" data-slot="other"></div></div>'
         + '<div class="row-cue editor-before" data-slot="otherBefore" aria-hidden="true">' + icon('up') + '</div><div class="row-cue editor-after" data-slot="otherAfter" aria-hidden="true">' + icon('down') + '</div>';
     },
     settings: function () { return '<h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div><p class="settings-overview-hint"><span class="remote-key">OK</span><span>Open selected group</span></p>'; },
@@ -1558,6 +1647,8 @@
         var focus = f.zone === 'grid' && i === f.i;
         setContent(tile, [it.id, app(it.id).name, onHome(it.id)].join('|'), function () { return gridTileHtml(it.id); });
         tile.className = 'gt' + (focus ? ' is-focus' : '');
+        var gcol = i % COLS, grow = Math.floor(i / COLS), pc = tile.querySelector('.panel-content');
+        if (pc) pc.style.transformOrigin = (gcol === 0 ? '0%' : gcol === COLS - 1 ? '100%' : '50%') + ' ' + (grow <= t.top ? '0%' : grow >= t.top + vis - 1 ? '100%' : '50%');
         tile.style.transform = 'translate3d(' + ((i % COLS) * GRID_COL) + 'px,' + (Math.floor(i / COLS) * GRID_ROW) + 'px,0)';
         tile.setAttribute('role', 'button'); tile.setAttribute('aria-label', app(it.id).name);
         attrs(tile, 'grid', i, 'apps.open.' + it.id);
@@ -1568,63 +1659,33 @@
       el.after.className = 'row-cue grid-after' + (rows - t.top > vis ? ' is-on' : '');
     },
     editor: function (t, el) {
-      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, O = otherGroups(), list = O.recent.concat(O.rest), full = S.c.home.length >= CAP;
-      var entries = [], ys = [], y = 0, yf, minTop, maxTop = 0, rowEnd, before = false, afterRows = false;
-      var hint = catalog.error ? catalog.error : catalog.loading ? 'Loading installed apps…' : f.zone === 'head' && f.h === 0 ? undoCaption() : f.zone === 'home' && f.part === 'remove' ? (H.length <= 1 ? LAST : app(H[f.i]).name + ' stays installed.') : '';
-      setHTML(el.sub, editStatus(hint, t.lifted ? 'Moving ' + app(t.lifted.id).name + '. OK places it, Back puts it back.' : ''));
+      var f = t.f, H = t.lifted ? t.lifted.order : S.c.home, O = otherList(), nh = H.length, no = O.length, full = S.c.home.length >= CAP;
+      var hint = catalog.error ? catalog.error : catalog.loading ? 'Loading installed apps…' : f.zone === 'head' && f.h === 0 ? undoCaption() : '';
+      var move = t.lifted ? 'Moving ' + app(t.lifted.id).name + '. Arrows reposition, OK places.' : f.zone === 'home' ? 'OK to move · hold OK on an app for more options' : f.zone === 'other' ? (full ? 'Home is full' : 'OK adds to Home') : '';
+      setHTML(el.sub, editStatus(hint, move));
       setHTML(el.head, headButtons([['undo', 'Undo', S.undo.length ? '' : 'is-idle', 'undo'], ['done', 'Done', '', 'check']], f.zone === 'head' ? f.h : -1, 'editor'));
       el.head.className = 's-head' + (f.zone === 'head' ? ' is-awake' : '');
       setHTML(el.lh, 'On Home <span class="s-count">' + S.c.home.length + ' of ' + CAP + '</span>');
-      el['break'].className = 'ed-order-break' + (H.length > editorCut() ? ' is-on' : '');
-      el['break'].style.top = (264 + editorCut() * ED_ROW) + 'px';
-
-      keyed(el.home, H.map(function (id) { return { key: id, id: id }; }), function (row, it, i) {
-        var a = app(it.id), here = f.zone === 'home' && i === f.i, lifted = !!t.lifted && i === f.i;
-        setContent(row, it.id, function () { return '<div class="er-name" role="button"><span class="panel-content"><span class="er-num"></span>' + smallMark(a) + '<span class="er-text">' + esc(a.name) + '</span><span class="er-move">' + icon('updown') + '</span></span></div><div class="er-rm" role="button"><span></span></div>'; });
-        row.className = 'er' + (here ? ' is-active' : '') + (lifted ? ' is-lifted' : '');
-        row.style.transform = 'translate3d(' + (lifted ? 16 : 0) + 'px,' + editorHomeY(i) + 'px,0)';
-        row.querySelector('.er-num').textContent = String(i + 1);
-        row.firstChild.className = 'er-name' + (here && (f.part === 'name' || lifted) ? ' is-focus' : '');
-        row.lastChild.className = 'er-rm' + (here && f.part === 'remove' && !lifted ? ' is-focus' : '') + (H.length <= 1 ? ' is-limit' : '');
-        row.lastChild.firstChild.textContent = H.length <= 1 ? LAST : 'Remove from Home';
-        attrs(row.firstChild, 'name', i, 'editor.move.' + it.id);
-        attrs(row.lastChild, 'remove', i, 'editor.remove.' + it.id);
+      keyed(el.home, H.map(function (id) { return { key: id, id: id }; }), function (tile, it, i) {
+        var a = app(it.id), focus = f.zone === 'home' && i === f.i, lifted = !!t.lifted && i === f.i;
+        setContent(tile, it.id + '|' + (i + 1), function () { return '<span class="ecard-mark">' + appMark(a, 112, 68, 54) + '</span><span class="ecard-name">' + esc(a.name) + '</span><span class="ecard-num">' + (i + 1) + '</span>'; });
+        tile.className = 'ecard' + (focus ? ' is-focus' : '') + (lifted ? ' is-lifted' : '');
+        tile.style.transform = 'translate3d(' + ((i % ECOLS) * ECW) + 'px,' + (Math.floor(i / ECOLS) * ECH) + 'px,0)';
+        attrs(tile, 'ehome', i, 'editor.move.' + it.id);
       });
-      el.origin.className = 'ed-origin' + (t.lifted && t.lifted.from !== f.i ? ' is-on' : '');
-      if (t.lifted) el.origin.style.transform = 'translate3d(0,' + (264 + editorHomeY(t.lifted.from) + 16) + 'px,0)';
-
-      if (O.recent.length) { entries.push({ key: 'sep-recent', sep: 'Recently removed', y: y }); y += ED_SEP; }
-      O.recent.forEach(function (id) { entries.push({ key: id, id: id, y: y }); ys.push(y); y += ED_ROW; });
-      if (O.recent.length && O.rest.length) { entries.push({ key: 'sep-rest', sep: 'Other installed apps', y: y }); y += ED_SEP; }
-      O.rest.forEach(function (id) { entries.push({ key: id, id: id, y: y }); ys.push(y); y += ED_ROW; });
-      if (f.zone === 'other' && ys.length) {
-        yf = ys[f.j] - (O.recent.length && (f.j === 0 || f.j === O.recent.length) ? ED_SEP : 0);
-        if (yf < t.top) t.top = yf;
-        if (ys[f.j] + 72 > t.top + ED_VIEW) {
-          minTop = ys[f.j] + 72 - ED_VIEW;
-          entries.some(function (it) { if (it.y < minTop) return false; t.top = it.y; return true; });
-        }
-      }
-      entries.some(function (it) { if (it.y < Math.max(0, y - ED_VIEW)) return false; maxTop = it.y; return true; });
-      t.top = clamp(t.top, 0, maxTop);
-      keyed(el.other, entries, function (row, it) {
-        var j, focus, a;
-        row.style.transform = 'translate3d(0,' + it.y + 'px,0)';
-        rowEnd = it.y + (it.sep ? ED_SEP : 72);
-        row.style.visibility = it.y >= t.top && rowEnd <= t.top + ED_VIEW ? 'visible' : 'hidden';
-        before = before || it.y < t.top; afterRows = afterRows || rowEnd > t.top + ED_VIEW;
-        if (it.sep) { setContent(row, 'sep|' + it.sep, function () { return esc(it.sep); }); row.className = 'eo-sep'; return; }
-        j = list.indexOf(it.id); focus = f.zone === 'other' && j === f.j; a = app(it.id);
-        setContent(row, it.id, function () { return '<span class="panel-content">' + smallMark(a) + '<span class="eo-text">' + esc(a.name) + '</span><span class="eo-verb"></span></span>'; });
-        setHTML(row.querySelector('.eo-verb'), focus ? '<span class="verb' + (full ? ' is-off' : '') + '">' + (full ? 'Home is full' : 'Add to Home') + '</span>' : '');
-        row.className = 'eo' + (focus ? ' is-focus' : '');
-        row.setAttribute('role', 'button');
-        attrs(row, 'other', j, 'editor.add.' + it.id);
+      var orows = Math.ceil(no / ECOLS), ovis = Math.max(1, Math.floor(EOVIEW / ECH));
+      if (f.zone === 'other') { var fr = Math.floor(f.j / ECOLS); if (fr < t.top) t.top = fr; if (fr > t.top + ovis - 1) t.top = fr - ovis + 1; }
+      t.top = clamp(t.top || 0, 0, Math.max(0, orows - ovis));
+      keyed(el.other, O.map(function (id) { return { key: id, id: id }; }), function (tile, it, j) {
+        var a = app(it.id), rr = Math.floor(j / ECOLS), visible = rr >= t.top && rr < t.top + ovis, focus = f.zone === 'other' && j === f.j;
+        setContent(tile, it.id + '|' + visible, function () { return '<span class="ecard-mark">' + (visible ? appMark(a, 112, 68, 54) : '') + '</span><span class="ecard-name">' + esc(a.name) + '</span>'; });
+        tile.className = 'ecard eocard' + (focus ? ' is-focus' : '');
+        tile.style.transform = 'translate3d(' + ((j % ECOLS) * ECW) + 'px,' + (rr * ECH) + 'px,0)';
+        attrs(tile, 'eother', j, 'editor.add.' + it.id);
       });
-      el.other.style.transform = 'translate3d(0,' + (-t.top) + 'px,0)';
-      el.ov.className = 'ed-other-view';
-      el.otherBefore.className = 'row-cue editor-before' + (before ? ' is-on' : '');
-      el.otherAfter.className = 'row-cue editor-after' + (afterRows ? ' is-on' : '');
+      el.other.style.transform = 'translate3d(0,' + (-t.top * ECH) + 'px,0)';
+      el.otherBefore.className = 'row-cue editor-before' + (t.top > 0 ? ' is-on' : '');
+      el.otherAfter.className = 'row-cue editor-after' + (orows - t.top > ovis ? ' is-on' : '');
     },
     settings: function (t, el) {
       var html = '';
@@ -1638,6 +1699,274 @@
         return '<button type="button" tabindex="-1" class="btn' + (i === t.f.b ? ' is-focus' : '') + '" data-z="act" data-i="' + i + '" data-action="message.' + a[0] + '"><span>' + a[1] + '</span></button>';
       }).join(''));
     }
+  };
+
+  /* ---------- Slideshows ---------- */
+  var SPEEDS = [
+    { sec: 5, label: '5 sec' }, { sec: 10, label: '10 sec' }, { sec: 15, label: '15 sec' },
+    { sec: 30, label: '30 sec' }, { sec: 60, label: '1 min' }, { sec: 120, label: '2 min' },
+    { sec: 300, label: '5 min' }, { sec: 600, label: '10 min' }, { sec: 1800, label: '30 min' }
+  ];
+  function speedLabel(sec) { for (var i = 0; i < SPEEDS.length; i++) if (SPEEDS[i].sec === sec) return SPEEDS[i].label; return sec + ' sec'; }
+  function nextSpeed(sec, dir) { var i = 3, j; for (j = 0; j < SPEEDS.length; j++) if (SPEEDS[j].sec === sec) i = j; return SPEEDS[clamp(i + dir, 0, SPEEDS.length - 1)].sec; }
+  function slideshowById(id) { for (var i = 0; i < S.c.slideshows.length; i++) if (S.c.slideshows[i].id === id) return S.c.slideshows[i]; return null; }
+  function openSlideshows() { S.note = null; push({ id: 'slideshows', f: { i: 0 } }); }
+  function openSlideEdit(sh) {
+    var sel = {}; if (sh) sh.walls.forEach(function (id) { sel[id] = true; });
+    S.note = null;
+    push({ id: 'slideshowEdit', editId: sh ? sh.id : null, name: sh ? sh.name : '', sec: sh ? sh.sec : 30, sel: sel, top: 0, f: { zone: 'head', h: 0, i: 0 } });
+  }
+  function slideSelCount(t) { var n = 0, k; for (k in t.sel) if (t.sel[k]) n++; return n; }
+  function headButtonsFor(t) {
+    var b = [['name', t.name ? t.name : 'Name…'], ['speed', speedLabel(t.sec)], ['save', t.editId ? 'Save' : 'Create']];
+    if (t.editId) b.push(['delete', 'Delete']);
+    return b;
+  }
+  function saveSlide(t) {
+    var walls = WALLS.filter(function (w) { return t.sel[w.id]; }).map(function (w) { return w.id; });
+    if (!walls.length) { S.note = 'Select at least one wallpaper.'; return; }
+    var name = (t.name || '').trim() || ('Slideshow ' + (S.c.slideshows.length + 1));
+    var list = S.c.slideshows.map(function (s) { return { id: s.id, name: s.name, walls: s.walls.slice(), sec: s.sec }; });
+    var found = null; list.forEach(function (s) { if (s.id === t.editId) found = s; });
+    if (found) { found.name = name; found.walls = walls; found.sec = t.sec; }
+    else list.push({ id: 'sg' + Date.now().toString(36), name: name, walls: walls, sec: t.sec });
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.slideshows = list;
+    if (write(c, 'Slideshow saved')) { S.note = null; pop(); }
+  }
+  function deleteSlide(t) {
+    var list = S.c.slideshows.filter(function (s) { return s.id !== t.editId; });
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.slideshows = list;
+    if (c.activeSlideshow === t.editId) c.activeSlideshow = '';
+    if (write(c, 'Slideshow deleted')) pop();
+  }
+  function playSlide(id) {
+    var starting = S.c.activeSlideshow !== id, sh = slideshowById(id);
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.activeSlideshow = starting ? id : '';
+    if (write(c, 'Slideshow') && starting && sh && sh.walls.length) setLook({ wall: sh.walls[0] }, { row: 'bg' });
+  }
+  V.slideshows = {
+    sheet: true,
+    norm: function (t) { t.f.i = clamp(t.f.i || 0, 0, S.c.slideshows.length); },
+    key: function (t, k) {
+      var n = S.c.slideshows.length;
+      if (k === 'back') { pop(); return; }
+      if (k === 'up') t.f.i = clamp(t.f.i - 1, 0, n);
+      else if (k === 'down') t.f.i = clamp(t.f.i + 1, 0, n);
+      else if (k === 'right' && t.f.i > 0) openSlideEdit(S.c.slideshows[t.f.i - 1]);
+      else if (k === 'ok') { if (t.f.i === 0) openSlideEdit(null); else playSlide(S.c.slideshows[t.f.i - 1].id); }
+    },
+    point: function (t, z, i, id) { if (z === 'srow') { t.f.i = i; if (id === 'edit') { if (i > 0) openSlideEdit(S.c.slideshows[i - 1]); } else this.key(t, 'ok'); } }
+  };
+  V.slideshowEdit = {
+    sheet: true,
+    norm: function (t) { t.f.h = clamp(t.f.h || 0, 0, headButtonsFor(t).length - 1); t.f.i = clamp(t.f.i || 0, 0, WALLS.length - 1); },
+    key: function (t, k) {
+      var heads = headButtonsFor(t), COLS2 = 5, vis = 3, rows = Math.ceil(WALLS.length / COLS2);
+      if (k === 'back') { pop(); return; }
+      if (t.f.zone === 'head') {
+        if (k === 'left') t.f.h = clamp(t.f.h - 1, 0, heads.length - 1);
+        else if (k === 'right') t.f.h = clamp(t.f.h + 1, 0, heads.length - 1);
+        else if (k === 'down') t.f.zone = 'grid';
+        else if (k === 'ok') { var a = heads[t.f.h][0]; if (a === 'name') openNameKeys(); else if (a === 'speed') t.sec = nextSpeed(t.sec, 1); else if (a === 'save') saveSlide(t); else if (a === 'delete') deleteSlide(t); }
+        return;
+      }
+      var col = t.f.i % COLS2, row = Math.floor(t.f.i / COLS2);
+      if (k === 'up') { if (row === 0) { t.f.zone = 'head'; return; } t.f.i -= COLS2; }
+      else if (k === 'down' && row < rows - 1) t.f.i = Math.min(t.f.i + COLS2, WALLS.length - 1);
+      else if (k === 'left' && col > 0) t.f.i--;
+      else if (k === 'right' && col < COLS2 - 1 && t.f.i < WALLS.length - 1) t.f.i++;
+      else if (k === 'ok') { var id = WALLS[t.f.i].id; t.sel[id] = !t.sel[id]; }
+      row = Math.floor(t.f.i / COLS2);
+      if (row < t.top) t.top = row; if (row > t.top + vis - 1) t.top = row - vis + 1;
+      t.top = clamp(t.top, 0, Math.max(0, rows - vis));
+    },
+    point: function (t, z, i) { if (z === 'shead') { t.f.zone = 'head'; t.f.h = i; this.key(t, 'ok'); } else if (z === 'sgrid') { t.f.zone = 'grid'; t.f.i = i; this.key(t, 'ok'); } }
+  };
+  var KB_ROWS = ['1234567890', 'QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+  function kbRow(r) { return r < KB_ROWS.length ? KB_ROWS[r].split('') : ['space', 'back', 'done']; }
+  function openNameKeys() { var ev = top(); push({ id: 'nameKeys', text: ev.name || '', f: { r: 0, c: 0 } }); }
+  V.nameKeys = {
+    sheet: true,
+    norm: function (t) { t.f.r = clamp(t.f.r || 0, 0, KB_ROWS.length); t.f.c = clamp(t.f.c || 0, 0, kbRow(t.f.r).length - 1); },
+    key: function (t, k) {
+      if (k === 'back') { pop(); return; }
+      var row = kbRow(t.f.r);
+      if (k === 'up') { t.f.r = clamp(t.f.r - 1, 0, KB_ROWS.length); t.f.c = clamp(t.f.c, 0, kbRow(t.f.r).length - 1); }
+      else if (k === 'down') { t.f.r = clamp(t.f.r + 1, 0, KB_ROWS.length); t.f.c = clamp(t.f.c, 0, kbRow(t.f.r).length - 1); }
+      else if (k === 'left') t.f.c = clamp(t.f.c - 1, 0, row.length - 1);
+      else if (k === 'right') t.f.c = clamp(t.f.c + 1, 0, row.length - 1);
+      else if (k === 'ok') {
+        var key = row[t.f.c];
+        if (key === 'space') { if (t.text.length < 60) t.text += ' '; }
+        else if (key === 'back') t.text = t.text.slice(0, -1);
+        else if (key === 'done') { var ev = S.stack[S.stack.length - 2]; if (ev) ev.name = t.text.slice(0, 60); pop(); return; }
+        else if (t.text.length < 60) t.text += key;
+      }
+    },
+    point: function (t, z, i, id) { if (z === 'kbkey' && id) { var rc = id.split(':'); t.f.r = +rc[0]; t.f.c = +rc[1]; this.key(t, 'ok'); } }
+  };
+  FRAMES.slideshows = function () { return '<h2 class="s-title">Slideshows</h2><p class="s-sub" data-slot="sub"></p><div class="slide-list" data-slot="list"></div>'; };
+  FRAMES.slideshowEdit = function () {
+    return '<h2 class="s-title" data-slot="title"></h2><p class="s-sub" data-slot="sub"></p><div class="s-head slide-head" data-slot="head"></div>'
+      + '<div class="grid-view slide-grid-view" data-slot="view"><div class="grid-in" data-slot="grid"></div></div>'
+      + '<div class="row-cue grid-before" data-slot="before" aria-hidden="true">' + icon('up') + '</div><div class="row-cue grid-after" data-slot="after" aria-hidden="true">' + icon('down') + '</div>';
+  };
+  FRAMES.nameKeys = function () { return '<h2 class="s-title">Name slideshow</h2><p class="kb-text" data-slot="text"></p><div class="kb" data-slot="keys"></div>'; };
+  FILLS.slideshows = function (t, el) {
+    V.slideshows.norm(t);
+    setHTML(el.sub, S.c.slideshows.length ? 'OK plays · Right edits' : 'Create your first slideshow.');
+    var html = '<button type="button" tabindex="-1" class="slide-row slide-create' + (t.f.i === 0 ? ' is-focus' : '') + '" data-z="srow" data-i="0" data-action="slideshows.create">' + icon('plus') + '<span>Create new slideshow</span></button>';
+    S.c.slideshows.forEach(function (s, i) {
+      var active = S.c.activeSlideshow === s.id;
+      html += '<button type="button" tabindex="-1" class="slide-row' + (t.f.i === i + 1 ? ' is-focus' : '') + (active ? ' is-playing' : '') + '" data-z="srow" data-i="' + (i + 1) + '" data-action="slideshows.pick"><span class="slide-copy"><span class="slide-name">' + esc(s.name) + '</span><span class="slide-meta">' + s.walls.length + ' photos · ' + speedLabel(s.sec) + '</span></span><span class="slide-badge2">' + (active ? 'Playing' : '') + '</span></button>';
+    });
+    setHTML(el.list, html);
+  };
+  FILLS.slideshowEdit = function (t, el) {
+    V.slideshowEdit.norm(t);
+    var COLS2 = 5, GRIDC = 344, GRIDR = 240, vis = 3, rows = Math.ceil(WALLS.length / COLS2);
+    setHTML(el.title, t.editId ? 'Edit slideshow' : 'New slideshow');
+    setHTML(el.sub, slideSelCount(t) + ' selected' + (S.note ? ' · ' + S.note : ''));
+    setHTML(el.head, headButtonsFor(t).map(function (b, i) {
+      return '<button type="button" tabindex="-1" class="btn slide-hbtn' + (t.f.zone === 'head' && t.f.h === i ? ' is-focus' : '') + (b[0] === 'save' ? ' slide-save' : b[0] === 'delete' ? ' slide-del' : '') + '" data-z="shead" data-i="' + i + '" data-action="slideedit.' + b[0] + '"><span>' + esc(b[1]) + '</span></button>';
+    }).join(''));
+    if (t.f.zone === 'grid') { var fr = Math.floor(t.f.i / COLS2); if (fr < t.top) t.top = fr; if (fr > t.top + vis - 1) t.top = fr - vis + 1; }
+    t.top = clamp(t.top || 0, 0, Math.max(0, rows - vis));
+    keyed(el.grid, WALLS.map(function (w) { return { key: w.id, wall: w }; }), function (tile, item, i) {
+      var w = item.wall, rr = Math.floor(i / COLS2), visible = rr >= t.top && rr < t.top + vis, sel = !!t.sel[w.id], focus = t.f.zone === 'grid' && t.f.i === i;
+      setContent(tile, w.id + '|' + sel + '|' + visible, function () { return '<span class="sgt-thumb">' + (visible ? '<img src="' + WP + w.id + '-thumb.jpg" alt="">' : '') + '</span><span class="sgt-name">' + esc(w.name) + '</span><span class="sgt-check" aria-hidden="true">' + (sel ? icon('check') : '') + '</span>'; });
+      tile.className = 'sgt' + (focus ? ' is-focus' : '') + (sel ? ' is-sel' : '');
+      tile.style.transform = 'translate3d(' + ((i % COLS2) * GRIDC) + 'px,' + (rr * GRIDR) + 'px,0)';
+      attrs(tile, 'sgrid', i, 'slideedit.pick.' + w.id);
+    });
+    el.grid.style.transform = 'translate3d(0,' + (-t.top * GRIDR) + 'px,0)';
+    el.before.className = 'row-cue grid-before' + (t.top > 0 ? ' is-on' : '');
+    el.after.className = 'row-cue grid-after' + (rows - t.top > vis ? ' is-on' : '');
+  };
+  FILLS.nameKeys = function (t, el) {
+    V.nameKeys.norm(t);
+    setHTML(el.text, (t.text ? esc(t.text) : '<span class="kb-ph">Slideshow name</span>') + '<span class="kb-caret"></span>');
+    var html = '', r;
+    for (r = 0; r <= KB_ROWS.length; r++) {
+      html += '<div class="kb-row">' + kbRow(r).map(function (key, c) {
+        var label = key === 'space' ? 'Space' : key === 'back' ? 'Delete' : key === 'done' ? 'Done' : key;
+        return '<button type="button" tabindex="-1" class="kb-key' + (key === 'space' ? ' kb-space' : key === 'done' ? ' kb-done' : key === 'back' ? ' kb-back' : '') + (t.f.r === r && t.f.c === c ? ' is-focus' : '') + '" data-z="kbkey" data-i="0" data-id="' + r + ':' + c + '" data-action="kb.key"><span>' + esc(label) + '</span></button>';
+      }).join('') + '</div>';
+    }
+    setHTML(el.keys, html);
+  };
+
+  /* ---------- App long-press menu ---------- */
+  function appIdOf(id) { var a = app(id); return a ? a.appId : id; }
+  function isHiddenApp(id) { return (S.c.hiddenApps || []).indexOf(appIdOf(id)) >= 0; }
+  function appMenuActions(id) {
+    var acts = [['open', 'Open'], ['move', 'Move']];
+    if (onHome(id)) acts.push(['remove', 'Remove from Home']);
+    else acts.push(['add', 'Add to Home']);
+    acts.push(isHiddenApp(id) ? ['unhide', 'Unhide from All apps'] : ['hide', 'Hide from All apps']);
+    acts.push(['info', 'App info']);
+    acts.push(['uninstall', 'Uninstall']);
+    return acts;
+  }
+  function isUnblended(id) { return (S.c.unblended || []).indexOf(appIdOf(id)) >= 0; }
+  function toggleBlend(id) {
+    var appId = appIdOf(id), list = (S.c.unblended || []).slice(), at = list.indexOf(appId);
+    if (at >= 0) list.splice(at, 1); else list.push(appId);
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.unblended = list;
+    write(c, 'Icon style');
+  }
+  function toggleHideApp(id) {
+    var appId = appIdOf(id), list = (S.c.hiddenApps || []).slice(), at = list.indexOf(appId);
+    if (at >= 0) list.splice(at, 1); else list.push(appId);
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.hiddenApps = list;
+    if (write(c, 'Hide ' + (app(id) ? app(id).name : 'app'))) refreshCatalog();
+  }
+  function appInfoDialog(id) {
+    var a = app(id);
+    message(a ? a.name : 'App', 'App ID: ' + appIdOf(id), onHome(id) ? 'On your Home row' : 'Not on Home');
+  }
+  function confirmUninstall(id) {
+    var name = app(id) ? app(id).name : 'this app';
+    push({ id: 'message', msg: 'error', content: { title: 'Uninstall ' + name, line: 'Samsung TVs don’t let an app remove other apps, so this is done from Samsung Apps.', note: 'Open Samsung Apps → Settings (gear) → select the app → Delete. Or use “Hide” here to remove it from this list.', actions: [['back', 'Got it'], ['samsungapps', 'Open Samsung Apps']], run: function (act) { if (act === 'samsungapps') perform('Samsung Apps', function (done) { FrameDevice.launchApp('org.volt.apps', done); }); } }, f: { b: 0 } });
+  }
+  function moveOnHome(id) {
+    if (!app(id)) return;
+    var idx = S.c.home.indexOf(id);
+    if (idx < 0) {
+      if (S.c.home.length >= CAP) { message('Home is full', 'Remove an app from Home before moving ' + app(id).name + ' onto it.', ''); return; }
+      if (!homeAdd(id)) { message('Could not move', 'This app could not be added to Home.', ''); return; }
+      idx = S.c.home.indexOf(id);
+      if (idx < 0) { openEditor('home'); return; }
+    }
+    openEditor('home');
+    var t = top();
+    t.f.zone = 'home'; t.f.i = Math.max(0, idx); t.lifted = null;
+    V.editor.key(t, 'ok');
+  }
+  function openAppMenu(id, ctx) { if (app(id)) push({ id: 'appmenu', app: id, ctx: ctx || 'home', f: { b: 0 } }); }
+  function startMove(id, ctx) {
+    var t = top();
+    if (ctx === 'apps' && t.id === 'apps') { var j = ALPHA.indexOf(id); if (j < 0) return; t.f.zone = 'grid'; t.f.i = j; t.moving = true; }
+    else if (t.id === 'home') { if (S.c.home.indexOf(id) < 0) { if (!app(id) || !homeAdd(id)) { if (S.c.home.length >= CAP) message('Home is full', 'Remove an app from Home first.', ''); return; } } setSel(id); t.f.zone = 'apps'; t.moving = id; }
+  }
+  V.appmenu = {
+    sheet: true,
+    norm: function (t) { t.f.b = clamp(t.f.b || 0, 0, appMenuActions(t.app).length - 1); },
+    key: function (t, k) {
+      var A = appMenuActions(t.app), a, id = t.app;
+      if (k === 'back') { pop(); return; }
+      if (k === 'up') t.f.b = Math.max(0, t.f.b - 1);
+      else if (k === 'down') t.f.b = Math.min(A.length - 1, t.f.b + 1);
+      else if (k === 'ok') {
+        a = A[t.f.b][0]; var ctx = t.ctx; pop();
+        if (a === 'open') launch(id);
+        else if (a === 'add') homeAdd(id);
+        else if (a === 'remove') homeRemove(id);
+        else if (a === 'move') startMove(id, ctx);
+        else if (a === 'hide' || a === 'unhide') toggleHideApp(id);
+        else if (a === 'blend' || a === 'original') toggleBlend(id);
+        else if (a === 'info') appInfoDialog(id);
+        else if (a === 'uninstall') confirmUninstall(id);
+      }
+    },
+    point: function (t, z, i) { if (z === 'amact') { t.f.b = i; this.key(t, 'ok'); } }
+  };
+  function hiddenList() { return S.c.hiddenApps || []; }
+  function openHiddenApps() { refreshCatalog(); push({ id: 'hiddenapps', f: { i: 0 } }); }
+  function unhideApp(appId) {
+    var list = hiddenList().filter(function (x) { return x !== appId; });
+    var c = next(S.c.home.slice(), S.c.recent.slice()); c.hiddenApps = list;
+    if (write(c, 'Unhide')) refreshCatalog();
+  }
+  V.hiddenapps = {
+    sheet: true,
+    norm: function (t) { t.f.i = clamp(t.f.i || 0, 0, Math.max(0, hiddenList().length - 1)); },
+    key: function (t, k) {
+      var n = hiddenList().length;
+      if (k === 'back') { pop(); return; }
+      if (!n) return;
+      if (k === 'up') t.f.i = Math.max(0, t.f.i - 1);
+      else if (k === 'down') t.f.i = Math.min(n - 1, t.f.i + 1);
+      else if (k === 'ok') unhideApp(hiddenList()[t.f.i]);
+    },
+    point: function (t, z, i) { if (z === 'hrow') { t.f.i = i; this.key(t, 'ok'); } }
+  };
+  FRAMES.hiddenapps = function () { return '<h2 class="s-title">Hidden apps</h2><p class="s-sub" data-slot="sub"></p><div class="slide-list" data-slot="list"></div>'; };
+  FILLS.hiddenapps = function (t, el) {
+    V.hiddenapps.norm(t);
+    var list = hiddenList();
+    setHTML(el.sub, list.length ? 'OK unhides the selected app.' : 'No hidden apps.');
+    setHTML(el.list, list.map(function (appId, i) {
+      return '<button type="button" tabindex="-1" class="slide-row' + (t.f.i === i ? ' is-focus' : '') + '" data-z="hrow" data-i="' + i + '" data-action="hidden.unhide"><span class="slide-copy"><span class="slide-name">' + esc(hiddenNames[appId] || appId) + '</span><span class="slide-meta">Hidden from All apps</span></span><span class="slide-badge2">Unhide</span></button>';
+    }).join(''));
+  };
+  FRAMES.appmenu = function () { return '<div class="appmenu"><h2 class="appmenu-title" data-slot="title"></h2><div class="appmenu-acts" data-slot="acts"></div></div>'; };
+  FILLS.appmenu = function (t, el) {
+    V.appmenu.norm(t);
+    setHTML(el.title, esc(app(t.app) ? app(t.app).name : 'App'));
+    setHTML(el.acts, appMenuActions(t.app).map(function (a, i) {
+      return '<button type="button" tabindex="-1" class="appmenu-act' + (t.f.b === i ? ' is-focus' : '') + '" data-z="amact" data-i="' + i + '" data-action="appmenu.' + a[0] + '"><span>' + esc(a[1]) + '</span></button>';
+    }).join(''));
   };
 
   /* ---------- Atomic appearance bundles ---------- */
@@ -1772,28 +2101,45 @@
 
   /* ---------- Lifecycle and remote input ---------- */
   var clockTimer = 0, rotationTimer = 0, activeSince = 0, activeMs = 0, rotationKey = '';
-  function rotationActive() { return !document.hidden && top().id === 'home' && S.c.bg === 'photo' && !S.pending && mode().min > 0; }
+  function activeSlide() {
+    var id = S.c.activeSlideshow;
+    if (!id) return null;
+    for (var i = 0; i < S.c.slideshows.length; i++) if (S.c.slideshows[i].id === id) return S.c.slideshows[i];
+    return null;
+  }
+  function rotationSeconds() {
+    var a = activeSlide();
+    if (a && a.walls.filter(function (id) { return wall(id); }).length >= 2) return a.sec;
+    return (S.c.mode === 'custom' ? S.c.rotateMin : mode().min) * 60;
+  }
+  function rotationList() {
+    var a = activeSlide();
+    if (a) { var ids = a.walls.filter(function (id) { return wall(id); }); if (ids.length >= 2) return ids; }
+    return WALLS.map(function (w) { return w.id; });
+  }
+  function nextWall(cur) { var list = rotationList(), i = list.indexOf(cur); return list[(i + 1) % list.length]; }
+  function rotationActive() { return !document.hidden && top().id === 'home' && S.c.bg === 'photo' && !S.pending && rotationSeconds() > 0; }
   function pauseRotation() {
     if (activeSince) { activeMs += Date.now() - activeSince; activeSince = 0; }
     clearTimeout(rotationTimer); rotationTimer = 0;
   }
   function resetRotation() { pauseRotation(); activeMs = 0; rotationKey = ''; }
   function syncRotation() {
-    var key = S.c.wall + '|' + S.c.mode;
+    var key = S.c.wall + '|' + S.c.mode + '|' + S.c.rotateMin + '|' + S.c.activeSlideshow + '|' + rotationSeconds();
     pauseRotation();
     if (key !== rotationKey) { activeMs = 0; rotationKey = key; }
     if (!rotationActive()) return;
     activeSince = Date.now();
     rotationTimer = setTimeout(function () {
       pauseRotation(); activeMs = 0;
-      if (rotationActive()) setLook({ wall: WALLS[(wallIndex(S.c.wall) + 1) % WALLS.length].id }, { row: 'bg' });
-    }, Math.max(10, mode().min * QA.minuteMs - activeMs));
+      if (rotationActive()) setLook({ wall: nextWall(S.c.wall) }, { row: 'bg' });
+    }, Math.max(10, rotationSeconds() * 1000 - activeMs));
   }
   function updateClock() {
     clearTimeout(clockTimer);
     if (document.hidden) return;
     if (top().id === 'home' || isSettingsDetail(top())) renderCaption(top(), homeState(top()));
-    clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
+    clockTimer = setTimeout(updateClock, 1000 - (Date.now() % 1000) + 15);
   }
   function focusStage() { try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
   function after() {
@@ -1802,6 +2148,7 @@
     render(); syncRotation();
   }
   function refreshInputsOnReturn() { var t = top(); if (t.group === 'inputs' && !t.loading) t.refreshInputs = true; }
+  function goHomeOnReturn() { if (top().id !== 'home') { S.stack = [{ id: 'home', f: { zone: 'apps', u: 0 } }]; S.note = null; S.err = null; FrameDevice.cancelSource(); } }
   function goScene(name) {
     FrameDevice.cancelSource();
     if (top().id === 'wallpaper') cancelWallpaperTimer(top());
@@ -1861,27 +2208,43 @@
     if (!el || el === stage) return;
     pointAt(el);
   });
-  var heldKeys = {};
+  var heldKeys = {}, lpTimer = 0, lpFired = false;
+  function canLongPress() {
+    var t = top();
+    return (t.id === 'home' && t.f.zone === 'apps' && S.c.home.length) || (t.id === 'apps' && t.f.zone === 'grid' && ALPHA.length);
+  }
+  function longPressApp() {
+    var t = top(), ctx = t.id === 'apps' ? 'apps' : 'home', id = t.id === 'home' ? S.c.home[ensureSel()] : ALPHA[t.f.i];
+    lpTimer = 0; lpFired = true;
+    if (id && app(id)) { openAppMenu(id, ctx); norm(); render(); syncRotation(); }
+  }
   document.addEventListener('keydown', function (ev) {
     var code = ev.keyCode, k = KEYS[code];
     if (code === 9) { ev.preventDefault(); return; }
     if (!k || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     ev.preventDefault();
+    if (k === 'gohome') { goHomeOnReturn(); norm(); render(); syncRotation(); return; }
     if (k === 'ok' || k === 'back') { if (ev.repeat || heldKeys[code]) return; heldKeys[code] = true; }
+    if (k === 'ok' && canLongPress()) { lpFired = false; clearTimeout(lpTimer); lpTimer = setTimeout(longPressApp, 550); return; }
     press(k);
   });
-  document.addEventListener('keyup', function (ev) { delete heldKeys[ev.keyCode]; });
+  document.addEventListener('keyup', function (ev) {
+    var code = ev.keyCode, k = KEYS[code];
+    if (k === 'ok') { if (lpTimer) { clearTimeout(lpTimer); lpTimer = 0; if (!lpFired) press('ok'); } lpFired = false; }
+    delete heldKeys[code];
+  });
   window.addEventListener('blur', function () { heldKeys = {}; });
-  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); });
+  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); goHomeOnReturn(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); });
   document.addEventListener('visibilitychange', function () {
     heldKeys = {};
     if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
     else {
-      release();
+      release(); goHomeOnReturn();
       if (S.c.bg === 'photo' && !S.pending && !S.previewBundle && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
       refreshInputsOnReturn(); after(); updateClock(); focusStage();
     }
   });
+  try { window.addEventListener('appcontrol', function () { goHomeOnReturn(); norm(); render(); syncRotation(); focusStage(); }); } catch (e) {}
   window.addEventListener('resize', fit);
 
   /* Readable browser checks use the real state and actions, without fake outcomes. */

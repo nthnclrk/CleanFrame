@@ -43,3 +43,8 @@ PP*.woff2
 /explorations/
 /docs/research/
 /docs/articles/
+
+# Local-only personal wallpapers (not for public repo)
+/app/assets/wallpapers/catalog.local.js
+/app/assets/wallpapers/my*.jpg
+/app/assets/materials/my*.jpg

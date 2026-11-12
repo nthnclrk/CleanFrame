@@ -4,6 +4,23 @@ A quieter home screen for Samsung The Frame. Your apps, a photograph and the tim
 
 ![CleanFrame browser preview using the bundled Manrope font](docs/images/cleanframe-dock.jpg)
 
+> ## This fork — CleanFrame for any Samsung TV
+>
+> This is a community fork of [**nthnclrk/CleanFrame**](https://github.com/nthnclrk/CleanFrame) (MIT), adapted and extended for **non‑Frame Samsung Tizen TVs** (tested on a 2024 Crystal UHD, `UN75DU7200FXZA`, Tizen 9). All credit for the original launcher goes to the upstream author; this fork keeps the MIT license.
+>
+> **What this fork adds**
+> - **Slideshow manager** — create named slideshows, pick wallpapers as cards, set a custom transition speed, play/stop from the Wallpaper menu.
+> - **Apps on Home** redesigned as a **card grid**; reorder with a direct lift‑and‑move.
+> - **Long‑press any app** for a menu: Open, Move (in‑place reorder on Home or in All apps), Add/Remove from Home, Hide/Unhide, App info, and an Uninstall helper. **Press Down** from the Home row to open All apps.
+> - **Hidden apps** list in Settings; **custom All‑apps ordering**.
+> - Colorful native app icons everywhere, auto‑**blended to monochrome only on the Home row**.
+> - Clock restyle: white, repositioned, **24‑hour**, with seconds and the **date** beneath.
+> - Apple‑TV‑style focus on the All‑apps grid; reduced glass blur.
+>
+> **Wallpapers.** This repo ships the upstream photos plus a few extra city/wildlife photos from Wikimedia Commons (credited in [`app/assets/wallpapers/ADDED-CREDITS.md`](app/assets/wallpapers/ADDED-CREDITS.md)). To add **your own** wallpapers without committing them, drop images in and register them in a git‑ignored `app/assets/wallpapers/catalog.local.js` (loaded automatically).
+>
+> **Non‑Frame note.** Installing the launcher works broadly (Tizen 5.0+). Art Mode features are Frame‑only. The optional native‑Home takeover uses undocumented, model/firmware‑specific settings — it needs its own adaptation and a saved recovery baseline per TV; proceed only with the setup guide.
+
 I built CleanFrame for one TV: my own Samsung The Frame, running Tizen. I'm sharing the code and setup notes as a starting point for other people to build on.
 
 **Use it at your own risk.** The web launcher targets Tizen 5.0 and later for installation, with [owner reports](docs/compatibility.md) across several models. That minimum is not a promise that every device flow is verified. The TV setup scripts and native Home helpers still reflect specific computers and firmware, so adapt them and test on your own hardware.

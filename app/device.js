@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var IDS = {
-    stremio: 'IkWsFHtOY9.Stremio', netflix: 'org.tizen.netflix-app',
+    samsungtvplus: 'HEPsqFNie0.tvplusstandalone', netflix: 'org.tizen.netflix-app',
     disneyplus: 'MCmYXNxgcu.DisneyPlus', youtube: '9Ur5IzDKqV.TizenYouTube',
     appletv: 'com.samsung.tv.aria-video', primevideo: 'org.tizen.primevideo',
     abciview: 'mWK87Xghap.ABCiview', sbs: 'OyE7OuxlUi.SBSOnDemand',
@@ -20,6 +20,10 @@
   var INTERNAL = ['adplatform.ADPlayer', 'WykOS4t4F0.cmsWebApp', '25emanual3.emanual',
     'd0m1lV1nt2.emanual', '2022ePop01.SmartTV',
     'ZODRT12q2l.WebAccountExtension', 'ByJlgt0XeD.CastSettingsApp', 'tv6pbVMQFF.PrivacyChoices'];
+  var HIDDEN = ['KMZlIHL7Pp.Blacknut1wO', 'yu1NM3vHsU.DAZN', 'YxpW5sZBab.BabySharkKidsWorld',
+    'HupEmjIB4I.Glance', 'z4s7hcBsPy.samsungtv', 'BPe9IPYA6C.HealthTap', '9TYrsHWbaB.klyq',
+    'X1pKpFCiUu.PlutoTV', 'ZmmGjO6VKO.slingtv', 'tumWj0ikba.DrTail',
+    'LImG0QPABV.QXHMarketplace', '4VlIBiGWKj.samsungshell'];
   var SELF = 'nClrkHome1.FrameHome';
   function api() { return window.tizen && window.tizen.application; }
   function selfId() {
@@ -115,6 +119,17 @@
       api().launchAppControl(control, 'org.tizen.art-app', function () { finish(null); }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
+  function uninstall(appId, done) {
+    if (!api()) { unavailable(done); return; }
+    var finish = bounded(done, 25000), pkg;
+    try { pkg = api().getAppInfo(appId).packageId; }
+    catch (err) { finish({ message: 'Could not find this app to uninstall.' }); return; }
+    if (!window.tizen || !tizen.package || typeof tizen.package.uninstall !== 'function') { finish({ message: 'This TV does not allow removing apps from here. Use Samsung Apps to delete it.' }); return; }
+    try {
+      tizen.package.uninstall(pkg, { onprogress: function () {}, oncomplete: function () { finish(null); } },
+        function (err) { finish({ message: 'Could not remove this app. It may be preloaded — remove it from Samsung Apps.', detail: err && (err.message || err.name) }); });
+    } catch (err) { finish({ message: 'Removing apps is not permitted here. Delete it from Samsung Apps instead.', detail: err && (err.message || err.name) }); }
+  }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
   function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
   function apps(done) {
@@ -128,7 +143,7 @@
         list.forEach(function (a) {
           var primary = !!known[a.id], stream = STREAMING.indexOf(a.id) >= 0;
           var consumer = /^[A-Za-z0-9]{10}\.[A-Za-z0-9_-]+$/.test(a.id) || CONSUMER_SYSTEM.indexOf(a.id) >= 0;
-          if (a.id === self || INTERNAL.indexOf(a.id) >= 0 || seen[a.id] || !a.name || (!primary && !stream && (!a.show || !consumer))) return;
+          if (a.id === self || INTERNAL.indexOf(a.id) >= 0 || HIDDEN.indexOf(a.id) >= 0 || seen[a.id] || !a.name || (!primary && !stream && (!a.show || !consumer))) return;
           if (!primary && /(?:service|worker|preview|promotion|plugin|launcher|test|sdk|^ep[ -]|factory|daemon)/i.test(a.name + ' ' + a.id)) return;
           if (/-dummy$/.test(a.id) || a.id === 'com.samsung.tv.cobalt-yt') return;
           seen[a.id] = true;
@@ -139,5 +154,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, uninstall: uninstall, sources: sources, setSource: setSource, cancelSource: cancelSource };
 }());

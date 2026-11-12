@@ -226,5 +226,95 @@ window.CleanFrameWallpapers = [
     "listColumn": 0,
     "dockQuiet": false,
     "clockMist": false
+  },
+  {
+    "id": "nyc",
+    "name": "New York",
+    "src": "assets/wallpapers/nyc.jpg",
+    "thumb": "assets/wallpapers/nyc-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
+  },
+  {
+    "id": "tokyo",
+    "name": "Tokyo",
+    "src": "assets/wallpapers/tokyo.jpg",
+    "thumb": "assets/wallpapers/tokyo-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
+  },
+  {
+    "id": "shanghai",
+    "name": "Shanghai",
+    "src": "assets/wallpapers/shanghai.jpg",
+    "thumb": "assets/wallpapers/shanghai-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
+  },
+  {
+    "id": "hongkong",
+    "name": "Hong Kong",
+    "src": "assets/wallpapers/hongkong.jpg",
+    "thumb": "assets/wallpapers/hongkong-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
+  },
+  {
+    "id": "singapore",
+    "name": "Singapore",
+    "src": "assets/wallpapers/singapore.jpg",
+    "thumb": "assets/wallpapers/singapore-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
+  },
+  {
+    "id": "fox",
+    "name": "Red fox",
+    "src": "assets/wallpapers/fox.jpg",
+    "thumb": "assets/wallpapers/fox-thumb.jpg",
+    "tone": "dark",
+    "ut": {
+      "tr": "mist",
+      "br": "mist"
+    },
+    "frostVeil": 0.18,
+    "listColumn": 0,
+    "dockQuiet": false,
+    "clockMist": false
   }
 ];
