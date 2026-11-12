@@ -93,10 +93,27 @@
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
   /* HDMI inputs reported by the TV can be pinned like apps. Their IDs contain no dot, so they never fall back to a native app ID. */
   function inputPort(n) { return typeof n === 'number' && isFinite(n) && n >= 0 && n <= 99 && Math.floor(n) === n; }
+  /* Owner-chosen device types label HDMI ports; the TV reports only type and port number. [id, name, icon]. */
+  var DEVICE_TYPES = [['hdmi', '', 'device-hdmi'], ['appletv', 'Apple TV', 'appletv'], ['playstation', 'PlayStation', 'playstation'],
+    ['xbox', 'Xbox', 'device-console'], ['switch', 'Nintendo Switch', 'device-handheld'], ['console', 'Games console', 'device-console'],
+    ['settop', 'Cable box', 'device-settop'], ['disc', 'Blu-ray player', 'device-disc'], ['computer', 'Computer', 'device-computer'],
+    ['stick', 'Streaming stick', 'device-stick'], ['soundbar', 'Soundbar', 'device-soundbar']];
+  var DEVICES = {};
+  function deviceType(id) { for (var i = 0; i < DEVICE_TYPES.length; i++) if (DEVICE_TYPES[i][0] === id) return DEVICE_TYPES[i]; return DEVICE_TYPES[0]; }
+  function portDevice(n) { return deviceType(DEVICES.hasOwnProperty(String(n)) ? DEVICES[String(n)] : 'hdmi'); }
+  function portName(n) { return portDevice(n)[1] || 'HDMI ' + n; }
+  function labelInput(a) { var d = portDevice(a.input); a.name = d[1] || 'HDMI ' + a.input; a.brand = d[2]; a.mark = true; return a; }
   function inputApp(n) {
     var id = 'hdmi-' + n, a = app(id);
-    if (!a) { a = { id: id, appId: id, name: 'HDMI ' + n, mark: false, input: n }; APPS.push(a); }
-    return a;
+    if (!a) { a = { id: id, appId: id, input: n }; APPS.push(a); }
+    return labelInput(a);
+  }
+  function cleanDevices(raw) {
+    var out = {};
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) Object.keys(raw).slice(0, 100).forEach(function (key) {
+      if (/^\d{1,2}$/.test(key) && typeof raw[key] === 'string' && raw[key] !== 'hdmi' && deviceType(raw[key])[0] === raw[key]) out[key] = raw[key];
+    });
+    return out;
   }
   function isInput(a) { return !!a && a.input !== undefined; }
   function wall(id) { for (var i = 0; i < WALLS.length; i++) if (WALLS[i].id === id) return WALLS[i]; return null; }
@@ -338,6 +355,8 @@
   function clean(saved) {
     var s = saved && typeof saved === 'object' ? saved : {}, modern = s.look && typeof s.look === 'object' ? s.look : s;
     var legacyList = s.theme === 'list', h = [], recent = [], records = Array.isArray(s.appRecords) ? s.appRecords : [];
+    DEVICES = cleanDevices(s.devices);
+    APPS.forEach(function (a) { if (isInput(a)) labelInput(a); });
     records.slice(0, 256).forEach(function (a) {
       if (a && inputPort(a.input) && a.id === 'hdmi-' + a.input) { inputApp(a.input); return; }
       if (!a || !safeId(a.id) || !safeId(a.appId) || typeof a.name !== 'string' || !a.name.trim() || app(a.id)) return;
@@ -355,7 +374,7 @@
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
-      home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
+      home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0], devices: DEVICES,
       mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
     };
   }
@@ -382,7 +401,7 @@
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
-  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; return c; }
+  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.devices = S.c.devices; return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
@@ -875,7 +894,7 @@
     if (id === 'editor') openEditor('settings');
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs', device: 'Device type' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
@@ -883,10 +902,17 @@
   function detailSections(t) {
     var flat = S.c.bg !== 'photo', inactive = !materialApplies();
     function options(axis, values, disabled) { return values.map(function (value) { return choice(axis, value, disabled); }); }
-    if (t.group === 'inputs') return [{ id: 'inputs', title: '', items: t.inputs.length ? t.inputs.map(function (input) {
-      return { action: 'input.' + input.number, label: input.name, description: input.active ? 'Active' : input.connected ? 'Connected' : 'Disconnected — may be asleep' };
-    }) : [{ action: 'inputs.retry', label: t.loading ? 'Loading inputs…' : 'Try again', disabled: t.loading }],
-      reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
+    /* One row per port: OK switches; Right reaches its Device button. */
+    if (t.group === 'inputs') return t.inputs.length ? t.inputs.map(function (input, k) {
+      var named = portDevice(input.number)[1], state = input.active ? 'Active' : input.connected ? 'Connected' : 'Disconnected';
+      return { id: 'inputs', title: '', horizontal: true, reason: k === t.inputs.length - 1 ? 'A disconnected input may have a sleeping device.' : '', items: [
+        { action: 'input.' + input.number, label: portName(input.number), mark: portDevice(input.number)[2], description: named ? input.name + ' · ' + state : state },
+        { action: 'inputs.device.' + input.number, label: 'Device', aria: 'Choose the device on ' + input.name, compact: true }] };
+    }) : [{ id: 'inputs', title: '', items: [{ action: 'inputs.retry', label: t.loading ? 'Loading inputs…' : 'Try again', disabled: t.loading }],
+      reason: t.inputError || (!t.loading ? 'No HDMI inputs were reported by this TV.' : '') }];
+    if (t.group === 'device') return [{ id: 'device', title: '', items: DEVICE_TYPES.map(function (d) {
+      return { action: 'device.' + d[0], label: d[1] || 'HDMI ' + t.port, mark: d[2], checked: portDevice(t.port)[0] === d[0] };
+    }) }];
     if (t.group === 'background') return [
       { id: 'bg', title: 'Background type', items: options('bg', ['photo', 'light', 'dark']) },
       { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: flat }] },
@@ -912,7 +938,7 @@
     ] }];
   }
   function detailRows(t) {
-    var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }]];
+    var rows = [[{ action: 'settings.back', label: parentName(t) }]];
     detailSections(t).forEach(function (section) {
       var enabled = section.items.filter(function (item) { return !item.disabled; });
       if (section.horizontal && enabled.length) rows.push(enabled);
@@ -950,12 +976,27 @@
   function openInputs() {
     openAppearance('inputs'); var t = top(); t.inputs = []; loadInputs(t);
   }
+  function openDevice(port) { push({ id: 'appearance', group: 'device', port: port, f: { action: 'device.' + portDevice(port)[0] } }); }
+  function setDevice(port, type) {
+    var c, devices = {}, key = String(port);
+    S.err = null; S.lookError = null;
+    if (portDevice(port)[0] === type) return;
+    Object.keys(DEVICES).forEach(function (k) { devices[k] = DEVICES[k]; });
+    if (type === 'hdmi') delete devices[key]; else devices[key] = type;
+    c = next(S.c.home.slice(), S.c.recent.slice()); c.devices = devices;
+    if (!write(c, 'Input device')) { S.lookError = { type: 'save', patch: {}, row: 'device', device: { port: port, type: type } }; return; }
+    DEVICES = devices;
+    APPS.forEach(function (a) { if (isInput(a)) labelInput(a); });
+    catalog.revision++;
+  }
+  function parentName(t) { return t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : t.group === 'device' ? 'Inputs' : 'Settings'; }
   function detailBack() { cancelLook(); S.err = null; pop(); FrameDevice.cancelSource(); }
   function detailOk(t, item) {
     var patch = {}, error = S.lookError;
     if (item.action === 'settings.back') { detailBack(); return; }
     if (item.disabled || S.pending) return;
     if (item.action === 'settings.retry') {
+      if (error && error.device) { setDevice(error.device.port, error.device.type); return; }
       if (error && error.patch[error.row] !== undefined) detailFocus(t, choice(error.row, error.patch[error.row]), 0);
       if (error && error.row === 'mode') applyRotation(error.patch.mode);
       else if (error) setLook(error.patch, { row: error.row });
@@ -967,6 +1008,8 @@
     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
     else if (item.action === 'samsung.inputs') openInputs();
     else if (item.action === 'inputs.retry') loadInputs(t);
+    else if (item.action.indexOf('inputs.device.') === 0) openDevice(Number(item.action.slice(14)));
+    else if (item.action.indexOf('device.') === 0) setDevice(t.port, item.action.slice(7));
     else if (item.action.indexOf('input.') === 0) perform(item.label, function (done) {
       FrameDevice.setSource(Number(item.action.slice(6)), function (err) {
         t.refreshInputs = true;
@@ -1442,29 +1485,31 @@
     V.appearance.norm(t);
     appearanceEl.className = 'appearance detail-' + t.group;
     appearanceRows.className = 'appearance-rows';
-    appearanceTitle.textContent = DETAIL_NAMES[t.group];
+    appearanceTitle.textContent = t.group === 'device' ? 'HDMI ' + t.port : DETAIL_NAMES[t.group];
     var at = detailLocation(t), selected = at.item, error = S.lookError, status = '', hint;
     function command(item, inner, cls) {
-      var applied = item.axis && S.c[item.axis] === item.value;
+      var radio = !!item.axis || item.checked !== undefined, applied = item.axis ? S.c[item.axis] === item.value : !!item.checked;
       var loading = !!(item.axis && S.pending && S.pending.target[item.axis] === item.value && S.pending.row === item.axis);
       return '<button type="button" tabindex="-1" class="setting-choice' + (cls ? ' ' + cls : '') + (t.f.action === item.action ? ' is-focus' : '') + (item.disabled ? ' is-disabled' : '') + (applied ? ' is-applied' : '') + (loading ? ' is-loading' : '') + '"'
-        + (item.axis ? ' role="radio" aria-checked="' + !!applied + '"' : '') + ' aria-label="' + esc(item.axis && item.value === 'both' ? 'Icons and text' : item.label) + '" aria-disabled="' + !!item.disabled + '" aria-busy="' + loading + '"'
+        + (radio ? ' role="radio" aria-checked="' + !!applied + '"' : '') + ' aria-label="' + esc(item.aria || (item.axis && item.value === 'both' ? 'Icons and text' : item.label)) + '" aria-disabled="' + !!item.disabled + '" aria-busy="' + loading + '"'
         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
-        + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
+        + (radio ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
     }
-    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') + '</span>', 'setting-back'));
+    setHTML(appearanceBack, command({ action: 'settings.back', label: parentName(t) }, icon('left') + '<span>' + parentName(t) + '</span>', 'setting-back'));
     setHTML(appearanceRows, detailSections(t).map(function (section) {
       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
-        + '<div class="setting-options"' + (section.items[0].axis ? ' role="radiogroup" aria-label="' + esc(section.title || LOOK_NAMES[section.id] || DETAIL_NAMES[t.group]) + '"' : '') + '>'
+        + '<div class="setting-options"' + (section.items[0].axis || section.items[0].checked !== undefined ? ' role="radiogroup" aria-label="' + esc(section.title || LOOK_NAMES[section.id] || DETAIL_NAMES[t.group]) + '"' : '') + '>'
         + section.items.map(function (item) {
           var swatch = item.axis === 'bg', body = '';
+          if (item.compact) return command(item, '<span class="setting-name">' + esc(item.label) + '</span>', 'is-compact');
           if (swatch || item.thumbnail) body += item.value === 'light' || item.value === 'dark'
             ? '<span class="setting-swatch swatch-' + item.value + '" aria-hidden="true"></span>'
             : '<img class="setting-swatch" src="' + WP + S.c.wall + '-thumb.jpg" alt="">';
+          if (item.mark) body += '<span class="setting-mark" aria-hidden="true">' + markHtml(item.mark, 48, 36, 32) + '</span>';
           body += '<span class="setting-copy"><span class="setting-name">' + esc(item.label) + '</span>'
             + (item.description ? '<span class="setting-description">' + esc(item.description) + '</span>' : '') + '</span>';
-          if (!item.axis) body += icon('right', 'setting-forward');
+          if (!item.axis && item.checked === undefined) body += icon('right', 'setting-forward');
           return command(item, body, item.description ? 'has-description' : '');
         }).join('') + '</div>'
         + (section.reason ? '<p class="setting-reason">' + esc(section.reason) + '</p>' : '') + '</section>';
@@ -1475,7 +1520,8 @@
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
+    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + parentName(t) : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting'
+      : selected.checked !== undefined ? 'Use this device type' : selected.action.indexOf('inputs.device.') === 0 ? 'Choose what is connected' : selected.action.indexOf('input.') === 0 ? 'Switch to this input' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
   }
   function renderWallpaper(t) {

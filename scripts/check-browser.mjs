@@ -417,7 +417,7 @@ try {
       await current.setViewportSize({ width, height: width * 9 / 16 }); await look({ layout });
       await group('samsung'); await act('samsung.inputs');
       await current.waitForSelector('[data-action="input.1"]');
-      const entries = await current.locator('.section-inputs .setting-choice').allTextContents();
+      const entries = await current.locator('.section-inputs [data-action^="input."]').allTextContents();
       check('Inputs reflect actual ports and sleeping/active status ' + layout + '/' + width,
         entries.length === 3 && entries.some(x => /HDMI 1.*Disconnected/.test(x)) && entries.some(x => /HDMI 2.*Active/.test(x)) && !entries.some(x => /HDMI 4/.test(x)), entries);
       check('Inputs fit and retain one focus ' + layout + '/' + width, await current.locator('.section-inputs .setting-choice').evaluateAll(elements => {
@@ -472,6 +472,39 @@ try {
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.videoSources = { connected: [{ type: 'HDMI', number: 2 }], disconnected: [] }; __tv.calls = []; });
     await scene('home'); await act('home.app.hdmi-1'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
     check('Missing pinned input reports an error without switching', (await current.locator('#stage').innerText()).includes('no longer available') && await current.evaluate(() => !__tv.calls.length));
+    await closePage(); await page(); await group('samsung'); await act('samsung.inputs');
+    await current.waitForSelector('[data-action="inputs.device.1"]');
+    await nav('down', 'right');
+    check('Right from an input reaches its Device button', (await state()).focusAction === 'inputs.device.1', (await state()).focusAction);
+    await nav('ok'); await current.waitForFunction(() => ShoreQA.state().settingsGroup === 'device');
+    const types = await radios();
+    check('Device picker offers each type with HDMI current', types.length === 11 && same(types.filter(r => r.checked === 'true').map(r => r.action), ['device.hdmi']), types);
+    check('Device picker rows fit the stage with one focus', await current.locator('.section-device .setting-choice').evaluateAll(rows => {
+      const stage = document.getElementById('stage').getBoundingClientRect();
+      return ShoreQA.where().focusCount === 1 && rows.every(e => { const r = e.getBoundingClientRect(); return r.top >= stage.top && r.bottom <= stage.bottom; });
+    }));
+    await act('device.playstation');
+    check('Device choice saves by port', same((await stored()).devices, { 1: 'playstation' }) && (await radios()).find(r => r.action === 'device.playstation').checked === 'true');
+    await current.waitForTimeout(300); await current.screenshot({ path: out + 'input-device-picker.png' });
+    await nav('back'); await current.waitForSelector('[data-action="input.1"]');
+    const switchRow = await current.locator('[data-action="input.1"]').innerText();
+    check('Inputs list shows the chosen name, port and icon', /PlayStation/.test(switchRow) && /HDMI 1/.test(switchRow) && await current.locator('[data-action="input.1"] [data-mark="playstation"]').count() === 1, switchRow);
+    await current.waitForTimeout(300); await current.screenshot({ path: out + 'inputs-named.png' });
+    await editor(); await current.waitForFunction(() => ShoreQA.state().inputs.ids.length === 3);
+    check('Editor uses the chosen name', (await current.locator('[data-action="editor.add.hdmi-1"]').innerText()).includes('PlayStation'));
+    await remove('stremio'); await act('editor.add.hdmi-1');
+    await current.reload(); await ready(); await scene('home');
+    check('Home tile keeps the chosen name and icon after reload', (await current.locator('[data-action="home.app.hdmi-1"]').innerText()).includes('PlayStation') && await current.locator('[data-action="home.app.hdmi-1"] [data-mark="playstation"]').count() === 1);
+    await group('samsung'); await act('samsung.inputs'); await current.waitForSelector('[data-action="inputs.device.1"]');
+    await act('inputs.device.1'); await current.evaluate(() => { window.__failWrites = true; });
+    await act('device.xbox');
+    check('Failed device save keeps the previous choice and offers retry', same((await stored()).devices, { 1: 'playstation' }) && await current.locator('[data-action="settings.retry"]').count() === 1);
+    await current.evaluate(() => { window.__failWrites = false; }); await act('settings.retry');
+    check('Retry saves the device choice', same((await stored()).devices, { 1: 'xbox' }));
+    await act('device.hdmi');
+    check('Plain HDMI clears the saved label', same((await stored()).devices, {}) && (await current.locator('#stage').innerText()).includes('HDMI 1'));
+    await closePage(); await page({ seed: baseline({ devices: { 1: 'toaster', 2: 'disc', x: 'disc' } }) });
+    check('Unknown saved device labels are dropped', same((await stored()).devices, { 2: 'disc' }));
     await closePage(); await page({ inputUnavailable: true }); await editor();
     check('Unavailable source API lists no inputs', !(await current.locator('[data-action^="editor.add.hdmi-"]').count()) && !(await current.locator('.eo-sep').allTextContents()).includes('Inputs'));
     await closePage(); await page({ seed: baseline({ dock: ['netflix', 'hdmi-5'] }) });

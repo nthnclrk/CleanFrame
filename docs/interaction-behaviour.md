@@ -68,9 +68,15 @@ Installed-app discovery allows up to 20 seconds for large TV catalogues; launch 
 
 Settings → Samsung → Inputs opens the HDMI chooser. The adapter reads the TV’s actual connected and disconnected source records, including sleeping devices that may be listed as disconnected. It does not guess a universal port count or add a fourth default Home control. Missing APIs, denied access and discovery failure produce an unavailable/error state rather than invented ports. The active source comes from the synchronous `tvwindow.getSource()` return value.
 
-Up/Down selects an input. OK requests that exact source; Back returns to Samsung Settings. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
+Up/Down selects an input. OK requests that exact source; Right reaches that port's Device button; Back returns to Samsung Settings. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
 
 Selecting a source, opening Samsung’s viewer, seeing the expected HDMI picture and waking a CEC device are separate results. The portable implementation does not import firmware-specific viewer payloads or claim to wake a sleeping device. No input discovery or polling runs during hidden startup.
+
+### Device types
+
+The TV reports only each port's type and number; HDMI-CEC device names and names set in Samsung's Source menu are not available to the app. Device on an input row opens a list of device types for that port: HDMI (default), Apple TV, PlayStation, Xbox, Nintendo Switch, Games console, Cable box, Blu-ray player, Computer, Streaming stick and Soundbar. OK applies and saves the type immediately, with a tick on the current choice; Back returns to Inputs. A storage failure keeps the previous type and offers Try again.
+
+The type sets the input's name and icon in Inputs, the Home editor and Home; the chooser keeps the port number beside a named input. Types are saved by port in `devices` (for example `{"1": "playstation"}`), whether or not the input is on Home. Choosing HDMI removes the entry. Unknown types or ports in saved preferences are dropped. Apple TV and PlayStation use their brand marks; Xbox, Nintendo Switch and the other types use original generic outlines.
 
 ### Inputs on Home
 

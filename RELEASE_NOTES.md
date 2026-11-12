@@ -1,6 +1,7 @@
 # Unreleased
 
 - HDMI inputs reported by the TV can be added to Home from the Home editor's new Inputs section. A Home input switches through the same bounded source selection and viewer handoff as Settings → Samsung → Inputs, and survives a restart from its saved port record.
+- Each HDMI input has a Device button in Settings → Samsung → Inputs. Choosing a device type (Apple TV, PlayStation, Xbox, Nintendo Switch, games console, cable box, Blu-ray, computer, streaming stick or soundbar) gives the port that name and icon everywhere. New generic device outlines match the existing utility icons; the PlayStation mark comes from Simple Icons (CC0).
 
 # CleanFrame 0.7.0
 
