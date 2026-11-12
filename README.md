@@ -32,7 +32,7 @@ I highly recommend forking it and building on top of it, ideally with a coding a
 You need Node.js 22.13+ (22 LTS), or 24+, and Python 3.10+ to run the browser preview.
 
 ```sh
-git clone https://github.com/nthnclrk/CleanFrame.git
+git clone https://github.com/MrMerlin1/CleanFrame.git
 cd CleanFrame
 npm ci
 npm run dev:public
