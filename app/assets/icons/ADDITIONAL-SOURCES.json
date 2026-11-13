@@ -16,5 +16,17 @@
     "source": "https://github.com/simple-icons/simple-icons/blob/develop/icons/tubi.svg",
     "licence": "CC0-1.0",
     "note": "Shape unchanged; white fill for launcher."
+  },
+  {
+    "icon": "playstation",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/cd796c98565fc466923fc1128b962e133fa3c612/icons/playstation.svg",
+    "licence": "CC0-1.0",
+    "note": "Shape unchanged; white fill for launcher. Labels an HDMI input the owner marks as PlayStation. Simple Icons no longer publishes Xbox or Nintendo marks, so those device types use the generic outlines below."
+  },
+  {
+    "icon": "device-hdmi, device-console, device-handheld, device-settop, device-disc, device-computer, device-stick, device-soundbar",
+    "source": "Original CleanFrame utility outlines",
+    "licence": "MIT (project licence)",
+    "note": "Generic HDMI plug, games controller, handheld console, cable box, disc player, laptop, streaming stick and soundbar on the 24-unit utility grid with a 1.6 round stroke. Not brand marks."
   }
 ]

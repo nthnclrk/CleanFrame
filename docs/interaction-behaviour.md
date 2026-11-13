@@ -43,7 +43,7 @@ The five-column grid scrolls with remote focus. OK launches an app; its On Home 
 
 ## Apps on Home
 
-Open the editor from Settings or All apps. On Home shows the current order on the left. Not on Home shows Recently removed first, followed by other installed apps on the right. Home holds one to nine apps.
+Open the editor from Settings or All apps. On Home shows the current order on the left. Not on Home shows Recently removed first, followed by other installed apps and then Inputs on the right. Home holds one to nine apps or inputs.
 
 - Reorder: OK on an app name picks it up. Up/Down moves it. OK places it and saves the order. Back puts an unplaced app back without saving that move.
 - Remove: Right from an app name reaches Remove from Home. OK saves the removal and moves focus to the same app in Recently removed. The app stays installed.
@@ -68,9 +68,21 @@ Installed-app discovery allows up to 20 seconds for large TV catalogues; launch 
 
 Settings → Samsung → Inputs opens the HDMI chooser. The adapter reads the TV’s actual connected and disconnected source records, including sleeping devices that may be listed as disconnected. It does not guess a universal port count or add a fourth default Home control. Missing APIs, denied access and discovery failure produce an unavailable/error state rather than invented ports. The active source comes from the synchronous `tvwindow.getSource()` return value.
 
-Up/Down selects an input. OK requests that exact source; Back returns to Samsung Settings. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
+Up/Down selects an input. OK requests that exact source; Right reaches that port's Device button; Back returns to Samsung Settings. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
 
 Selecting a source, opening Samsung’s viewer, seeing the expected HDMI picture and waking a CEC device are separate results. The portable implementation does not import firmware-specific viewer payloads or claim to wake a sleeping device. No input discovery or polling runs during hidden startup.
+
+### Device types
+
+The TV reports only each port's type and number; HDMI-CEC device names and names set in Samsung's Source menu are not available to the app. Device on an input row opens a list of device types for that port: HDMI (default), Apple TV, PlayStation, Xbox, Nintendo Switch, Games console, Cable box, Blu-ray player, Computer, Streaming stick and Soundbar. OK applies and saves the type immediately, with a tick on the current choice; Back returns to Inputs. A storage failure keeps the previous type and offers Try again.
+
+The type sets the input's name and icon in Inputs, the Home editor and Home; the chooser keeps the port number beside a named input. Types are saved by port in `devices` (for example `{"1": "playstation"}`), whether or not the input is on Home. Choosing HDMI removes the entry. Unknown types or ports in saved preferences are dropped. Apple TV and PlayStation use their brand marks; Xbox, Nintendo Switch and the other types use original generic outlines.
+
+### Inputs on Home
+
+Opening the Home editor also reads the same source records. Each reported HDMI port appears once under Inputs in Not on Home and can be added, removed, reordered and undone like an app. Discovery failure or a missing API lists no inputs. A pinned input is saved as `hdmi-N` with its port number in `appRecords`, so it stays on Home after a restart before discovery runs again; an `hdmi-N` Home entry without that record is dropped rather than invented. Input IDs contain no dot, so they never fall back to a native app ID.
+
+OK on a Home input uses the same bounded selection as the chooser: it rediscovers sources, requests that exact port and then opens Samsung’s viewer. A port that is no longer reported, a routing failure or a viewer failure is shown as an error and leaves the launcher usable. A cancelled request shows nothing. All apps lists installed apps only.
 
 ## Preferences and wallpaper
 
