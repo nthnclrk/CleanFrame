@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../app/device.js', import.meta.url), 'utf8');
-function harness({ supported = true, throwSource = false } = {}) {
+function harness({ supported = true, throwSource = false, platformVersion } = {}) {
   let now = 0, next = 0;
   const timers = new Map(), requests = [], launches = [], sourceRequests = [], changes = [];
   let current = { type: 'HDMI', number: 2 };
@@ -19,6 +19,14 @@ function harness({ supported = true, throwSource = false } = {}) {
     window.tizen.systeminfo = { getPropertyValue: (name, ok, fail) => { assert.equal(name, 'VIDEOSOURCE'); sourceRequests.push({ ok, fail }); } };
     window.tizen.tvwindow = { getSource: (...args) => { assert.equal(args.length, 0); return current; },
       setSource: (source, ok, fail) => { if (throwSource) throw Error('Synthetic SDK failure'); changes.push({ source, ok, fail }); } };
+  }
+  if (platformVersion !== undefined) {
+    window.tizen.systeminfo = window.tizen.systeminfo || {};
+    window.tizen.systeminfo.getCapability = key => {
+      assert.equal(key, 'http://tizen.org/feature/platform.version');
+      if (platformVersion instanceof Error) throw platformVersion;
+      return platformVersion;
+    };
   }
   vm.runInNewContext(source, {
     window, tizen: window.tizen,
@@ -160,4 +168,15 @@ test('unknown and invalid ports cannot be substituted and a newer request cancel
   assert.equal(results[0].cancelled, true);
   h.sourceRequests[0].ok(video); assert.equal(h.changes.length, 0);
   h.sourceRequests[1].ok(video); assert.equal(h.changes[0].source.number, 2);
+});
+test('TV settings uses the visible menu only on platforms before Tizen 6', () => {
+  const cases = [['5.5', 'org.tizen.menu'], ['5.0', 'org.tizen.menu'], ['6.5', 'com.samsung.tv.coba.setting'],
+    ['9.0', 'com.samsung.tv.coba.setting'], ['', 'com.samsung.tv.coba.setting'],
+    [new Error('Unsupported'), 'com.samsung.tv.coba.setting'], [undefined, 'com.samsung.tv.coba.setting']];
+  for (const [version, target] of cases) {
+    const h = harness({ platformVersion: version });
+    h.device.settings(() => {});
+    assert.equal(h.launches.length, 1);
+    assert.equal(h.launches[0].id, target, String(version));
+  }
 });
