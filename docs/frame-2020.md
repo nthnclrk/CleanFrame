@@ -15,6 +15,7 @@ This is one owner's adapted installation. It does not establish support for ever
 | Physical Home | Home from YouTube opened the launcher in the native-operation trial. Later HDMI use showed that this assignment alone was insufficient. |
 | Additional Home key rule | A separate signed package added an `XF86Home` route. Install/removal restored the original registry rows. A subsequent source → Home command test returned to the launcher. This is not proof for every physical-key/source combination. |
 | First-screen target | A separate native first-screen assignment was applied, restored, and reapplied, with readback at each step. |
+| Second LS03T | Home and power-on reached the launcher only with an app-control declaration, the first-screen target, the router and a restart together. See [below](#second-ls03t-home-and-power-on-need-three-parts-together). |
 | Native Art Mode | A local photo slideshow is independent of the web launcher. Its rotation setting survived an Art app restart and a verified TV reboot on this firmware. |
 
 The current launcher package and the reference helper are separate compatibility
@@ -105,6 +106,54 @@ not a general router installer or an independent recovery channel.
 Restore/remove all integration before uninstalling the launcher. Keep operation,
 first-screen, and router recovery records separate. Recovery still requires the
 developer connection.
+
+### Second LS03T: Home and power-on need three parts together
+
+Reported 13 November 2026 by a second owner of an LS03T on the same firmware
+(T-NKMDEUC-2743.0, ARMv7, Tizen 5.5), with matching reviewed library hashes.
+On this TV, each component above failed when tried alone:
+
+- The Home operation applied and restored exactly, but Home from YouTube showed
+  only Samsung's bottom bar.
+- The router installed and removed cleanly, but Home still showed only the bar,
+  also after a power cycle.
+- With the first-screen target set to a launcher built without an app-control
+  declaration, power-on stopped at a "CleanFrame loading" screen and the
+  launcher process never started.
+
+A system-log capture during a Home press explained the result. Samsung's context
+manager handles `XF86Home` through Samsung's own `com.samsung.tv.csfs` rule. It
+also evaluates an added rule only when that rule's target is a task it already
+manages. The launcher becomes such a task, Samsung's `firstscreen` task, only
+when `db/first_screen/type` names it **and** the TV has restarted since then.
+Changing the value alone did not change the running task.
+
+The working combination on this TV:
+
+1. The launcher manifest declares the default app-control operation:
+   `<tizen:app-control>` with `http://tizen.org/appcontrol/operation/default`
+   and `reload="disable"`. With it, a cold boot reached the launcher.
+   This change was suggested by a 2020 Q90T fork in which Home reaches the launcher.
+2. The first-screen target names the launcher. The reviewed first-screen helper
+   requires the captured Smart Hub autostart value, which was on.
+3. The router package is installed. After the restart, the log shows Samsung's
+   rule first, then `[<router>.xml] firstscreen:launch` resuming the launcher
+   and pausing Smart Hub.
+
+The owner confirmed the visible results before and after a full power cycle:
+- Power-on opens the launcher.
+- Home from YouTube shows Samsung's bar very briefly, then the launcher.
+- Back from Samsung's bar returns to the launcher.
+
+The Home operation stayed at its original absent state throughout. Samsung's own
+rule is untouched, so its bar can still flash. On one cold boot, the launcher
+appeared on a black background until the owner returned to it; a later cold
+boot showed the wallpaper normally.
+
+Undo in reverse order: remove the router and compare the key rules with the
+private snapshot, restore the first-screen target, then return Smart Hub
+autostart to its original menu setting. Do this before removing or re-signing
+the launcher.
 
 ## HDMI observations
 

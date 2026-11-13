@@ -117,6 +117,11 @@ entry point runs. The C# firmware guards do not protect installation. The
 owner-supplied procedure must check the exact model, firmware, package identity
 and recovery route before installation.
 
+On a second LS03T, the route took effect only while the launcher was Samsung's
+`firstscreen` task: the first-screen target named it and the TV had restarted
+since then. The launcher manifest also declared the default app-control
+operation. See [the device report](../../../docs/frame-2020.md#second-ls03t-home-and-power-on-need-three-parts-together).
+
 Save the original key-rule registry privately before installation. Review the
 installed rule, test removal, and compare all affected rows with that original
 snapshot before retaining the package. Do not delete Samsung's rule. Removal of
