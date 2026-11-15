@@ -633,3 +633,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .l-list .quiet-utils.is-text .u-content>*+*{margin-left:0;margin-right:0}
 .quiet-utils.is-text .u-content>*+*{margin-left:0}
 .l-list .quiet-utils.is-text .u .u-content>*+*{margin-right:0}
+
+/* Unknown Art photos use fixed readable support, never bundled colour metadata.
+   Texture stays the original image. There is no live blur or pixel sampling. */
+.source-art .bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(4,10,16,.52);pointer-events:none}
+.source-art .home{--ink:#f4f4f1;--ph-ink:#f4f4f1;color:#f4f4f1}
+.source-art .mat{background:#182026}
+.source-art .mat-img,.source-art .mat-scrim,.source-art .mat-veil,.source-art .ph-field{visibility:hidden}
+.source-art .ph-plate{background:rgba(16,24,32,.94)}
+.source-art .sheet-bg{visibility:hidden}
+.source-art .scene{background:#182026}
+/* Keep the extra source row within the existing remote-friendly Settings frame. */
+.detail-background .setting-section+.setting-section{margin-top:24px}
+.detail-background .setting-choice{min-height:64px;padding:8px 24px;font-size:34px;line-height:48px}
+.detail-background .setting-swatch{width:64px;height:40px}
+.detail-background .section-rotation .setting-choice{padding-left:112px}

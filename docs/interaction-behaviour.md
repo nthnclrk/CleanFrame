@@ -16,7 +16,7 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 
 | Group | Choices |
 | --- | --- |
-| Background | Photo, Light, Dark; Wallpaper and Rotation when Photo is active |
+| Background | Photo, Light, Dark; Gallery or Art Mode source; Wallpaper and Rotation for Photo / Gallery |
 | Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
 | Focus | Type or Glass; Soft, Frost or Clear tint material |
@@ -80,7 +80,7 @@ The gallery contains 15 bundled wallpapers. Settings → Background → Wallpape
 
 Settings → Background → Rotation offers Fixed, Each time Home opens, Every 5 minutes, Every 15 minutes and Every hour. Each time Home opens advances once when the launcher loads; a return to the already-running launcher does not advance it. Timed rotation counts only visible Photo Home time in either List or Dock. Panels, flat backgrounds and time spent in other apps pause the cycle. Changing the photo or rotation mode starts a new interval.
 
-Launcher wallpaper is separate from native Art Mode. Runtime photos, materials and available fonts are local assets; they do not require the Mac or a network download.
+Gallery wallpapers, materials and available fonts are bundled local assets. The opt-in Art Mode source uses a local Vetro bridge to cache the current unfiltered uploaded Art photo, keeping the last successful image if the bridge is unavailable. It refreshes only on visible Home lifecycle events, never on navigation or a polling timer. Gallery selection and rotation stay saved while Art Mode is active. Unknown Art photos use a fixed readable scrim and neutral surfaces rather than generated gallery materials. Native Art Mode selection is unchanged. Setup, cache semantics and unverified device behaviour are documented in [Art Mode wallpaper sync](art-mode-wallpaper.md).
 
 ## Sources
 

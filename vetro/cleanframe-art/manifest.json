@@ -1,0 +1,8 @@
+{
+  "id": "cleanframe-art",
+  "name": "CleanFrame Art bridge",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": ["exec"],
+  "entry": "index.js"
+}

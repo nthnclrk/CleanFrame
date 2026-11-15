@@ -44,9 +44,9 @@
     newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
-  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
+  var LOOK_VALUES = { source: ['gallery', 'art'], bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
+  var LOOK_NAMES = { source: 'Wallpaper source', bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
+  var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
   var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
@@ -85,8 +85,8 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
-  function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
+  function lookOf(c) { return { source: c.source, bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && c.source !== 'art' && (c.layout === 'dock' || c.focus === 'glass'); }
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
@@ -341,6 +341,7 @@
     if (!h.length) h = PRIMARY.slice();
     (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
+      source: pick(modern.source, LOOK_VALUES.source, 'gallery'),
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
@@ -365,7 +366,7 @@
     var saved = load(), initial; S.c = clean(saved); initial = next(S.c.home.slice(), S.c.recent.slice());
     S.stack = [{ id: 'home', f: { zone: 'apps', u: 0 } }];
     S.sel = S.c.lastApp; S.selIdx = S.c.home.indexOf(S.sel);
-    if (saved && initial.mode === 'open') initial.wall = WALLS[(wallIndex(initial.wall) + 1) % WALLS.length].id;
+    if (saved && initial.source === 'gallery' && initial.mode === 'open') initial.wall = WALLS[(wallIndex(initial.wall) + 1) % WALLS.length].id;
     // Keep the old schema keys alongside the builder values for in-place updates.
     try { localStorage.setItem(KEY, JSON.stringify(serialise(initial))); S.c = initial; storageOk = true; } catch (e) { storageOk = false; }
   }
@@ -377,7 +378,7 @@
   function write(c, label) {
     try { localStorage.setItem(KEY, JSON.stringify(serialise(c))); }
     catch (e) { storageOk = false; S.failed++; S.err = label; log('Not saved: ' + label); return false; }
-    if (c.wall !== S.c.wall || c.mode !== S.c.mode) resetRotation();
+    if (c.wall !== S.c.wall || c.mode !== S.c.mode || c.source !== S.c.source) resetRotation();
     storageOk = true; S.c = c; S.writes++; S.err = null; log('Saved: ' + label);
     return true;
   }
@@ -847,7 +848,7 @@
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
   }
   function detailSections(t) {
-    var flat = S.c.bg !== 'photo', inactive = !materialApplies();
+    var flat = S.c.bg !== 'photo', galleryInactive = flat || S.c.source === 'art', inactive = !materialApplies();
     function options(axis, values, disabled) { return values.map(function (value) { return choice(axis, value, disabled); }); }
     if (t.group === 'inputs') return [{ id: 'inputs', title: '', items: t.inputs.length ? t.inputs.map(function (input) {
       return { action: 'input.' + input.number, label: input.name, description: input.active ? 'Active' : input.connected ? 'Connected' : 'Disconnected — may be asleep' };
@@ -855,8 +856,9 @@
       reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
     if (t.group === 'background') return [
       { id: 'bg', title: 'Background type', items: options('bg', ['photo', 'light', 'dark']) },
-      { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: flat }] },
-      { id: 'rotation', title: 'Rotation', items: [{ action: 'background.rotation', label: mode().name, disabled: flat }], reason: flat ? 'Choose Photo to use wallpaper and rotation.' : '' }
+      { id: 'source', title: 'Wallpaper source', horizontal: true, items: options('source', ['gallery', 'art'], flat), reason: '' },
+      { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: galleryInactive }] },
+      { id: 'rotation', title: 'Rotation', items: [{ action: 'background.rotation', label: mode().name, disabled: galleryInactive }], reason: flat ? 'Choose Photo to use wallpapers.' : S.c.source === 'art' ? 'Gallery rotation is paused.' : '' }
     ];
     if (t.group === 'layout') return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
@@ -867,9 +869,9 @@
     if (t.group === 'focus') return [
       { id: 'focus', title: 'Focus style', horizontal: true, items: options('focus', ['type', 'glass']) },
       { id: 'material', title: 'Material', horizontal: true, items: options('material', ['soft', 'frost', 'tint'], inactive),
-        reason: inactive ? flat ? 'Materials are available with a Photo background.' : 'Choose Glass focus or the Dock layout to use materials.' : '' }
+        reason: S.c.source === 'art' && !flat ? 'Art Mode uses a neutral surface for readability.' : inactive ? flat ? 'Materials are available with a Photo background.' : 'Choose Glass focus or the Dock layout to use materials.' : '' }
     ];
-    if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
+    if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), galleryInactive),
       reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
     return [{ id: 'samsung', title: '', items: [
       { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
@@ -900,7 +902,7 @@
   }
   function applyRotation(value) {
     var c;
-    if (S.c.bg !== 'photo') return;
+    if (S.c.bg !== 'photo' || S.c.source === 'art') return;
     S.err = null; S.lookError = null;
     if (value === S.c.mode) return;
     c = next(S.c.home.slice(), S.c.recent.slice()); c.mode = value;
@@ -1039,9 +1041,9 @@
     }).join('');
   }
   function render() {
-    var t = top(), sheet = !!V[t.id].sheet, shown = wall(S.shown ? S.shown.wall : S.c.wall), palette = ADAPTIVE_INK[shown.id];
+    var t = top(), sheet = !!V[t.id].sheet, art = S.c.bg === 'photo' && S.shown && S.shown.source === 'art', shown = art ? ART_STYLE : wall(S.shown ? S.shown.wall : S.c.wall), palette = art ? null : ADAPTIVE_INK[shown.id];
     var adaptive = applyAdaptiveInk(palette), tr = adaptive && palette.tr ? palette.tr.pol : shown.ut.tr, br = adaptive && palette.br ? palette.br.pol : shown.ut.br;
-    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
+    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (art ? ' source-art' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
     if (!adaptive && shown.clockInk) stage.style.setProperty('--clock-ink', shown.clockInk);
     else stage.style.removeProperty('--clock-ink');
     if (!adaptive && shown.dockClockInk) stage.style.setProperty('--dock-clock-ink', shown.dockClockInk);
@@ -1409,7 +1411,7 @@
     appearanceEl.className = 'appearance detail-' + t.group;
     appearanceRows.className = 'appearance-rows';
     appearanceTitle.textContent = DETAIL_NAMES[t.group];
-    var at = detailLocation(t), selected = at.item, error = S.lookError, status = '', hint;
+    var at = detailLocation(t), selected = at.item, error = S.lookError, status = t.group === 'background' && S.c.source === 'art' ? '<p>' + esc(window.FrameArt.status().error || 'Uses your current uploaded Art Mode photo.') + '</p>' : '', hint;
     function command(item, inner, cls) {
       var applied = item.axis && S.c[item.axis] === item.value;
       var loading = !!(item.axis && S.pending && S.pending.target[item.axis] === item.value && S.pending.row === item.axis);
@@ -1437,7 +1439,7 @@
     }).join(''));
     if (S.pending) status = '<p>Loading ' + esc(S.pending.row === 'font' ? FONTS[S.pending.target.font].name : 'your choice') + '…</p><p>Back cancels this change.</p>';
     else if (error) {
-      status = '<p class="setting-error">' + (error.type === 'save' ? 'Couldn’t save this change.' : error.type === 'font' ? 'Couldn’t load ' + esc(FONTS[error.font].name) + '.' : 'Couldn’t load this appearance.') + ' Your current choice is kept.</p>'
+      status = '<p class="setting-error">' + (error.type === 'save' ? 'Couldn’t save this change.' : error.type === 'font' ? 'Couldn’t load ' + esc(FONTS[error.font].name) + '.' : error.patch.source === 'art' ? 'Art Mode is unavailable. Start the local Art bridge, then try again.' : 'Couldn’t load this appearance.') + ' Your current choice is kept.</p>'
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
@@ -1641,8 +1643,11 @@
   };
 
   /* ---------- Atomic appearance bundles ---------- */
+  var ART_STYLE = { id: 'art', tone: 'dark', ut: { tr: 'light', br: 'light' }, frostVeil: .12 };
+  var artRecord = null, artRefreshAt = 0;
+  var ART_NEUTRAL = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><path fill="#182026" d="M0 0h1920v1080H0z"/></svg>');
   var wallToken = 0, committedBundle = null, reflowToken = 0, fontSwitchToken = 0;
-  function registeredMaterial(id) { return S.c.bg === 'photo' && S.c.material === 'soft' && !!wall(id); }
+  function registeredMaterial(id) { return S.c.source !== 'art' && S.c.bg === 'photo' && S.c.material === 'soft' && !!wall(id); }
   function matSrc(id, material) { return 'assets/materials/' + id + (material === 'soft' ? '-study-soft.jpg' : material === 'tint' ? '-field-clear.jpg' : '-field-frost.jpg'); }
   function fieldSrc(id, material) { return 'assets/materials/' + id + (material === 'soft' ? '-field-blur.jpg' : material === 'tint' ? '-field-clear.jpg' : '-field-frost.jpg'); }
   function makeImg(cls, src) { var im = document.createElement('img'); im.className = cls; im.alt = ''; im._src = src; im.src = src; return im; }
@@ -1658,27 +1663,43 @@
     else { im.onload = ready; im.onerror = function () { finish(false); }; }
   }
   function swapImg(k, im) { var old = IMG[k]; if (old === im) return; im.style.cssText = old.style.cssText; if (old.id) im.id = old.id; old.parentNode.replaceChild(im, old); IMG[k] = im; }
-  function bundleKey(look) { return look.wall + '|' + look.material; }
-  function loadBundle(look, token, done) {
-    var imgs = { photo: makeImg('photo', WP + look.wall + '.jpg'), bg: makeImg('sheet-bg', WP + look.wall + '-panel.jpg') }, keys, left, allOk = true;
-    imgs.mat = makeImg('mat-img', matSrc(look.wall, look.material));
-    imgs.field = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.fieldAlt = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.utility = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.utilityAlt = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    keys = Object.keys(imgs); left = keys.length;
-    keys.forEach(function (k) { whenReady(imgs[k], function (ok) {
-      allOk = allOk && ok;
-      if (--left || token !== wallToken) return;
-      done(allOk ? { key: bundleKey(look), imgs: imgs } : null);
-    }); });
+  function bundleKey(look) { return look.source === 'art' ? 'art|' + (artRecord ? artRecord.revision : 'none') : look.wall + '|' + look.material; }
+  function loadBundle(look, token, done, startup) {
+    if (look.source === 'art') {
+      window.FrameArt.load(function (cached) {
+        if (token !== wallToken) return;
+        if (!artRecord && cached) artRecord = cached;
+        if (artRecord || startup) { build(artRecord ? artRecord.url : ART_NEUTRAL); return; }
+        window.FrameArt.refresh(function (fresh) {
+          if (token !== wallToken) return;
+          if (!fresh) { done(null); return; }
+          artRecord = fresh; build(fresh.url);
+        });
+      });
+    } else build(null);
+    function build(artURL) {
+      var imgs = { photo: makeImg('photo', artURL || WP + look.wall + '.jpg'), bg: makeImg('sheet-bg', artURL || WP + look.wall + '-panel.jpg') }, keys, left, allOk = true;
+      var key = bundleKey(look), revision = look.source === 'art' && artRecord ? artRecord.revision : null;
+      imgs.mat = makeImg('mat-img', artURL || matSrc(look.wall, look.material));
+      imgs.field = makeImg('ph-field-img', artURL || fieldSrc(look.wall, look.material));
+      imgs.fieldAlt = makeImg('ph-field-img', artURL || fieldSrc(look.wall, look.material));
+      imgs.utility = makeImg('ph-field-img', artURL || fieldSrc(look.wall, look.material));
+      imgs.utilityAlt = makeImg('ph-field-img', artURL || fieldSrc(look.wall, look.material));
+      keys = Object.keys(imgs); left = keys.length;
+      keys.forEach(function (k) { whenReady(imgs[k], function (ok) {
+        allOk = allOk && ok;
+        if (--left || token !== wallToken) return;
+        done(allOk ? { key: key, imgs: imgs, artRevision: revision, artURL: artURL } : null);
+      }); });
+    }
   }
   function installBundle(bundle, look, previewOnly) {
     if (bundle) {
       Object.keys(bundle.imgs).forEach(function (k) { if (!previewOnly || k !== 'bg') swapImg(k, bundle.imgs[k]); });
       S.bundleKey = bundle.key;
     }
-    S.shown = { bg: look.bg, wall: look.wall, material: look.material, font: look.font };
+    S.shown = { source: look.source, bg: look.bg, wall: look.wall, material: look.material, font: look.font, artRevision: bundle ? bundle.artRevision : S.shown && S.shown.artRevision };
+    if (bundle && bundle.artURL) window.FrameArt.retain(bundle.artURL);
     phFields.concat(utFields).forEach(function (el) { var p = el._placement; if (p) fieldTransform(el, p.x, p.y, p.width, p.height); });
     S.wallShown = look.wall; S.wallPending = null; S.wallError = null;
   }
@@ -1693,7 +1714,7 @@
     }
     return out;
   }
-  function cancelLook() { wallToken++; S.pending = null; S.wallPending = null; S.lookError = null; }
+  function cancelLook() { window.FrameArt.cancel(); wallToken++; S.pending = null; S.wallPending = null; S.lookError = null; }
   function setLook(patch, options) {
     var opts = options || {}, changes = cleanPatch(patch), target = lookOf(S.c), k, token, needs, needsFont, changed, loadedBundle = null, imageDone, fontDone, failed = false;
     for (k in changes) if (changes.hasOwnProperty(k)) target[k] = changes[k];
@@ -1711,6 +1732,7 @@
       if (bundle) committedBundle = bundle;
       S.lookError = null; S.previewBundle = null;
       render(); syncRotation();
+      if (opts.startup) refreshArt();
       if (reflow) window.requestAnimationFrame(function () { window.requestAnimationFrame(function () {
         if (frame !== reflowToken) return;
         S.reflow = false; stage.className = stage.className.replace(/\s+is-reflow/g, '');
@@ -1734,7 +1756,7 @@
       if (document.hidden) { finish(loadedBundle); return; }
       window.requestAnimationFrame(function () { if (!failed && token === wallToken) finish(loadedBundle); });
     }
-    needs = target.bg === 'photo' && S.bundleKey !== bundleKey(target) && (!S.shown || S.shown.bg !== 'photo' || target.wall !== S.c.wall || materialApplies(target));
+    needs = target.bg === 'photo' && S.bundleKey !== bundleKey(target) && (!S.shown || S.shown.bg !== 'photo' || target.wall !== S.c.wall || target.source !== S.c.source || target.source === 'art' || materialApplies(target));
     needsFont = !fontMetrics[target.font]; imageDone = !needs; fontDone = !needsFont;
     if (!needs && !needsFont) { finish(null); return; }
     S.pending = { patch: changes, target: target, row: opts.row || (needsFont ? 'font' : S.appearanceFocus), transient: !!opts.transient, preview: false };
@@ -1743,7 +1765,7 @@
       loadBundle(target, token, function (bundle) {
         if (!bundle) { fail('load'); return; }
         loadedBundle = bundle; imageDone = true; complete();
-      });
+      }, opts.startup);
     }
     if (needsFont) ensureFont(target.font, function (ok, reason) {
       if (!ok) { fail('font', reason); return; }
@@ -1770,9 +1792,21 @@
     else setLook({}, { transient: true });
   }
 
+  function refreshArt() {
+    if (document.hidden || top().id !== 'home' || S.c.source !== 'art' || S.c.bg !== 'photo' || S.pending || S.previewBundle || Date.now() - artRefreshAt < 5000) return;
+    artRefreshAt = Date.now();
+    var token = wallToken;
+    window.FrameArt.refresh(function (fresh) {
+      if (!fresh || token !== wallToken || document.hidden || top().id !== 'home' || S.pending || S.previewBundle || S.c.source !== 'art') return;
+      if (artRecord && artRecord.revision === fresh.revision) return;
+      artRecord = fresh;
+      setLook({}, { transient: true });
+    });
+  }
+
   /* ---------- Lifecycle and remote input ---------- */
   var clockTimer = 0, rotationTimer = 0, activeSince = 0, activeMs = 0, rotationKey = '';
-  function rotationActive() { return !document.hidden && top().id === 'home' && S.c.bg === 'photo' && !S.pending && mode().min > 0; }
+  function rotationActive() { return !document.hidden && top().id === 'home' && S.c.source === 'gallery' && S.c.bg === 'photo' && !S.pending && mode().min > 0; }
   function pauseRotation() {
     if (activeSince) { activeMs += Date.now() - activeSince; activeSince = 0; }
     clearTimeout(rotationTimer); rotationTimer = 0;
@@ -1872,14 +1906,17 @@
   });
   document.addEventListener('keyup', function (ev) { delete heldKeys[ev.keyCode]; });
   window.addEventListener('blur', function () { heldKeys = {}; });
-  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); });
+  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); refreshArt(); });
   document.addEventListener('visibilitychange', function () {
     heldKeys = {};
-    if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
+    if (document.hidden) {
+      if (S.pending && S.pending.target.source === 'art') cancelLook();
+      else window.FrameArt.cancel();
+      FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
     else {
       release();
       if (S.c.bg === 'photo' && !S.pending && !S.previewBundle && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
-      refreshInputsOnReturn(); after(); updateClock(); focusStage();
+      refreshInputsOnReturn(); after(); updateClock(); focusStage(); refreshArt();
     }
   });
   window.addEventListener('resize', fit);
@@ -1888,7 +1925,7 @@
   var NAV = { left: 'left', right: 'right', up: 'up', down: 'down', ok: 'ok', enter: 'ok', back: 'back', escape: 'back' };
   QA.state = function () {
     var out = serialise(S.c), t = top(), item = t.id === 'appearance' ? detailLocation(t).item : null;
-    out.committed = S.c; out.shown = S.shown; out.pending = S.pending; out.view = t.id; out.selected = S.sel;
+    out.art = window.FrameArt.status(); out.committed = S.c; out.shown = S.shown; out.pending = S.pending; out.view = t.id; out.selected = S.sel;
     out.focusAction = focusedAction(); out.writes = S.writes; out.failedWrites = S.failed; out.error = S.err;
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
     out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };

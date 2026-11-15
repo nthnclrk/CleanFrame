@@ -105,3 +105,7 @@ CleanFrame's original code and documentation use the [MIT licence](LICENSE). Fon
 The [release review](docs/public-release.md) records the publication checks. Third-party assets retain the terms listed in their notices. CleanFrame is an independent project with no Samsung or streaming-service affiliation.
 
 [TV Detox](https://github.com/Ansub/tv-detox) is a useful example of making an agent-assisted TV project approachable. Its Android setup is a different implementation; the prompts and instructions here are written for CleanFrame and Tizen.
+
+### Optional Art Mode wallpaper source (personal fork)
+
+An opt-in local Vetro bridge can cache the current unfiltered uploaded Art Mode photo for Home. Gallery remains the default. See [setup, cache behaviour and physical verification still needed](docs/art-mode-wallpaper.md); this integration has not yet been installed or visually verified on a TV. It does not change native Art Mode or Home/startup settings.

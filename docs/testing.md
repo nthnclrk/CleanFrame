@@ -46,3 +46,7 @@ Run these only under a task that includes TV testing. Announce any installation 
 5. Test normal power-on after a streaming app and the usual Art Mode routine only when that work is included. Preserve the native Home recovery baseline and restore it before any uninstall/identity change.
 
 The current pending results are listed at the top of `tv-status.md`. Browser CPU throttling is a development comparison, not a TV performance measurement.
+
+## Art Mode wallpaper sync
+
+`npm run check:art` tests the typed binary parser, strict uploaded-path allowlist, corrupt/oversized images, HTTP/CORS contract, revision eviction, copy/selection and stop/start races, deterministic text packing, ES5 shard grammar, and synthetic Tizen private-cache promotion/failure/cancellation. No root command is executed and no TV is contacted. `npm run check:browser` also runs `scripts/check-art-browser.mjs` with synthetic loopback responses: opt-in, neutral materials, last-good IndexedDB reload, corruption, write failure/Retry, Back cancellation, hidden boot and visible Home refresh. Screenshots are ignored `.local/qa/art-*-public.png`; the public-font run uses a bundled photo. The real shard denies HTTP(S) browser Origins, so these browser fixtures do not establish packaged-widget CORS or TV compatibility. See the physical [handoff checklist](art-mode-wallpaper.md#verification-handoff).
