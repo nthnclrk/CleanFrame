@@ -1,5 +1,7 @@
 # CleanFrame 0.7.0
 
+> Upstream release notes for 0.7.0, kept as history. This fork has since changed (no Inputs screen, system font, Art-only background); see the README for current behaviour.
+
 CleanFrame remains a starting point to fork and adapt for your own Samsung TV.
 
 - The web launcher's installation minimum is now Tizen 5.0. Contributor results are recorded by model, firmware and tested flow; the minimum does not establish native Home support or complete verification on every TV.

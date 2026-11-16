@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CleanFrame</title>
-<link rel="stylesheet" href="assets/fonts.css">
-<link rel="stylesheet" href="assets/typefaces.css">
-<link rel="stylesheet" href="assets/private-fonts.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,12 +12,6 @@
         <div class="bg" id="bg" aria-hidden="true">
           <img class="photo" id="photo" alt="">
           <svg class="art-curve" width="0" height="0" aria-hidden="true" focusable="false"><filter id="artCurve" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR id="artCurveR" type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncG id="artCurveG" type="gamma" amplitude="1" exponent="1" offset="0"/><feFuncB id="artCurveB" type="gamma" amplitude="1" exponent="1" offset="0"/></feComponentTransfer></filter></svg>
-          <div class="scrim"></div>
-          <div class="shade"></div>
-          <div class="ph-dim"></div>
-          <div class="ph-scrim"></div>
-          <div class="ph-col"></div>
-          <div class="ut-dim ut-tr"></div><div class="ut-dim ut-br"></div>
         </div>
 
         <div class="home" id="home">
@@ -28,45 +19,21 @@
           <nav class="utils" id="utils" aria-label="Home controls"></nav>
           <div class="util-focus-label" id="utilFocusLabel" aria-hidden="true"></div>
           <div class="app-focus-name" id="appFocusName" aria-hidden="true"></div>
-          <div class="ph-plate ut-lens" id="utLens" aria-hidden="true">
-            <div class="ph-field" id="utField">
-              <img class="ph-field-img" id="utFieldImg" alt="">
-              <div class="scrim"></div><div class="shade"></div><div class="ph-dim"></div><div class="ph-scrim"></div><div class="ph-col"></div><div class="ut-dim ut-tr"></div><div class="ut-dim ut-br"></div>
-            </div><div class="ph-veil"></div>
-          </div>
-          <div class="ph-plate ut-lens" id="utLensAlt" aria-hidden="true">
-            <div class="ph-field" id="utFieldAlt">
-              <img class="ph-field-img" id="utFieldImgAlt" alt="">
-              <div class="scrim"></div><div class="shade"></div><div class="ph-dim"></div><div class="ph-scrim"></div><div class="ph-col"></div><div class="ut-dim ut-tr"></div><div class="ut-dim ut-br"></div>
-            </div><div class="ph-veil"></div>
-          </div>
+          <div class="ph-plate ut-lens" id="utLens" aria-hidden="true"></div>
+          <div class="ph-plate ut-lens" id="utLensAlt" aria-hidden="true"></div>
 
           <div class="dock" id="dock">
-            <div class="mat" aria-hidden="true"><img class="mat-img" id="matImg" alt=""><div class="mat-scrim" id="matScrim"></div><div class="mat-veil"></div></div>
+            <div class="mat" aria-hidden="true"><img class="mat-img" id="matImg" alt=""><div class="mat-veil"></div></div>
             <div class="shelf" id="shelf"><div class="track" id="track"><div class="plate" id="plate"></div></div></div>
             <div class="dock-empty" id="dockEmpty"></div>
           </div>
           <div class="cue" id="cueL" aria-hidden="true"></div>
           <div class="cue" id="cueR" aria-hidden="true"></div>
-          <div class="dock-action" id="dockAction" role="button"></div>
 
           <div class="ph-scene" id="phScene">
-            <div class="ph-plate" id="phPlate" aria-hidden="true">
-              <div class="ph-field" id="phField">
-                <img class="ph-field-img" id="phFieldImg" alt="">
-                <div class="shade"></div><div class="ph-dim"></div><div class="ph-scrim"></div><div class="ph-col"></div><div class="ut-dim ut-tr"></div><div class="ut-dim ut-br"></div>
-              </div>
-              <div class="ph-veil"></div>
-            </div>
-            <div class="ph-plate" id="phPlateAlt" aria-hidden="true">
-              <div class="ph-field" id="phFieldAlt">
-                <img class="ph-field-img" id="phFieldImgAlt" alt="">
-                <div class="shade"></div><div class="ph-dim"></div><div class="ph-scrim"></div><div class="ph-col"></div><div class="ut-dim ut-tr"></div><div class="ut-dim ut-br"></div>
-              </div>
-              <div class="ph-veil"></div>
-            </div>
+            <div class="ph-plate" id="phPlate" aria-hidden="true"></div>
+            <div class="ph-plate" id="phPlateAlt" aria-hidden="true"></div>
             <div class="ph-list" id="phList"><div class="ph-rows" id="phRows"></div></div>
-            <div class="ph-action" id="phAction" role="button"></div>
             <div class="ph-empty" id="phEmpty"></div>
           </div>
 
@@ -77,7 +44,6 @@
           <div class="settings-back" id="appearanceBack"></div>
           <h2 class="settings-title" id="appearanceTitle"></h2>
           <div class="appearance-rows" id="appearanceRows"></div>
-          <p class="appearance-desc" id="appearanceDesc"></p>
           <div class="settings-status" id="appearanceStatus" aria-live="polite"></div>
         </section>
         <div class="sheet" id="sheet" hidden>
@@ -89,8 +55,9 @@
       </main>
 <script src="device.js"></script>
 <script src="assets/icons/metrics.js"></script>
-<script src="assets/font-catalog.js"></script>
 <script src="art-mode.js"></script>
+<script src="camera-layout.js"></script>
+<script src="cameras.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

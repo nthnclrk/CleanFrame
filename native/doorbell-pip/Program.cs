@@ -88,7 +88,7 @@ namespace CleanFramePip
                         {
                             if (len == buf.Length) { len = 0; start = -1; }   // Oversized frame: resync.
                             int n = stream.Read(buf, len, buf.Length - len);
-                            if (n <= 0) break;
+                            if (n <= 0) { Thread.Sleep(500); break; }   // Stream ended: don't reconnect in a tight loop.
                             int from = Math.Max(1, len - 1); len += n;
                             for (int i = from; i < len; i++)
                             {
@@ -167,7 +167,7 @@ namespace CleanFramePip
         public static int Main(string[] args)
         {
             _url = Arg(args, "--url", "");
-            if (!Regex.IsMatch(_url, @"^http://(10|192\.168|172\.(1[6-9]|2\d|3[01]))(\.\d{1,3}){2,3}:\d{2,5}/[A-Za-z0-9/._?=&%-]{1,200}$"))
+            if (!Regex.IsMatch(_url, @"^http://(10(\.\d{1,3}){3}|(192\.168|172\.(1[6-9]|2\d|3[01]))(\.\d{1,3}){2}):\d{2,5}/[A-Za-z0-9/._?=&%-]{1,200}$"))
             { Console.Error.WriteLine("--url must be http on a private address"); return 2; }
             int seconds = IntArg(args, "--seconds", 30, 5, 600), fps = IntArg(args, "--fps", 4, 1, 10);
             int w = IntArg(args, "--w", 480, 120, 1920), h = IntArg(args, "--h", 640, 120, 1080);
@@ -178,7 +178,6 @@ namespace CleanFramePip
             _until = DateTime.UtcNow.AddSeconds(seconds);
             _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
             new Thread(Reader) { IsBackground = true, Name = "mjpeg" }.Start();
-            if (_stop != null) try { File.Delete(_stop); } catch (Exception) { }
 
             SetupEnvironment();
             Efl.elm_init(0, IntPtr.Zero);

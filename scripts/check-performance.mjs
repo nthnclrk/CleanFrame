@@ -5,7 +5,7 @@ import { openPreview, root } from './browser.mjs';
 
 const output = root + '.local/qa/performance/';
 mkdirSync(output, { recursive: true });
-const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/art-mode.js'];
+const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/art-mode.js', 'app/camera-layout.js', 'app/cameras.js'];
 function hashes() {
   return Object.fromEntries(sourceFiles.map(file => {
     try { return [file, createHash('sha256').update(readFileSync(root + file)).digest('hex')]; }
@@ -73,7 +73,7 @@ async function sample(name, keys, rounds = 4) {
 async function memory() {
   await cdp.send('HeapProfiler.collectGarbage');
   const m = await metrics(), dom = await cdp.send('Memory.getDOMCounters');
-  const images = await page.evaluate(() => ({ elements: document.images.length, sources: [...new Set([...document.images].map(i => i.currentSrc || i.src))], resources: performance.getEntriesByType('resource').filter(r => /\/(wallpapers|materials)\//.test(r.name)).length }));
+  const images = await page.evaluate(() => ({ elements: document.images.length, sources: [...new Set([...document.images].map(i => i.currentSrc || i.src))], resources: performance.getEntriesByType('resource').length }));
   return { heapBytes: m.JSHeapUsedSize, dom, images };
 }
 
@@ -112,9 +112,7 @@ try {
   const start = Date.now();
   await page.goto(preview.baseURL + '/home/'); await ready(); await page.waitForLoadState('networkidle');
   report.startupMs = Date.now() - start;
-  const startupResources = await page.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
-  check('No wallpaper gallery thumbnail fetch at startup', !startupResources.some(u => /-thumb\./.test(u)));
-  await look({ layout: 'list', apps: 'both', controls: 'icons', focus: 'glass', material: 'soft', font: 'inter' });
+  await look({ layout: 'list', apps: 'both', controls: 'icons', focus: 'glass' });
   await sample('Photo List navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
   await look({ layout: 'dock' });
   await sample('Photo Dock navigation', ['right', 'right', 'right', 'left', 'left', 'left']);
@@ -150,12 +148,14 @@ try {
   report.appearanceLoads = loadTimes;
   check('All appearance changes apply within bounded browser budget', loadTimes.every(r => r.ms < report.budgets.appearanceMaximumMs), loadTimes);
   await page.waitForLoadState('networkidle');
-  const beforeSame = await memory();
-  const sameWall = (await call('state')).wallpaper;
-  for (let i = 0; i < 4; i++) { await call('look', { wall: sameWall }); await ready(); }
-  await page.waitForTimeout(100);
+  // Returning to Home re-reads the bridge; an unchanged photo must not be fetched or rebuilt.
+  await scene('home');
+  const beforeSame = await memory(), artHits = { meta: 0, image: 0 };
+  page.on('request', r => { if (r.url().endsWith('/current.json')) artHits.meta++; else if (r.url().endsWith('/image.jpg')) artHits.image++; });
+  for (let i = 0; i < 14 && !artHits.meta; i++) { await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.waitForTimeout(500); }
+  await page.waitForTimeout(300); await ready();
   const afterSame = await memory();
-  check('Selecting current photo reuses bundle', beforeSame.images.resources === afterSame.images.resources && beforeSame.images.elements === afterSame.images.elements, { before: beforeSame.images, after: afterSame.images });
+  check('A Home refresh with an unchanged photo reuses the Art bundle', artHits.meta > 0 && artHits.image === 0 && beforeSame.images.elements === afterSame.images.elements && JSON.stringify(beforeSame.images.sources) === JSON.stringify(afterSame.images.sources), { artHits, before: beforeSame.images, after: afterSame.images });
   // Prime the small cycle before comparing retained objects.
   for (const patch of cycle) { await call('look', patch); await ready(); }
   await page.waitForTimeout(300);

@@ -1,10 +1,10 @@
 # Assets in this personal fork
 
-Home uses the current uploaded Art Mode photo from the [local bridge](art-mode-wallpaper.md), or a Light/Dark background. The fifteen bundled photographs, thumbnails, panel backdrops, generated material fields and gallery-generation tools have been removed from this fork's current tree. Their original credits remain in [gallery-sources.json](gallery-sources.json), [the historical source register](asset-sources.md), third-party notices and Git history. This reduces the packaged asset payload by roughly 15 MiB; Git history still retains the old files.
+Home always uses the current uploaded Art Mode photo from the [local bridge](art-mode-wallpaper.md). The earlier bundled photographs, generated materials, their credits and the gallery tools remain only in Git history.
 
 ## Art Mode surfaces
 
-Unknown Art photos have no calibrated gallery contrast or material catalogue. Home uses the original image texture, a fixed dark scrim and neutral surfaces. The no-cache fallback is a tiny inline neutral SVG. Never construct gallery material URLs for an Art revision, or run blur/pixel analysis on the TV. Owner photos stay in private runtime caches and never enter the source or exported widget. Atomic bundles still swap every image slot together after readiness and preference-write checks.
+Home uses the original image texture with the calibrated Art look, outlined text and static frosted focus. Sheets and the dock use a frosted copy made once per photo (`frostSheet` in `app/main.js`): 480×270 with a one-time canvas blur, stored across launches, never made on navigation. A small stored preview shows the photo at launch. The no-cache fallback is a tiny inline neutral SVG. Never run live blur or pixel analysis on the TV during navigation. Owner photos stay in private runtime caches and never enter the source or exported widget. Atomic bundles swap the photo, dock mat and sheet backdrop together after readiness and preference-write checks.
 
 ## Icons
 

@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from font_assets import write_widget_archive
+from widget import write_widget_archive
 from local_config import ROOT, load_settings, manifest_identity, override_identity, read_password
 import package
 from private_files import check_signed_widget, check_widget, generated_path, private_path, secret_content
@@ -110,7 +110,7 @@ class ToolTests(unittest.TestCase):
         output = self.root / 'widget.wgt'
         # Files outside app/ are not included, even when they contain test credentials.
         self.password()
-        write_widget_archive(output, root=self.root, include_private=False, identity=identity)
+        write_widget_archive(output, root=self.root, identity=identity)
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(manifest_identity(archive.read('config.xml')), identity)
             expected = original.replace(b'nClrkHome1.FrameHome', b'AbCdEf1234.MyHome').replace(b'nClrkHome1', b'AbCdEf1234')
@@ -125,25 +125,25 @@ class ToolTests(unittest.TestCase):
             (app_root / 'app' / name).parent.mkdir(parents=True, exist_ok=True)
             (app_root / 'app' / name).write_text('synthetic')
             with self.subTest(name=name), self.assertRaises(ValueError):
-                write_widget_archive(output, root=app_root, include_private=False)
+                write_widget_archive(output, root=app_root)
         # Recognisable key material is blocked even under a harmless filename.
         (self.root / 'app/notes.txt').write_bytes(b'-----BEGIN ' + b'ENCRYPTED PRIVATE KEY-----')
         with self.assertRaises(ValueError):
-            write_widget_archive(output, root=self.root, include_private=False)
+            write_widget_archive(output, root=self.root)
 
     def test_export_ignores_local_signing_config(self):
         output = self.root / 'public.wgt'
-        write_widget_archive(output, root=self.root, include_private=False)
+        write_widget_archive(output, root=self.root)
         with zipfile.ZipFile(output) as archive:
             before = {name: archive.read(name) for name in archive.namelist()}
         (self.root / '.local/signing.json').write_text('Deliberately invalid synthetic config: must not be read')
-        write_widget_archive(output, root=self.root, include_private=False)
+        write_widget_archive(output, root=self.root)
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(before, {name: archive.read(name) for name in archive.namelist()})
 
     def test_sdk_output_is_not_a_widget_input(self):
         output = self.root / 'public.wgt'
-        write_widget_archive(output, root=self.root, include_private=False)
+        write_widget_archive(output, root=self.root)
         with zipfile.ZipFile(output) as archive:
             before = {name: archive.read(name) for name in archive.namelist()}
         for name in ['.buildResult/author.pfx', 'nested/.BUILDRESULT/assets/private-fonts/copied.ttf',
@@ -158,7 +158,7 @@ class ToolTests(unittest.TestCase):
                 self.fail('SDK output must be skipped before its contents are read')
             return original_read(path)
         with patch.object(Path, 'read_bytes', read_source):
-            write_widget_archive(output, root=self.root, include_private=False)
+            write_widget_archive(output, root=self.root)
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(before, {name: archive.read(name) for name in archive.namelist()})
 
@@ -272,8 +272,7 @@ with zipfile.ZipFile(target, 'a') as archive:
             self.assertEqual(manifest_identity(archive.read('config.xml')), identity)
 
     def test_public_check_reads_index_and_history(self):
-        for name in ['scripts/check-public.py', 'scripts/font_assets.py', 'scripts/local_config.py', 'scripts/private_files.py',
-                     'app/assets/inter.woff2', 'app/assets/inter-OFL.txt']:
+        for name in ['scripts/check-public.py', 'scripts/widget.py', 'scripts/local_config.py', 'scripts/private_files.py']:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / name).read_bytes())

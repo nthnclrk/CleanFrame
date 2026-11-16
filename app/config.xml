@@ -9,7 +9,6 @@
   <tizen:profile name="tv-samsung"/>
   <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
   <tizen:privilege name="http://tizen.org/privilege/application.info"/>
-  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
   <access origin="http://127.0.0.1:8643" subdomains="false"/>
   <access origin="https://api.open-meteo.com" subdomains="false"/>

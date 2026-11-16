@@ -6,9 +6,9 @@ Choose the scope before starting: a browser contribution, an independently signe
 
 ## Change the interface
 
-Use the browser-only prompt in the README. Read `AGENTS.md`, then the development and interaction docs. `npm run check` and `check:device` are offline source/synthetic-adapter checks. Run the public-font preview so the result is reproducible on a clean clone. Finish with source validation, relevant browser checks, a screenshot for visual changes and a clear statement of what needs physical TV observation.
+Use the browser-only prompt in the README. Read `AGENTS.md`, then the development and interaction docs. `npm run check` and `check:device` are offline source/synthetic-adapter checks. Run the browser preview so the result is reproducible on a clean clone. Finish with source validation, relevant browser checks, a screenshot for visual changes and a clear statement of what needs physical TV observation.
 
-This personal fork uses List and Dock, Art Mode/Light/Dark backgrounds and separate appearance settings. The bundled gallery has been removed. `app/main.js` handles interaction; `app/device.js` owns device calls. The existing storage migration keeps older installations usable.
+This personal fork uses List and Dock, the Art Mode photo as its only background (with the calibrated Art look in `app/art-mode.js`), the TV's system font (One UI Sans, no font files) and separate appearance settings. `app/main.js` handles interaction, the optional Lights control and weather; `app/cameras.js` (with `app/camera-layout.js`) is the optional Cameras view; `app/device.js` owns device calls. Owner settings (bridge address, weather location, cameras) live in TV localStorage and the owner's ignored build, never in source. The existing storage migration keeps older installations usable.
 
 ## Install your own copy
 
@@ -19,7 +19,7 @@ Read AGENTS.md and docs/agent-tv-setup-guide.md. Help me install my own
 copy of CleanFrame on my Samsung The Frame. My model/firmware is:
 <supply it, or help me find it on the TV>.
 
-First preview the public-font app locally. Then inspect the reference
+First preview the app locally. Then inspect the reference
 signing/device scripts and make a plan for my OS, SDK and TV. Create
 my own Samsung signing profile and app identity; use the installed-app
 IDs from my TV. Keep credentials and device details in ignored local
@@ -43,4 +43,4 @@ A separate [experimental 2020 LS03T profile](../scripts/native-home/frame-2020/R
 
 ## Public distribution
 
-Run `npm run check:public` and `npm run export:public`. The latter is an offline unsigned export that always excludes proprietary fonts, even on the maintainer's machine. Do not upload a personal signed widget as the public release. Read the third-party notices and publication checklist. Repo visibility, release uploads and history changes need their own explicit instruction.
+Run `npm run check:public` and `npm run export:public`. The latter is an offline unsigned export with no font files. Do not upload a personal signed widget as the public release. Read the third-party notices and publication checklist. Repo visibility, release uploads and history changes need their own explicit instruction.

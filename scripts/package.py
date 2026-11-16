@@ -9,7 +9,7 @@ import termios
 import time
 import zipfile
 
-from font_assets import write_widget_archive
+from widget import write_widget_archive
 from local_config import ROOT, load_settings, read_password
 from private_files import check_signed_widget
 

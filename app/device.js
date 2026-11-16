@@ -153,21 +153,7 @@
     try { api().launch(id, function () { finish(null); }, function (err) { finish(failure(err)); }); }
     catch (err) { finish(failure(err)); }
   }
-  function launch(brand, done) {
-    if (!IDS[brand]) { done({message: 'This app has no launch target.'}); return; }
-    launchApp(IDS[brand], done);
-  }
-  function art(done) {
-    if (!api()) { unavailable(done); return; }
-    var finish = bounded(done);
-    try {
-      var data = [new tizen.ApplicationControlData('mode', ['fullscreen']), new tizen.ApplicationControlData('requester', ['mobile'])];
-      var control = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/default', null, null, null, data);
-      api().launchAppControl(control, 'org.tizen.art-app', function () { finish(null); }, function (err) { finish(failure(err)); });
-    } catch (err) { finish(failure(err)); }
-  }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
-  function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
   function apps(done) {
     if (!api()) { unavailable(done); return; }
     // Large installed catalogues can take longer than a launch response.
@@ -190,5 +176,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, liveTV: liveTV, art: art, home: home, settings: settings, apps: apps, sources: sources, watchSources: watchSources, setSource: setSource, cancelSource: cancelSource };
+  window.FrameDevice = { launchApp: launchApp, liveTV: liveTV, home: home, apps: apps, sources: sources, watchSources: watchSources, setSource: setSource, cancelSource: cancelSource };
 }());

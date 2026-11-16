@@ -11,8 +11,6 @@ jobs:
   public-source:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      CLEANFRAME_PUBLIC_FONTS: '1'
     steps:
       - uses: actions/checkout@v7
         with:

@@ -1,4 +1,4 @@
-/* Optional TV-local Art bridge. No credentials, polling, pixel reads or remote-key I/O. */
+/* Optional TV-local Art bridge client. Sends only the bridge's own per-install key; no polling, pixel reads or remote-key I/O. */
 (function () {
   'use strict';
   var MAX = 12 * 1024 * 1024, PORT_KEY = 'cleanframe.art.port', META_KEY = 'cleanframe.art.cache.v1', LOOK_KEY = 'cleanframe.art.look.v1';
@@ -7,8 +7,9 @@
   var COOL = { brightness: 0.41, contrast: 0.86, saturate: 0.50, tint: [246, 238, 222], gamma: [1, 1.02, 1.15] };
   var WARM = { brightness: 0.41, contrast: 0.86, saturate: 0.48, tint: [250, 212, 160], gamma: [1, 1.03, 1.19] };
   var look = null;
-  var current = null, loaded = false, readers = [], loading = false, refreshing = false, epoch = 0, requests = [];
-  var copyNo = 0, currentTemp = null;
+  var current = null, loaded = false, readers = [], loading = false, refreshing = false, epoch = 0, saves = 0, promoted = 0, requests = [];
+  // Files an unfinished save still needs (its temp file and its photo), by name; tidy keeps them.
+  var copyNo = 0, busy = {};
   var urls = [], retainedURL = null, error = null, fsDir = null, db = null;
   function host() {
     var h, parts;
@@ -17,6 +18,13 @@
     parts = h.split('.').map(Number);
     if (parts.some(function (n) { return n > 255; })) return '127.0.0.1';
     return h === '127.0.0.1' || parts[0] === 10 || parts[0] === 192 && parts[1] === 168 || parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31 ? h : '127.0.0.1';
+  }
+  // The bridge's per-install key (cleanframe.art.key), sent on every request when set.
+  function authorize(xhr) {
+    var k = null;
+    try { k = localStorage.getItem('cleanframe.art.key'); } catch (e) { k = null; }
+    // Same rule as the bridge: 24-256 printable ASCII characters, no spaces.
+    if (k && /^[\x21-\x7e]{24,256}$/.test(k)) xhr.setRequestHeader('X-CleanFrame-Key', k);
   }
   function port() {
     var p;
@@ -158,6 +166,7 @@
     }
     try {
       xhr.open('GET', url, true); xhr.timeout = binary ? 8000 : 3500;
+      authorize(xhr);
       if (binary) xhr.responseType = 'arraybuffer';
       xhr.onload = function () {
         if (xhr.status !== 200) { finish(null); return; }
@@ -176,7 +185,7 @@
         try { pointer = JSON.parse(localStorage.getItem(META_KEY)); } catch (e) { pointer = null; }
         files.forEach(function (file) {
           var obsolete = /^[a-f0-9]{64}\.jpg$/.test(file.name) && (!metadata(pointer) || file.name !== pointer.revision + '.jpg') && (!current || file.name !== current.revision + '.jpg') && (!retainedURL || retainedURL.indexOf('/' + file.name) < 0);
-          if (obsolete || /^incoming-[0-9]+-[0-9]+\.tmp$/.test(file.name) && file.name !== currentTemp) {
+          if (!busy[file.name] && (obsolete || /^incoming-[0-9]+-[0-9]+\.tmp$/.test(file.name))) {
             try { fsDir.deleteFile(file.fullPath); } catch (e) { /* Retry on the next refresh. */ }
           }
         });
@@ -185,30 +194,44 @@
     } catch (e) { done(); }
   }
   function persist(m, bytes, blob, url, g, complete) {
-    var ended = false, timer = setTimeout(function () { done(record(m, url)); }, 2500);
+    var ended = false, timer = setTimeout(function () { done(record(m, url)); }, 6000);
     function done(value) { if (ended) return; ended = true; clearTimeout(timer); complete(value); }
     if (fsDir) {
-      var tmp, stream, data = new window.Uint8Array(bytes), i, part, tempName = 'incoming-' + g + '-' + (++copyNo) + '.tmp';
-      currentTemp = tempName;
+      var mine = ++saves, tmp, stream, data = new window.Uint8Array(bytes), i, part, tempName = 'incoming-' + g + '-' + (++copyNo) + '.tmp', photo = m.revision + '.jpg';
+      busy[tempName] = (busy[tempName] || 0) + 1; busy[photo] = (busy[photo] || 0) + 1;
+      var released = false, release = function () {
+        if (released) return; released = true;
+        [tempName, photo].forEach(function (name) { if (!--busy[name]) delete busy[name]; });
+      };
       tidy(function () {
-        if (ended || g !== epoch) { done(null); return; }
+        if (ended || g !== epoch) { release(); done(null); return; }
         try {
           // A complete JPEG is promoted before the last-good pointer. Overwrite
           // an orphan of the same revision too: it may be a corrupt old cache.
           tmp = fsDir.createFile(tempName);
           tmp.openStream('w', function (s) {
             stream = s;
-            try {
-              if (ended || g !== epoch) { stream.close(); done(null); return; }
-              for (i = 0; i < data.length; i += 65536) { part = Array.prototype.slice.call(data.subarray(i, i + 65536)); stream.writeBytes(part); }
-              stream.close(); stream = null;
-              fsDir.moveTo(tmp.fullPath, fsDir.fullPath + '/' + m.revision + '.jpg', true, promote, function () { done(record(m, url)); });
-            } catch (e) { if (stream) { try { stream.close(); } catch (ignoreClose) { /* Best effort. */ } } done(record(m, url)); }
-          }, function () { done(record(m, url)); });
-        } catch (e) { done(record(m, url)); }
+            i = 0;
+            // Write in 256 KiB steps, yielding between them so Home stays responsive while a new
+            // photo (up to 12 MiB) is saved. A save that has started finishes even if the app is
+            // hidden or the caller stops waiting, so the photo is not downloaded again next launch.
+            (function step() {
+              try {
+                part = Array.prototype.slice.call(data.subarray(i, i + 262144)); stream.writeBytes(part); i += 262144;
+                if (i < data.length) { setTimeout(step, 0); return; }
+                stream.close(); stream = null;
+                fsDir.moveTo(tmp.fullPath, fsDir.fullPath + '/' + photo, true, promote, function () { release(); done(record(m, url)); });
+              } catch (e) { if (stream) { try { stream.close(); } catch (ignoreClose) { /* Best effort. */ } } release(); done(record(m, url)); }
+            }());
+          }, function () { release(); done(record(m, url)); });
+        } catch (e) { release(); done(record(m, url)); }
       });
       function promote() {
-        if (ended || g !== epoch) { done(null); return; }
+        release();
+        // The pointer only moves forward: a save that started earlier never replaces a later
+        // one that has already been promoted, but does count if the later one gave up.
+        if (mine < promoted) { done(null); return; }
+        promoted = mine;
         try {
           localStorage.setItem(META_KEY, JSON.stringify(m));
           tidy(function () {});
@@ -258,8 +281,8 @@
   function cancel() { epoch++; refreshing = false; requests.slice().forEach(function (xhr) { xhr.abort(); }); }
   window.FrameArt = { load: load, refresh: refresh, cancel: cancel, current: function () { return current; },
     status: function () { return { available: !!current, refreshing: refreshing, error: error }; },
-    look: function () { return { settings: look, style: lookStyle(look) }; }, lookFor: lookStyle,
-    bridge: function () { return 'http://' + host() + ':' + port(); },
+    lookFor: lookStyle,
+    bridge: function () { return 'http://' + host() + ':' + port(); }, authorize: authorize,
     // Bound blob lifetimes once a new atomic bundle replaces every previous image.
     retain: function (url) { retainedURL = url; urls = urls.filter(function (item) { if (item === url || current && item === current.url) return true; window.URL.revokeObjectURL(item); return false; }); }
   };

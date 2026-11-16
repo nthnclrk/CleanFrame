@@ -6,19 +6,21 @@ The original publication record below was prepared 20 October 2026. For the curr
 
 That initial public source contained the 0.6.1 app, public-font screenshot, development tools, browser tests, setup notes and asset notices. Research folders, design studies, draft writing, unused Grid/optics code and obsolete generated images were removed after the owner's approval. Recoverable copies remain outside the public source.
 
-Paid Pangram fonts, signing keys, account tokens, local device addresses, recovery state and personal signed widgets remain in ignored local storage. Public preview and export use only Manrope, Geist and Newsreader. The public font check also verifies the expected font files and hashes.
+Signing keys, account tokens, local device addresses, recovery state and personal signed widgets remain in ignored local storage. The app now bundles no fonts and uses the TV's system font. The public-source check rejects any font file.
 
 ## Asset review
 
 The fifteen wallpaper pages were checked for author and Unsplash licence on 20 October 2026; their provenance remains historical in [asset sources](asset-sources.md). This personal fork no longer ships those photos or their derived materials. ABC and SBS icons use documented MIT Custom Brand Icons sources. The white ESPN PNG derives from the documented public-domain text logo; trademark rights remain with ESPN. Font and icon licence texts are retained. Original code uses MIT; third-party assets keep their own terms in [third-party notices](../THIRD_PARTY_NOTICES.md).
 
-## Validation
+## Validation (upstream 0.7.0, historical)
+
+The results below describe the upstream 0.7.0 public release, before this fork removed bundled fonts and materials. Current checks are listed in the README.
 
 A separate clean snapshot contains 193 files, about 17 MB, without private setup. It passed `npm ci`, source/resource checks, public-source and font-hash checks, all 344 Chromium acceptance checks, and an unsigned public-font export. The export contains exactly three public font binaries. `npm audit` reported zero known vulnerabilities. The retained material and icon-metric generators also passed local smoke checks. These results do not establish physical-TV behaviour.
 
 Gitleaks found no credential leaks in the two published pre-release main commits, the cleaned source directory or the clean release history. Thirteen local proprietary font binaries were compared against the clean release Git objects; none matched. All local Markdown links resolved. The 107 source images contained no private location or descriptive metadata; the retained EXIF fields were dimensions, colour space and resolution. Automated checks are bounded: they cannot guarantee the absence of every possible secret or establish third-party rights beyond the documented source review.
 
-The GitHub check workflow uses public fonts and browser validation. Check its result for the revision being published; local success and hosted success are separate results.
+At that release the GitHub check workflow also validated public fonts. Check the workflow result for the revision being published; local success and hosted success are separate results.
 
 ## Publication boundary
 
@@ -30,4 +32,4 @@ This route avoids relying on a force-push to erase earlier hosted objects. [GitH
 
 At the GitHub inventory check, the repository was private, with one main branch, no tags, no releases, no Actions runs and no Actions artifacts. Recheck that inventory before changing visibility. Verify the remote source and unauthenticated public view after the approved visibility change. The private backup must remain private.
 
-Keep public downloads to the unsigned public-font export with its notices. Personal signed packages can contain proprietary fonts. Reference-device installation results are recorded in [TV status](tv-status.md); the public-source review did not contact or change the TV.
+Keep public downloads to the unsigned export with its notices; personal signed packages are not public downloads. Reference-device installation results are recorded in [TV status](tv-status.md); the public-source review did not contact or change the TV.

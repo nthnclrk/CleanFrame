@@ -6,7 +6,7 @@ export default [{
     sourceType: 'script',
     globals: {
       window: 'readonly', document: 'readonly', Image: 'readonly', localStorage: 'readonly',
-      setTimeout: 'readonly', clearTimeout: 'readonly', Promise: 'readonly',
+      setTimeout: 'readonly', clearTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly', Promise: 'readonly',
       FrameDevice: 'readonly', tizen: 'readonly'
     }
   },

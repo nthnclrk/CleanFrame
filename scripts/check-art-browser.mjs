@@ -8,7 +8,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const jpeg = readFileSync(root + 'scripts/fixtures/art-test.jpg');
 const size = require('../vetro/cleanframe-art/index.js').jpegSize(jpeg);
-const first = createHash('sha256').update('fixture A').digest('hex'), second = createHash('sha256').update('fixture B').digest('hex');
+const first = createHash('sha256').update('fixture A').digest('hex'), second = createHash('sha256').update('fixture B').digest('hex'), third = createHash('sha256').update('fixture C').digest('hex'), fourth = createHash('sha256').update('fixture D').digest('hex');
+// Includes retired fields (wall, material, font, mode) that migration accepts and drops.
 const seed = { look: { bg: 'photo', wall: 'misty', source: 'art', layout: 'dock', focus: 'glass', material: 'soft', font: 'inter', apps: 'both', controls: 'both' }, mode: '15' };
 const out = root + '.local/qa/'; mkdirSync(out, { recursive: true });
 let preview, p;
@@ -45,9 +46,9 @@ async function fresh(options = {}) {
   });
   await p.goto(preview.baseURL + '/home/'); await ready(); return fixture;
 }
-const artImages = () => p.evaluate(() => ['photo','phFieldImg','phFieldImgAlt','utFieldImg','utFieldImgAlt'].map(id => document.getElementById(id).src));
+const artImages = () => p.evaluate(() => [document.getElementById('photo').src, FrameArt.current() && FrameArt.current().url].filter(Boolean));
 try {
-  preview = await openPreview({ publicFonts: true });
+  preview = await openPreview();
   const f = await fresh({ seed: { ...seed, look: { ...seed.look, bg: 'dark' } } });
   await p.waitForFunction(revision => ShoreQA.state().shown.artRevision === revision, first);
   check('A stored Dark background starts on Art Mode with one safe metadata/JPEG pair', f.calls.length === 2 && (await state()).committed.bg === 'photo' && (await state()).shown.bg === 'photo' && (await state()).committed.source === 'art' && (await state()).shown.artRevision === first);
@@ -55,17 +56,9 @@ try {
   await group();
   await p.evaluate(() => ShoreQA.nav('down', 'down', 'down', 'right', 'left', 'up', 'down'));
   check('Visual remote navigation performs no further bridge networking', f.calls.length === 2);
-  check('Visual offers no background choice', !(await p.evaluate(() => ShoreQA.actions())).some(a => /^choice\.bg\./.test(a)));
-  check('Art swaps the photo and every material as one bundle', new Set(await artImages()).size === 1 && (await artImages())[0].startsWith('blob:'));
-  check('Gallery and rotation are absent', !(await state()).rotation.active && !(await p.evaluate(() => ShoreQA.actions())).some(a => /wallpaper|rotation|source/.test(a)));
-  check('Art uses neutral surfaces without adaptive photo ink', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && !document.getElementById('stage').classList.contains('has-adaptive-ink') && (() => { const m = document.getElementById('matImg'); return getComputedStyle(m).visibility === 'hidden' || m.classList.contains('is-frost') && /^data:image\/jpeg/.test(m.src); })()));
+  check('Art installs the bridge photo as the background', new Set(await artImages()).size === 1 && (await artImages())[0].startsWith('blob:'));
+  check('The dock mat is hidden until it can use the frosted Art copy', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && (() => { const m = document.getElementById('matImg'); return getComputedStyle(m).visibility === 'hidden' || m.classList.contains('is-frost') && /^data:image\/jpeg/.test(m.src); })()));
   await p.screenshot({ path: out + 'art-background-public.png' });
-  const geometry = await p.evaluate(() => {
-    const root = document.getElementById('stage').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect();
-    return [...document.querySelectorAll('#appearanceRows .setting-section')].map(e => { const r = e.getBoundingClientRect(); return { id: e.className.match(/section-(\w+)/)[1], above: r.bottom <= desc.top, inside: r.right <= root.right && r.bottom <= root.bottom }; });
-  });
-  check('All five Visual rows fit above the remote hint', ['layout', 'focus', 'apps', 'controls', 'inputs'].every(id => geometry.find(g => g.id === id)?.above && geometry.find(g => g.id === id)?.inside), geometry);
-  check('Art background drops gallery scrims for the calibrated Art look', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none')));
   check('Sheets sit on a frosted copy of the Art photo with the same look', await p.evaluate(async () => {
     ShoreQA.scene('settings'); await new Promise(r => setTimeout(r, 120));
     const bg = document.getElementById('sheetBg'), s = getComputedStyle(bg), veil = getComputedStyle(document.querySelector('.sheet-veil'));
@@ -95,7 +88,7 @@ try {
   check('A corrupt JPEG at startup installs no Art bundle and writes no preference', bad.calls.includes('/art/' + first + '/image.jpg') && !(await state()).shown.artRevision && (await state()).writes === 0 && !(await artImages()).some(src => src.startsWith('blob:')));
   check('Home stays usable with one focus when Art is unavailable', (await p.evaluate(() => ShoreQA.where())).focusCount === 1 && (await state()).committed.bg === 'photo');
   const hidden = await fresh({ seed: { ...seed, mode: 'open' }, hidden: true });
-  check('Hidden cold start performs no bridge request and keeps the saved source', hidden.calls.length === 0 && (await state()).committed.source === 'art' && (await state()).committed.wall === 'misty' && (await state()).shown.artRevision === null);
+  check('Hidden cold start performs no bridge request and keeps the saved source', hidden.calls.length === 0 && (await state()).committed.source === 'art' && !('wall' in (await state()).committed) && (await state()).shown.artRevision === null);
   await p.evaluate(() => __visibility(false));
   await p.waitForFunction(revision => ShoreQA.state().shown.artRevision === revision, first);
   check('Visible Home refreshes the cold placeholder without a preference write', hidden.calls.length === 2 && (await state()).writes === 0);
@@ -104,6 +97,34 @@ try {
   await p.evaluate(() => { __visibility(true); __visibility(false); });
   await p.waitForFunction(revision => ShoreQA.state().shown.artRevision === revision, second);
   check('Returning Home installs a newer revision atomically', new Set(await artImages()).size === 1 && (await state()).writes === 0);
+  // A newer photo still loading when Visual opens: Back cancels it, and reaching Home installs it.
+  // Image decoding is held so the install is still running (a 4K decode takes a while on the TV).
+  hidden.revision = third;
+  await p.evaluate(() => {
+    const decode = HTMLImageElement.prototype.decode; window.__decodes = []; window.__holdDecode = true;
+    HTMLImageElement.prototype.decode = function () { const img = this; return new Promise((ok, fail) => { const go = () => decode.call(img).then(ok, fail); if (window.__holdDecode) window.__decodes.push(go); else go(); }); };
+  });
+  await p.waitForTimeout(5100);
+  await p.evaluate(() => { __visibility(true); __visibility(false); });
+  await p.waitForFunction(() => ShoreQA.state().pending && ShoreQA.state().pending.background);
+  await p.evaluate(() => ShoreQA.scene('appearance')); await p.evaluate(() => ShoreQA.nav('back'));
+  await p.evaluate(() => { window.__holdDecode = false; window.__decodes.splice(0).forEach(go => go()); });
+  await p.waitForTimeout(150);
+  const stillOld = (await state()).shown.artRevision === second;
+  await p.evaluate(() => ShoreQA.nav('back'));
+  await p.waitForFunction(revision => ShoreQA.state().view === 'home' && ShoreQA.state().shown.artRevision === revision, third);
+  check('A newer photo cancelled in Visual is installed on returning Home', stillOld && (await state()).writes === 0);
+  // The bridge read itself cut off by Back in Visual is started again on returning Home.
+  hidden.revision = fourth; hidden.hold = true;
+  await p.waitForTimeout(5100);
+  await p.evaluate(() => { __visibility(true); __visibility(false); });
+  await hidden.whenHeld;
+  await p.evaluate(() => ShoreQA.scene('appearance')); await p.evaluate(() => ShoreQA.nav('back'));
+  hidden.hold = false; const readsBefore = hidden.calls.filter(c => c === '/current.json').length;
+  await p.evaluate(() => ShoreQA.nav('back'));
+  await p.waitForFunction(revision => ShoreQA.state().view === 'home' && ShoreQA.state().shown.artRevision === revision, fourth);
+  check('An Art read cancelled in Visual starts again on returning Home', hidden.calls.filter(c => c === '/current.json').length === readsBefore + 1);
+  for (const route of hidden.held.splice(0)) await route.abort().catch(() => {});
   await fresh({ seed: {} });
   await p.waitForFunction(() => !!ShoreQA.state().shown.artRevision);
   const defaults = (await state()).dock;
@@ -120,8 +141,6 @@ try {
   await p.evaluate(() => ShoreQA.nav('down','down','down','down','down','down','down'));
   await p.waitForTimeout(200);
   await p.screenshot({ path: out + 'home-espn-public.png' });
-  const packed = await p.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
-  check('No bundled wallpaper/material URLs are requested', !packed.some(url => /\/assets\/(wallpapers|materials)\//.test(url)));
   await fresh({ seed: { ...seed, look: { ...seed.look, layout: 'list' }, home: ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'stremio', 'disneyplus', 'appletv'] } });
   await p.waitForFunction(() => !!ShoreQA.state().shown.artRevision); await p.waitForTimeout(250);
   const rows = await p.evaluate(() => { const list = document.getElementById('phList').getBoundingClientRect(); return [...document.querySelectorAll('#phRows .ph-row .ph-name')].map(e => { const r = e.getBoundingClientRect(); return { top: r.top - list.top, bottom: r.bottom - list.top }; }); });
@@ -129,5 +148,5 @@ try {
   check('List shows seven app names before the lower fade', rows.length === 9 && rows.slice(0, 7).every(r => r.top >= 96 && r.bottom <= 978) && rows[7].top > 976);
   await p.screenshot({ path: out + 'home-list-seven-public.png' });
   check('Art browser run has no uncaught page errors', pageErrors.length === 0);
-  console.log(checks.length + ' Art browser checks passed; public-font screenshots in .local/qa/');
+  console.log(checks.length + ' Art browser checks passed; screenshots in .local/qa/');
 } finally { if (p) await p.close(); if (preview) await preview.close(); }

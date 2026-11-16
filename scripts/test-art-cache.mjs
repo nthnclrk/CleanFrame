@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../app/art-mode.js', import.meta.url), 'utf
 const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64), META = 'cleanframe.art.cache.v1';
 const meta = revision => ({ revision, contentId: 'MY_TEST', imageUrl: '/art/' + revision + '/image.jpg', width: 1920, height: 1080 });
 const jpeg = new Uint8Array([255,216,0,0,0,0,0,0,0,0,255,217]);
-function harness({ files = new Map(), storage = new Map(), failMove = false, corrupt = new Set(), hangMove = false } = {}) {
+function harness({ files = new Map(), storage = new Map(), failMove = false, corrupt = new Set(), hangMove = false, image = jpeg } = {}) {
   const requests = [];
   let next = A, offline = false, held = [], hold = false, deleted = [], order = [], revoked = [], urlNo = 0, clock = 0;
   const timers = new Map();
@@ -17,7 +17,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
     deleteFile(path) { const name = path.split('/').pop(); files.delete(name); deleted.push(name); },
     moveTo(from, to, overwrite, ok, fail) {
       if (hangMove) return;
-      if (failMove) { fail(); return; }
+      if (failMove || !files.has(from.split('/').pop())) { fail(); return; }
       const src = from.split('/').pop(), dst = to.split('/').pop(); files.set(dst, files.get(src)); files.delete(src); order.push('move:' + dst); ok();
     },
     listFiles(ok) { ok([...files.keys()].map(name => ({ name, fullPath: dir.fullPath + '/' + name }))); }
@@ -25,7 +25,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
   function file(name) {
     return { isFile: true, name, fileSize: files.get(name).length, fullPath: dir.fullPath + '/' + name, toURI: () => 'file:///' + dir.fullPath + '/' + name,
       openStream(mode, ok) {
-        const chunks = []; ok({ writeBytes(bytes) { chunks.push(...bytes); }, close() { files.set(name, new Uint8Array(chunks)); order.push('close:' + name); } });
+        const chunks = []; ok({ writeBytes(bytes) { for (const b of bytes) chunks.push(b); }, close() { if (files.has(name)) files.set(name, new Uint8Array(chunks)); order.push('close:' + name); } }); // A deleted file stays deleted.
       }
     };
   }
@@ -39,7 +39,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
       const respond = () => {
         if (offline) { this.onerror(); return; }
         this.status = 200;
-        if (this.url.endsWith('/current.json')) this.responseText = JSON.stringify(meta(next)); else this.response = jpeg.buffer;
+        if (this.url.endsWith('/current.json')) this.responseText = JSON.stringify(meta(next)); else this.response = image.buffer;
         this.onload();
       };
       if (hold) held.push(respond); else queueMicrotask(respond);
@@ -87,7 +87,22 @@ test('cancellation ignores a late response and stuck cache promotion has a deadl
   const stuck = harness({ hangMove: true }); await stuck.load(); const pending = stuck.refresh(); await new Promise(r => setImmediate(r));
   stuck.expire(); assert.match((await pending).url, /^blob:/); assert.equal(stuck.api.status().refreshing, false);
 });
-test('repeated cancelled candidates keep installed blob alive and bound object URLs', async () => {
+test('a save that has started finishes after hiding, and an overlapping save keeps its files', async () => {
+  const big = new Uint8Array(600000); big.set([255, 216]); big.set([255, 217], big.length - 2); // Three 256 KiB steps.
+  const h = harness({ image: big }), settle = () => new Promise(r => setImmediate(r));
+  const run = async () => { for (let n = 0; n < 20 && h.timers.size; n++) { for (const [id, fn] of [...h.timers]) { h.timers.delete(id); fn(); } await settle(); } };
+  await h.load();
+  h.api.refresh(() => {}); await settle();
+  assert.ok([...h.files.keys()].some(n => n.startsWith('incoming-')), 'the first save is mid-write');
+  h.api.cancel(); h.api.refresh(() => {}); await settle(); // Hidden, shown again: the same photo is fetched and saved again.
+  h.api.cancel(); await run();                             // Hidden again before either save finishes.
+  assert.deepEqual(h.deleted.filter(n => n.startsWith('incoming-')), []);
+  assert.ok(h.files.has(A + '.jpg'));
+  assert.equal(h.files.get(A + '.jpg').length, big.length);
+  assert.equal(JSON.parse(h.storage.get(META)).revision, A);
+  assert.ok(![...h.files.keys()].some(n => n.startsWith('incoming-')));
+});
+test('repeatedly replaced candidates keep the installed blob alive and bound object URLs', async () => {
   const h = harness({ failMove: true }); await h.load(); const a = await h.refresh(); h.api.retain(a.url);
   for (const revision of [B,C,B,C]) { h.next(revision); await h.refresh(); }
   assert.ok(!h.revoked.includes(a.url)); assert.ok(h.revoked.length >= 2);

@@ -4,7 +4,8 @@ const files = readdirSync(root + 'app/assets/icons').filter(n => /\.(svg|png)$/.
 const preview = await openPreview();
 try {
   const page = await preview.browser.newPage();
-  await page.goto(preview.baseURL + '/build/dock.html');
+  // Any same-origin document lets the page fetch the bundled icons.
+  await page.goto(preview.baseURL + '/home/icon.png');
   const metrics = await page.evaluate(async files => {
     const result = {}, size = 240;
     for (const file of files) {
@@ -44,7 +45,7 @@ try {
     }
     return result;
   }, files);
-  mkdirSync(root + '.local/materials', { recursive: true });
-  writeFileSync(root + '.local/materials/metrics.js', '/* Visible icon ink measured at build time. */\nwindow.FrameIconMetrics = ' + JSON.stringify(metrics) + ';\n');
-  console.log('Measured ' + files.length + ' icons. Output: .local/materials/metrics.js');
+  mkdirSync(root + '.local', { recursive: true });
+  writeFileSync(root + '.local/icon-metrics.js', '/* Visible icon ink measured at build time. */\nwindow.FrameIconMetrics = ' + JSON.stringify(metrics) + ';\n');
+  console.log('Measured ' + files.length + ' icons. Output: .local/icon-metrics.js');
 } finally { await preview.close(); }

@@ -7,7 +7,7 @@ import hashlib
 import json
 import subprocess
 
-from font_assets import ROOT
+from widget import ROOT
 from private_files import private_path, secret_content
 
 
@@ -60,8 +60,8 @@ def forbidden(name):
             or (path.name.startswith('PP') and path.suffix.lower() in font_suffixes))
 
 
-public_fonts = {'app/assets/inter.woff2': '693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3'}
-# Inter 4.1 InterVariable.woff2, https://github.com/rsms/inter/releases/tag/v4.1 (SIL OFL 1.1).
+# The app uses the TV's system font and ships no font files: any font file is a finding.
+public_fonts = {}
 
 for name in sorted(candidates):
     if forbidden(name):
@@ -119,9 +119,6 @@ for path in private_fonts:
     if git('hash-object', str(path)).decode().strip() in object_ids:
         findings.append('Known proprietary font bytes in Git history: ' + path.name)
 
-for name in ['app/assets/inter-OFL.txt']:
-    if not (ROOT / name).is_file():
-        findings.append('Missing public font licence: ' + name)
 
 if findings:
     raise SystemExit('\n'.join(sorted(set(findings))[:20]) + '\nTotal findings: ' + str(len(set(findings))))

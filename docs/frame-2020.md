@@ -109,7 +109,7 @@ developer connection.
 ## HDMI observations
 
 [PR #14](https://github.com/nthnclrk/CleanFrame/pull/14) proposed input selection.
-The portable chooser is under Settings → Samsung → Inputs. The
+At the time, the portable chooser was under Settings → Samsung → Inputs (current source lists HDMI 1–4 in All apps instead). The
 2020 TV exposed an important case: a sleeping Chromecast could appear in the
 `VIDEOSOURCE.disconnected` list. Do not reject an input solely because it is
 currently disconnected. Source routing and waking a CEC device are separate
@@ -120,7 +120,7 @@ could leave a no-signal screen, while Samsung's own source tile activated the
 device. A model-specific `org.tizen.tv-viewer` app-control request was investigated.
 It is not included here as a portable API or a completed CEC fix. Test device
 wake, correct HDMI picture, and physical Home return as distinct checks. The
-portable chooser retains disconnected source records without importing the
+portable source adapter retains disconnected source records without importing the
 private source-activation payload or claiming CEC wake support.
 
 ## Native Art Mode notes

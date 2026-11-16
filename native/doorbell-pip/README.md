@@ -14,10 +14,19 @@ from Vetro, MIT, Copyright (c) 2026 Vetro contributors).
 ## How it is started
 
 The CleanFrame Vetro bridge (`vetro/cleanframe-art`) carries the build base64-encoded and unpacks it
-to `pip/` beside its config. With `pip.stream` set in the bridge config, the bridge subscribes to
-`vetro/cleanframe/doorbell` on the MQTT broker Vetro is configured for (reusing Vetro's saved login,
-with its own client id). `ring` starts the overlay with `systemd-run --unit=cleanframe-pip`; `clear`
-closes it early. Retained messages are ignored.
+to `pip/` beside its config. `pip/` and `pip/res` get the same checks as the art cache (created
+0700, never a symlink or another user's, canonical path) and the files are written 0600; the bridge
+records each file's sha256 as it unpacks. With `pip.stream` set in the bridge config, the bridge
+subscribes to `vetro/cleanframe/doorbell` on the MQTT broker Vetro is configured for (reusing Vetro's
+saved login, with its own client id) once its HTTP listener is up, and retries every 60 s while the
+settings are missing or MQTT is off. On `ring`, the root command copies the files into a root-only
+folder (`/run/cleanframe-pip`, 0700), checks every copy against the recorded hashes (`sha256sum`, or
+`openssl dgst -sha256` if that is missing) and starts the overlay from there with
+`systemd-run --unit=cleanframe-pip`, logging to that folder too. Nothing writable by the shard's user
+is run, appended to or deleted by root; only the stop flag stays in `pip/`. The overlay only checks
+whether it exists, and the bridge itself removes it before each ring.
+On any mismatch nothing runs and the bridge status shows `PiP start failed`. `clear` closes it early. Retained messages are
+ignored, and a malformed packet just drops the connection, which reconnects after 10 s.
 
 ```json
 { "pip": { "stream": "http://192.168.1.2:1984/api/stream.mjpeg?src=doorbell_sub", "seconds": 30 } }

@@ -4,15 +4,15 @@ CleanFrame was built for one Samsung The Frame, with very little work on portabi
 
 ## Start in the browser
 
-Use the README's public-font setup. Keep changes in `app/` and the maintained tools in `scripts/`. Use your browser to develop interface changes.
+Use the README's setup. Keep changes in `app/` and the maintained tools in `scripts/`. Use your browser to develop interface changes.
 
 ```sh
 npm ci
-npm run dev:public
+npm run dev
 npm run check
 npm run check:tools
 npx playwright install chromium
-CLEANFRAME_PUBLIC_FONTS=1 npm run check:browser
+npm run check:browser
 npm run check:public
 ```
 
@@ -22,7 +22,7 @@ Keep runtime JavaScript ES5-compatible. Use existing focus, panel and preference
 
 For a bug, describe the trigger, expected result and actual result. Include browser/viewport or TV model and full firmware version. For a new feature, explain the task it helps someone complete from the sofa. Open an issue before changing the app model or introducing a new service dependency.
 
-A pull request should explain the resulting behaviour, the checks run and any untested device result. Include a public-font screenshot for visual changes. Check both List and Dock, single focus, panel Back behaviour and saved-preference recovery when relevant. The TV remote remains the final check for remote feel; browser throttling is only a comparison.
+A pull request should explain the resulting behaviour, the checks run and any untested device result. Include a screenshot for visual changes. Check both List and Dock, single focus, panel Back behaviour and saved-preference recovery when relevant. The TV remote remains the final check for remote feel; browser throttling is only a comparison.
 
 ## Device work and privacy
 
@@ -32,4 +32,4 @@ Keep passwords, tokens, signing keys, serial numbers, DUIDs, addresses and origi
 
 ## Assets and licences
 
-CleanFrame's original code is MIT. Contributions to that code use the same licence. Keep upstream asset licences and source records intact. Add only assets you have permission to redistribute, and explain any required attribution or separate terms. Personal paid fonts stay under `.local/`; the public app must work without them. Review `THIRD_PARTY_NOTICES.md` before adding or replacing a logo, photograph or font.
+CleanFrame's original code is MIT. Contributions to that code use the same licence. Keep upstream asset licences and source records intact. Add only assets you have permission to redistribute, and explain any required attribution or separate terms. The app uses the TV's system font and ships no font files, so do not add any. Review `THIRD_PARTY_NOTICES.md` before adding or replacing a logo or photograph.

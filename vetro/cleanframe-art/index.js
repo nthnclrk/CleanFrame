@@ -1,4 +1,4 @@
-/* MIT. Vetro shard; ES5 / Node 4.4. No device action occurs until start(). */
+/* MIT. Vetro shard: ES5 syntax, run by Vetro's Node 12 on the TV. No device action occurs until start(). */
 'use strict';
 var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto'), os = require('os'), net = require('net'), tls = require('tls');
 var PREF = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/data/.pref/0f61537ef36906f51e0fa75852758b33df2df340';
@@ -46,7 +46,9 @@ function jpegSize(buf) {
   invalid();
 }
 function bytes(n) { return Buffer.alloc ? Buffer.alloc(n) : new Buffer(n); }
-function text(s) { return Buffer.from && Buffer.from !== Uint8Array.from ? Buffer.from(s, 'utf8') : new Buffer(s, 'utf8'); }
+// The one way this shard makes a Buffer from a string or byte list.
+function buffer(v, encoding) { return Buffer.from && Buffer.from !== Uint8Array.from ? Buffer.from(v, encoding) : new Buffer(v, encoding); }
+function text(s) { return buffer(s, 'utf8'); }
 // Minimal masked client text frame (RFC 6455).
 function wsFrame(s) {
   var payload = text(s), n = payload.length, head = bytes(n < 126 ? 2 : 4), mask = crypto.randomBytes(4), body = bytes(n), i;
@@ -148,12 +150,13 @@ function artSettings(timeoutMs) {
    Listens to Home Assistant over MQTT with Vetro's saved broker login, and on a ring starts
    the bundled native overlay (pip/cleanframe-pip.dll) above whatever is playing. */
 var VETRO_MQTT = '/opt/usr/home/owner/share/vetro-mqtt.json', DOORBELL_TOPIC = 'vetro/cleanframe/doorbell';
-var STREAM_RE = /^http:\/\/(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2,3}:\d{2,5}\/[A-Za-z0-9\/._?=&%-]{1,200}$/;
+var PIP_DLL = 'cleanframe-pip.dll', PIP_CONFIG = 'cleanframe-pip.runtimeconfig.json', PIP_FILE = /^(?:cleanframe-pip\.(?:dll|runtimeconfig\.json)|res\/(?:frame|mask)\.png)$/;
+var STREAM_RE = /^http:\/\/(?:10(?:\.\d{1,3}){3}|(?:192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2}):\d{2,5}\/[A-Za-z0-9\/._?=&%-]{1,200}$/;
 function mqttString(s) { var b = text(s), h = bytes(2); h.writeUInt16BE(b.length, 0); return Buffer.concat([h, b]); }
 function mqttPacket(type, body) {
   var len = body.length, head = [type];
   do { var d = len % 128; len = Math.floor(len / 128); head.push(len > 0 ? d | 128 : d); } while (len > 0);
-  return Buffer.concat([Buffer.from ? Buffer.from(head) : new Buffer(head), body]);
+  return Buffer.concat([buffer(head), body]);
 }
 // Complete MQTT packets in buf: [{type, flags, body}], plus the unread rest.
 function mqttPackets(buf) {
@@ -171,11 +174,39 @@ function mqttPackets(buf) {
 }
 // Topic and payload of a PUBLISH body (QoS from the fixed-header flags).
 function mqttPublish(p) {
-  var n = p.body.readUInt16BE(0), topic = p.body.toString('utf8', 2, 2 + n), at = 2 + n + (((p.flags >> 1) & 3) ? 2 : 0);
-  return { topic: topic, payload: p.body.toString('utf8', at) };
+  var body = p.body, n, at;
+  if (!Buffer.isBuffer(body) || body.length < 2) invalid();
+  n = body.readUInt16BE(0); at = 2 + n + (((p.flags >> 1) & 3) ? 2 : 0);
+  if (at > body.length) invalid();
+  return { topic: body.toString('utf8', 2, 2 + n), payload: body.toString('utf8', at) };
 }
 function quote(s) { return "'" + s.replace(/'/g, "'\\''") + "'"; }
+// A private directory owned by this process: created 0700, never a symlink or another
+// user's, canonical, and re-chmodded on every use.
+function privateDir(d) {
+  var st;
+  if (!fs.existsSync(d)) fs.mkdirSync(d, 448);
+  st = fs.lstatSync(d);
+  if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid() || fs.realpathSync(d) !== d) invalid();
+  fs.chmodSync(d, 448);
+}
 function unlink(file) { try { fs.unlinkSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; } }
+// Optional shared secret (private config `key`): printable ASCII, 24 to 256 characters.
+// Only its SHA-256 is kept, so the per-request comparison is always on equal-length buffers.
+function bridgeKey(config) {
+  var k = config.key;
+  if (k === undefined || k === null || k === '') return null;
+  if (typeof k !== 'string' || k.length < 24 || k.length > 256 || /[^\x21-\x7e]/.test(k)) throw new Error('Invalid bridge key');
+  return crypto.createHash('sha256').update(k, 'utf8').digest();
+}
+function keyMatches(digest, given) {
+  if (!digest) return true;
+  if (typeof given !== 'string' || given.length > 1024) return false;
+  return crypto.timingSafeEqual(crypto.createHash('sha256').update(given, 'utf8').digest(), digest);
+}
+// A regular expression for pkill -f that matches only a process started as `dotnet <dll> ...`.
+// It is anchored at the command's start so the root shell running the ring command never matches itself.
+function pkillPattern(dll) { return '^[^ ]*dotnet ' + dll.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&') + '( |$)'; }
 function localClient(address, remote) { return String(remote || '').replace(/^::ffff:/, '') === address; }
 function listenAddress(config) {
   var address = config.address || '127.0.0.1', interfaces = os.networkInterfaces(), found = address === '127.0.0.1';
@@ -187,8 +218,13 @@ function listenAddress(config) {
 }
 function moduleFactory(ctx) {
   var dir = path.join(fs.realpathSync(ctx.dir), 'art-cache'), server = null, sockets = [], current = null, revisions = [], running = false;
-  var pendingHTTP = 0, address = '127.0.0.1', readSettings = ctx.artSettings || artSettings, look = null, lookAt = 0, lookRead = null, lookError = null;
-  var mq = null, mqTimer = null, pipState = { ringing: 0, lastError: null, connected: false };
+  var pendingHTTP = 0, address = '127.0.0.1', keyDigest = null, readSettings = ctx.artSettings || artSettings;
+  var look = null, lookAt = 0, lookTried = 0, lookRead = null, lookError = null;
+  var mq = null, mqTimer = null, mqPing = null, pipHashes = null, pipState = { ringing: 0, lastError: null, installError: null, connected: false };
+  // Overridable only by the offline test harness; Vetro passes none of these.
+  var mqttFile = ctx.vetroMqttPath || VETRO_MQTT, mqttRetry = ctx.mqttRetryMs || 10000, mqttConfigRetry = ctx.mqttConfigRetryMs || 60000;
+  var reuseMs = ctx.reuseMs || 1500, lookMaxAge = ctx.lookMaxAgeMs || 3000, lookWait = ctx.lookWaitMs || 800;
+  var lightsInterval = ctx.lightsIntervalMs || 1500, ringInterval = ctx.ringIntervalMs || 3000;
   var inflight = null, starting = null, rejectStart = null, generation = 0, counter = 0, lastRead = 0, lastError = false;
   function active(g) { if (!running || g !== generation) invalid(); }
   function execute(cmd) {
@@ -201,15 +237,19 @@ function moduleFactory(ctx) {
     return execute('head -c ' + (MAX_PREF + 1) + ' ' + quote(PREF) + ' | base64').then(function (out) {
       if (!/^[A-Za-z0-9+/=\r\n]+$/.test(out)) invalid();
       var value = out.replace(/[\r\n]/g, '');
-      return parsePreference(Buffer.from ? Buffer.from(value, 'base64') : new Buffer(value, 'base64'));
+      return parsePreference(buffer(value, 'base64'));
     });
   }
   function refresh() {
     if (inflight) return inflight;
-    if (current && Date.now() - lastRead < 1500) return Promise.resolve(current);
+    if (current && Date.now() - lastRead < reuseMs) return Promise.resolve(current);
     var g = generation, tmp = path.join(dir, 'copy-' + process.pid + '-' + (++counter) + '.tmp');
     inflight = readPreference().then(function (meta) {
       active(g);
+      // Same selection as last time: reuse the cached JPEG instead of copying 4K bytes again.
+      // Each upload gets a new content ID, so an unchanged ID and size means an unchanged image.
+      if (current && current.contentId === meta.contentId && current.width === meta.width && current.height === meta.height &&
+          fs.existsSync(path.join(dir, current.revision + '.jpg'))) { lastRead = Date.now(); lastError = false; return current; }
       var source = imagePath(meta.contentId, PHOTO + meta.contentId + '.jpg');
       // No JPEG bytes cross execute stdout. Noclobber, canonical source, bounded copy,
       // private permissions and numeric ownership precede the unprivileged atomic rename.
@@ -217,7 +257,8 @@ function moduleFactory(ctx) {
         '; test "$(readlink -f ' + quote(source) + ')" = ' + quote(source) +
         '; test "$(readlink -f ' + quote(dir) + ')" = ' + quote(dir) +
         '; umask 077; set -C; head -c ' + (MAX_IMAGE + 1) + ' ' + quote(source) + ' > ' + quote(tmp) +
-        '; chmod 600 ' + quote(tmp) + '; chown ' + process.getuid() + ':' + process.getgid() + ' ' + quote(tmp);
+        // umask already made it 600; chown -h never follows a symlink swapped in after the copy.
+        '; chown -h ' + process.getuid() + ':' + process.getgid() + ' ' + quote(tmp);
       return execute(cmd).then(function () {
         active(g);
         var st = fs.lstatSync(tmp), bytes, size, revision, dest;
@@ -241,121 +282,204 @@ function moduleFactory(ctx) {
     }).then(function (result) { unlink(tmp); inflight = null; return result; }, function () {
       // Never return stale current metadata as a successful refresh, or leak exec output.
       try { unlink(tmp); } catch (e) { /* A later start removes owned cache debris. */ }
-      inflight = null; lastError = true; throw new Error('Art unavailable');
+      inflight = null; if (g === generation) lastError = true; throw new Error('Art unavailable');
     });
     return inflight;
   }
-  // Settings are optional and read in the background: Art Mode can take seconds to
-  // answer, so current.json never waits. It returns the last good value at once.
+  // Art picture settings are optional. At most one read runs at a time, and a new one starts
+  // at most 3 s after the previous one finished. Returns the read in flight (it never rejects), or null.
   function settings() {
-    if (!lookRead && (!lookAt || Date.now() - lookAt > 3000)) {
-      var g = generation;
-      lookAt = Date.now();
-      lookRead = readSettings(8000).then(function (value) {
-        lookRead = null; if (running && g === generation) { look = value; lookAt = Date.now(); lookError = null; }
-      }, function (e) { lookRead = null; if (running && g === generation) lookError = String(e && e.message || e).slice(0, 80); });
+    var g = generation, read;
+    if (!lookRead && (!lookTried || Date.now() - lookTried > lookMaxAge)) {
+      lookTried = Date.now();
+      read = lookRead = Promise.resolve().then(function () { return readSettings(8000); }).then(function (value) {
+        if (running && g === generation) { look = value; lookAt = Date.now(); lookError = null; }
+      }, function (e) { if (running && g === generation) lookError = String(e && e.message || e).slice(0, 80); })
+        .then(function () { if (lookRead === read) { lookRead = null; lookTried = Date.now(); } });
     }
-    return look;
+    return lookRead;
+  }
+  // When the last good look is over 3 s old, current.json waits up to 800 ms for the read in
+  // flight, so a just-changed Art brightness or colour temperature shows on the first request.
+  // A slower Art channel never holds the reply longer; the last known look (or none) is used.
+  function freshLook() {
+    var pending = settings();
+    if (!pending || (lookAt && Date.now() - lookAt <= lookMaxAge)) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var timer = setTimeout(resolve, lookWait);
+      pending.then(function () { clearTimeout(timer); resolve(); });
+    });
   }
   // Home's Lights button: fire the owner's Vetro rule, which publishes MQTT for Home Assistant.
   // A fixed trigger only; the request body is ignored, so callers cannot choose rules or topics.
-  var lightsAt = 0;
+  // The 1.5 s limit starts only after Vetro accepted the rule: a press right after a failure
+  // tries again instead of reading as success. A press while one is still running gets 429.
+  var lightsAt = 0, lightsBusy = false, vetroPort = ctx.vetroPort || 8099, lightsTimeout = ctx.lightsTimeoutMs || 5000;
   function lights(res) {
-    var now = Date.now(), req2;
-    if (now - lightsAt < 1500) { res.writeHead(429); res.end(); return; }
-    lightsAt = now;
-    req2 = http.request({ host: '127.0.0.1', port: 8099, path: '/remap/run', method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 5000 }, function (r) {
-      var ok = r.statusCode === 200; r.resume();
-      res.writeHead(ok ? 204 : 502); res.end();
+    var req2, timer, answered = false, g = generation;
+    if (lightsBusy || (lightsAt && Date.now() - lightsAt < lightsInterval)) { res.writeHead(429); res.end(); return; }
+    lightsBusy = true;
+    function answer(status) {
+      if (answered) return; answered = true; clearTimeout(timer);
+      if (g === generation) { lightsBusy = false; if (status === 204) lightsAt = Date.now(); }
+      res.writeHead(status); res.end();
+    }
+    req2 = http.request({ host: '127.0.0.1', port: vetroPort, path: '/remap/run', method: 'POST', headers: { 'Content-Type': 'application/json' } }, function (r) {
+      r.resume(); answer(r.statusCode >= 200 && r.statusCode < 300 ? 204 : 502);
     });
-    req2.on('timeout', function () { req2.abort(); });
-    req2.on('error', function () { if (!res.headersSent) { res.writeHead(502); res.end(); } });
+    // An explicit wall-clock limit: a stalled Vetro never leaves the button hanging.
+    timer = setTimeout(function () { answer(502); req2.abort(); }, lightsTimeout);
+    req2.on('error', function () { answer(502); });
     req2.end(JSON.stringify({ type: 'http', value: LIGHTS_TRIGGER }));
   }
   function pipDir() { return path.join(dir, '..', 'pip'); }
-  // The overlay ships base64-encoded in the bundle (bundles are text); unpack it once per version.
+  // The overlay ships base64-encoded in the bundle (bundles are text). Root runs it, so it is
+  // unpacked with the art cache's checks and each file's sha256 is kept for the root command to verify.
   function unpackPip() {
-    var src = path.join(fs.realpathSync(ctx.dir), 'pip.b64.json'), out = pipDir(), files;
+    var src = path.join(fs.realpathSync(ctx.dir), 'pip.b64.json'), out = pipDir(), files, hashes = {};
+    pipHashes = null;
     if (!fs.existsSync(src)) return false;
     files = JSON.parse(fs.readFileSync(src, 'utf8'));
-    if (!fs.existsSync(out)) fs.mkdirSync(out, 448);
-    if (!fs.existsSync(path.join(out, 'res'))) fs.mkdirSync(path.join(out, 'res'), 448);
+    if (!files || typeof files !== 'object') invalid();
+    privateDir(out); privateDir(path.join(out, 'res'));
     Object.keys(files).forEach(function (name) {
-      if (!/^(?:cleanframe-pip\.(?:dll|runtimeconfig\.json)|res\/(?:frame|mask)\.png)$/.test(name)) return;
-      var data = Buffer.from ? Buffer.from(files[name], 'base64') : new Buffer(files[name], 'base64'), file = path.join(out, name);
-      if (!fs.existsSync(file) || fs.readFileSync(file).toString('base64') !== files[name]) fs.writeFileSync(file, data, { mode: 420 });
+      if (!PIP_FILE.test(name) || typeof files[name] !== 'string') return;
+      var data = buffer(files[name], 'base64'), file = path.join(out, name), tmp = file + '.' + process.pid + '.tmp', st = null;
+      try { st = fs.lstatSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      if (st && (!st.isFile() || st.isSymbolicLink() || st.uid !== process.getuid())) { unlink(file); st = null; }
+      if (!st || !fs.readFileSync(file).equals(data)) {
+        unlink(tmp);
+        fs.writeFileSync(tmp, data, { mode: 384, flag: 'wx' });
+        fs.chmodSync(tmp, 384); fs.renameSync(tmp, file);
+      }
+      fs.chmodSync(file, 384);
+      hashes[name] = crypto.createHash('sha256').update(data).digest('hex');
     });
+    if (!hashes[PIP_DLL] || !hashes[PIP_CONFIG]) return false;
+    pipHashes = hashes;
     return true;
   }
   function pipConfig() {
     var c = (ctx.config.get() || {}).pip || {};
     return { stream: STREAM_RE.test(c.stream || '') ? c.stream : null, seconds: c.seconds >= 5 && c.seconds <= 600 ? Math.round(c.seconds) : 30 };
   }
-  function ring() {
-    var c = pipConfig(), d = pipDir(), now = Date.now();
-    if (!c.stream || now - pipState.ringing < 3000) return;
-    pipState.ringing = now;
-    var env = '/usr/bin/env HOME=/home/owner XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /usr/bin/dotnet ' + quote(path.join(d, 'cleanframe-pip.dll')) +
-      ' --url ' + quote(c.stream) + ' --seconds ' + c.seconds + ' --stop ' + quote(path.join(d, 'stop')) + ' --log ' + quote(path.join(d, 'pip.log'));
+  // The root command that (re)starts the overlay. It fails closed: unless every unpacked file
+  // still has the hash recorded at unpack time, nothing runs and the exit status is non-zero.
+  // Root copies the PiP into a root-only folder, verifies the copies there and runs (and logs)
+  // only from there, so nothing writable by the shard's user is executed or appended to by root.
+  // Only the stop flag stays in the shard's folder: root (the overlay) only checks whether it
+  // exists, and the shard itself removes it before each ring, so root deletes nothing there.
+  // Before starting it stops both a systemd-run overlay and a fallback setsid one (pkill, when
+  // present), and keeps the previous run's log as pip.log.1.
+  var PIP_ROOT = '/run/cleanframe-pip';
+  function ringCommand(c, d, hashes) {
+    var root = ctx.pipRoot || PIP_ROOT, stop = path.join(d, 'stop'), names = Object.keys(hashes).sort(), log = path.join(root, 'pip.log');
+    var run = '/usr/bin/env HOME=/home/owner XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /usr/bin/dotnet ' + quote(path.join(root, PIP_DLL)) +
+      ' --url ' + quote(c.stream) + ' --seconds ' + c.seconds + ' --stop ' + quote(stop) + ' --log ' + quote(log);
+    var copy = 'test ! -L ' + quote(root) + '; mkdir -p ' + quote(path.join(root, 'res')) + '; test ! -L ' + quote(path.join(root, 'res')) +
+      '; chmod 700 ' + quote(root) + ' ' + quote(path.join(root, 'res')) + '; rm -f ' + names.map(function (name) { return quote(path.join(root, name)); }).join(' ') +
+      '; if test -f ' + quote(log) + '; then mv -f ' + quote(log) + ' ' + quote(log + '.1') + '; fi; ' + names.map(function (name) {
+      return 'cat ' + quote(path.join(d, name)) + ' > ' + quote(path.join(root, name));
+    }).join('; ');
+    var verify = names.map(function (name) {
+      var file = quote(path.join(root, name));
+      return 'test -f ' + file + '; test "$(cfsum ' + file + ')" = ' + hashes[name];
+    }).join('; ');
     // A ring while it is showing restarts the timer with a fresh window.
-    execute('systemctl stop cleanframe-pip >/dev/null 2>&1; rm -f ' + quote(path.join(d, 'stop')) + '; ' +
-      'systemd-run --unit=cleanframe-pip --collect -p KillSignal=SIGKILL ' + env + ' >/dev/null 2>&1 || (setsid nohup ' + env + ' </dev/null >/dev/null 2>&1 &); echo ok')
-      .then(function () { pipState.lastError = null; }, function () { pipState.lastError = 'PiP start failed'; });
+    return 'set -e; umask 077; cfsum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else openssl dgst -sha256 -r "$1"; fi | cut -c1-64; }; ' +
+      'systemctl stop cleanframe-pip >/dev/null 2>&1 || true; ' +
+      'if command -v pkill >/dev/null 2>&1; then pkill -f ' + quote(pkillPattern(path.join(root, PIP_DLL))) + ' >/dev/null 2>&1 || true; fi; ' +
+      copy + '; ' + verify + '; ' +
+      'systemd-run --unit=cleanframe-pip --collect -p KillSignal=SIGKILL ' + run + ' >/dev/null 2>&1 || (setsid nohup ' + run + ' </dev/null >/dev/null 2>&1 &)';
+  }
+  function ring() {
+    var c = pipConfig(), d = pipDir(), now = Date.now(), hashes = pipHashes;
+    if (!c.stream) return null;
+    if (!hashes || !hashes[PIP_DLL] || !fs.existsSync(path.join(d, PIP_DLL))) { pipState.lastError = 'PiP not installed'; return null; }
+    if (now - pipState.ringing < ringInterval) return null;
+    pipState.ringing = now;
+    // A clear from the last ring must not close this one. If it cannot be removed, the overlay
+    // closes at once and the next ring tries again.
+    try { unlink(path.join(d, 'stop')); } catch (e) { pipState.lastError = 'PiP stop flag stuck'; }
+    return execute(ringCommand(c, d, hashes))
+      .then(function () { pipState.lastError = null; return true; }, function () { pipState.lastError = 'PiP start failed'; return false; });
   }
   function clearPip() { try { fs.writeFileSync(path.join(pipDir(), 'stop'), ''); } catch (e) { /* Nothing showing. */ } }
+  function scheduleMqtt(ms) { if (running && !mqTimer) mqTimer = setTimeout(mqttConnect, ms); }
+  function mqttStop() {
+    var socket = mq;
+    clearTimeout(mqTimer); mqTimer = null; clearInterval(mqPing); mqPing = null; mq = null; pipState.connected = false;
+    if (socket) socket.destroy();
+  }
   function mqttConnect() {
     var c, socket, buf = bytes(0), ping = null, g = generation;
     mqTimer = null;
-    if (!running || !pipConfig().stream) return;
-    try { c = JSON.parse(fs.readFileSync(VETRO_MQTT, 'utf8')); } catch (e) { pipState.lastError = 'No Vetro MQTT settings'; return; }
-    if (!c || !c.enabled || typeof c.host !== 'string' || !(c.port > 0 && c.port < 65536)) { pipState.lastError = 'Vetro MQTT is off'; return; }
+    if (!running || mq) return;
+    // Settings may appear later (Vetro's MQTT turned on, pip.stream added): check again while running.
+    if (!pipConfig().stream) { scheduleMqtt(mqttConfigRetry); return; }
+    try { c = JSON.parse(fs.readFileSync(mqttFile, 'utf8')); } catch (e) { pipState.lastError = 'No Vetro MQTT settings'; scheduleMqtt(mqttConfigRetry); return; }
+    if (!c || !c.enabled || typeof c.host !== 'string' || !(c.port > 0 && c.port < 65536)) { pipState.lastError = 'Vetro MQTT is off'; scheduleMqtt(mqttConfigRetry); return; }
     function retry() {
-      clearInterval(ping); pipState.connected = false;
-      if (mq === socket) mq = null;
-      if (running && g === generation && !mqTimer) mqTimer = setTimeout(mqttConnect, 10000);
+      clearInterval(ping); if (mqPing === ping) mqPing = null;
+      if (mq !== socket) return;          // Already stopped or replaced.
+      mq = null; pipState.connected = false;
+      if (running && g === generation) scheduleMqtt(mqttRetry);
     }
     socket = mq = c.tls ? tls.connect({ host: c.host, port: c.port, ca: c.ca || undefined, servername: c.host }) : net.connect({ host: c.host, port: c.port });
     socket.setTimeout(90000);
     socket.on(c.tls ? 'secureConnect' : 'connect', function () {
       // Own client id: sharing Vetro's would make the broker drop one of the two sessions.
-      var flags = 2 | (c.username ? 128 : 0) | (c.password ? 64 : 0), vh = Buffer.concat([mqttString('MQTT'), Buffer.from ? Buffer.from([4, flags, 0, 60]) : new Buffer([4, flags, 0, 60])]);
+      var flags = 2 | (c.username ? 128 : 0) | (c.password ? 64 : 0), vh = Buffer.concat([mqttString('MQTT'), buffer([4, flags, 0, 60])]);
       var payload = [mqttString('cleanframe-' + crypto.randomBytes(6).toString('hex'))];
       if (c.username) payload.push(mqttString(c.username));
       if (c.password) payload.push(mqttString(c.password));
       socket.write(mqttPacket(16, Buffer.concat([vh].concat(payload))));
-      ping = setInterval(function () { socket.write(Buffer.from ? Buffer.from([192, 0]) : new Buffer([192, 0])); }, 30000);
+      clearInterval(ping);
+      ping = mqPing = setInterval(function () { socket.write(buffer([192, 0])); }, 30000);
     });
     socket.on('data', function (chunk) {
       var parsed;
-      buf = Buffer.concat([buf, chunk]);
-      try { parsed = mqttPackets(buf); } catch (e) { socket.destroy(); return; }
-      buf = parsed.rest;
-      parsed.packets.forEach(function (p) {
-        var m;
-        if (p.type === 2) {                       // CONNACK
-          if (p.body[1] !== 0) { pipState.lastError = 'MQTT refused the login'; socket.destroy(); return; }
-          pipState.connected = true; pipState.lastError = null;
-          socket.write(mqttPacket(130, Buffer.concat([Buffer.from ? Buffer.from([0, 1]) : new Buffer([0, 1]), mqttString(DOORBELL_TOPIC), Buffer.from ? Buffer.from([0]) : new Buffer([0])])));
-        } else if (p.type === 3) {                // PUBLISH
-          m = mqttPublish(p);
-          if (m.topic !== DOORBELL_TOPIC || (p.flags & 1)) return;   // Retained messages are history, not a ring.
-          if (m.payload === 'ring') ring(); else if (m.payload === 'clear') clearPip();
-        }
-      });
+      // Any malformed packet drops this connection (and reconnects later); it never throws into Vetro.
+      try {
+        buf = Buffer.concat([buf, chunk]);
+        parsed = mqttPackets(buf);
+        buf = parsed.rest;
+        parsed.packets.forEach(function (p) {
+          var m;
+          if (mq !== socket) return;
+          if (p.type === 2) {                       // CONNACK
+            if (p.body.length < 2 || p.body[1] !== 0) { pipState.lastError = 'MQTT refused the login'; socket.destroy(); return; }
+            pipState.connected = true; pipState.lastError = null;
+            socket.write(mqttPacket(130, Buffer.concat([buffer([0, 1]), mqttString(DOORBELL_TOPIC), buffer([0])])));
+          } else if (p.type === 3) {                // PUBLISH
+            m = mqttPublish(p);
+            if (m.topic !== DOORBELL_TOPIC || (p.flags & 1)) return;   // Retained messages are history, not a ring.
+            if (m.payload === 'ring') ring(); else if (m.payload === 'clear') clearPip();
+          }
+        });
+      } catch (e) { socket.destroy(); }
     });
     socket.on('timeout', function () { socket.destroy(); });
-    socket.on('error', function () { pipState.connected = false; });
+    socket.on('error', function () { pipState.connected = false; pipState.lastError = 'MQTT connection failed'; });
     socket.on('close', retry);
   }
   function handler(req, res) {
-    var origin = req.headers.origin, match, closed = false, released = false;
+    var origin = req.headers.origin, match, allow, closed = false, released = false;
     // Some Frame web runtimes block loopback. When bound to the TV's own
     // interface, accept only connections originating from that exact address.
     if (!localClient(address, req.socket.remoteAddress)) { res.writeHead(403); res.end(); return; }
     if (origin && (origin.length > 256 || !/^(?:null|(?:file|widget|wgt|tizen):\/\/[^\r\n]*)$/.test(origin))) { res.writeHead(403); res.end(); return; }
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Vary', 'Origin'); res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (req.url === '/lights' && req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Max-Age': '600' }); res.end(); return; }
+    res.setHeader('Vary', 'Origin, X-CleanFrame-Key'); res.setHeader('X-Content-Type-Options', 'nosniff');
+    match = /^\/art\/([a-f0-9]{64})\/image\.jpg$/.exec(req.url);
+    allow = req.url === '/lights' ? 'POST' : req.url === '/current.json' || match ? 'GET' : null;
+    // CORS preflight carries no key; it only says which method and header the real request may use.
+    if (req.method === 'OPTIONS' && allow) {
+      res.writeHead(204, { 'Access-Control-Allow-Methods': allow, 'Access-Control-Allow-Headers': 'X-CleanFrame-Key', 'Access-Control-Max-Age': '600' }); res.end(); return;
+    }
+    // With a configured key, every other request must carry it: other pages in the TV's own
+    // browser are also local clients with an opaque origin.
+    if (!keyMatches(keyDigest, req.headers['x-cleanframe-key'])) { req.resume(); res.writeHead(403); res.end(); return; }
     if (req.url === '/lights' && req.method === 'POST') { req.resume(); lights(res); return; }
     if (req.method !== 'GET') { res.writeHead(405, { Allow: 'GET' }); res.end(); return; }
     if (pendingHTTP >= 8) { res.writeHead(503); res.end(); return; }
@@ -363,8 +487,9 @@ function moduleFactory(ctx) {
     function release() { if (released) return; released = true; pendingHTTP--; }
     res.once('finish', release); res.once('close', function () { closed = true; release(); });
     if (req.url === '/current.json') {
-      refresh().then(function (meta) {
-        var value = settings(), body;
+      var lookReady = freshLook();
+      refresh().then(function (meta) { return lookReady.then(function () { return meta; }); }).then(function (meta) {
+        var value = look, body;
         if (closed) return;
         body = { revision: meta.revision, contentId: meta.contentId, imageUrl: meta.imageUrl, width: meta.width, height: meta.height };
         if (value) body.look = value;
@@ -372,7 +497,6 @@ function moduleFactory(ctx) {
       }, function () { if (!closed) { res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end('{"error":"Art unavailable"}'); } });
       return;
     }
-    match = /^\/art\/([a-f0-9]{64})\/image\.jpg$/.exec(req.url);
     if (!match || revisions.indexOf(match[1]) < 0) { res.writeHead(404); res.end(); return; }
     fs.open(path.join(dir, match[1] + '.jpg'), 'r', function (err, fd) {
       if (closed) { if (!err) fs.close(fd, function () {}); return; }
@@ -389,37 +513,36 @@ function moduleFactory(ctx) {
     var config = ctx.config.get() || {}, configured = config.port;
     var port = Number(configured === undefined || configured === null || configured === '' ? 8643 : configured), g;
     if (!isFinite(port) || port % 1 || port < 1024 || port > 65535) return Promise.reject(new Error('Invalid bridge port'));
-    try { address = listenAddress(config); } catch (e) { return Promise.reject(e); }
+    try { address = listenAddress(config); keyDigest = bridgeKey(config); } catch (e) { return Promise.reject(e); }
     try {
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, 448);
-      var st = fs.lstatSync(dir);
-      if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== process.getuid() || fs.realpathSync(dir) !== dir) invalid();
-      fs.chmodSync(dir, 448);
+      privateDir(dir);
       fs.readdirSync(dir).forEach(function (name) { if (/^(?:[a-f0-9]{64}\.jpg|copy-[0-9]+-[0-9]+\.tmp)$/.test(name)) unlink(path.join(dir, name)); });
     } catch (e) { return Promise.reject(new Error('Cache unavailable')); }
     running = true; g = ++generation;
-    try { unpackPip(); } catch (e) { pipState.lastError = 'PiP unpack failed'; }
-    mqttConnect();
+    pipState.installError = null;
+    try { unpackPip(); } catch (e) { pipHashes = null; pipState.installError = 'PiP unpack failed'; }
     starting = new Promise(function (resolve, reject) {
       rejectStart = reject;
       server = http.createServer(handler); server.timeout = 10000; server.maxConnections = 8;
       server.on('connection', function (socket) { sockets.push(socket); socket.on('close', function () { var i = sockets.indexOf(socket); if (i >= 0) sockets.splice(i, 1); }); });
-      server.once('error', function () { if (g === generation) { running = false; server = null; starting = null; rejectStart = null; } reject(new Error('Bridge listen failed')); });
-      server.listen(port, address, function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; resolve(); });
+      server.once('error', function () { if (g === generation) { running = false; mqttStop(); server = null; starting = null; rejectStart = null; } reject(new Error('Bridge listen failed')); });
+      server.listen(port, address, function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; mqttConnect(); resolve(); });
     });
     return starting;
   }
   function stop() {
-    running = false; generation++; current = null; revisions = []; lastRead = 0; look = null; lookAt = 0; lookRead = null;
-    clearTimeout(mqTimer); mqTimer = null; if (mq) { mq.destroy(); mq = null; }
+    running = false; generation++; current = null; revisions = []; lastRead = 0; lastError = false; lookError = null; look = null; lookAt = 0; lookTried = 0; lookRead = null; lightsBusy = false;
+    mqttStop();
     var old = server; server = null; starting = null;
     if (rejectStart) { rejectStart(new Error('Bridge stopped')); rejectStart = null; }
     sockets.slice().forEach(function (socket) { socket.destroy(); });
     return new Promise(function (resolve) { if (old) old.close(resolve); else resolve(); });
   }
   return { start: start, stop: stop,
-    status: function () { return { running: running, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError, doorbell: { listening: pipState.connected, configured: !!pipConfig().stream, error: pipState.lastError } }; },
-    route: function (req, res) { res.writeHead(404); res.end(); }
+    status: function () { return { running: running, keyed: !!keyDigest, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError, doorbell: { listening: pipState.connected, configured: !!pipConfig().stream, error: pipState.installError || pipState.lastError } }; },
+    route: function (req, res) { res.writeHead(404); res.end(); },
+    // Offline harness hooks; Vetro never calls these.
+    _test: { unpackPip: unpackPip, ring: ring, pipDir: pipDir, pipHashes: function () { return pipHashes; }, mqttTimers: function () { return { retry: !!mqTimer, ping: !!mqPing, socket: !!mq }; } }
   };
 }
 module.exports = moduleFactory;
@@ -428,6 +551,7 @@ module.exports.parsePreference = parsePreference;
 module.exports.imagePath = imagePath;
 module.exports.jpegSize = jpegSize;
 module.exports.localClient = localClient;
+module.exports.pkillPattern = pkillPattern;
 module.exports.listenAddress = listenAddress;
 module.exports.parseSettings = parseSettings;
 module.exports.wsFrames = wsFrames;
