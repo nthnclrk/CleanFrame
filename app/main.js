@@ -43,7 +43,8 @@
   var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Text', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', connected: 'When connected', always: 'Always' };
   var UTIL = { lights: ['Lights', 'lights'], cameras: ['Cameras', 'cameras'], apps: ['Apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   /* Optional owner controls, configured on the TV (never in public source):
-     cleanframe.controls.v1 = { lights: true, go2rtc: 'http://192.168.x.y:1984', cameras: [{ name, src }] }.
+     cleanframe.controls.v1 = { lights: true, go2rtc: 'http://192.168.x.y:1984', cameras: [{ name, src, full }] }.
+     src is the go2rtc stream for the MJPEG grid; full, if set, is the full-quality stream for full screen.
      Without it, Home shows only Apps and Settings. */
   var CONTROLS = (function () {
     var c = null, out = { lights: false, go2rtc: '', cameras: [] };
@@ -52,7 +53,9 @@
     out.lights = c.lights === true;
     if (typeof c.go2rtc === 'string' && /^http:\/\/(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2,3}:\d{2,5}$/.test(c.go2rtc)) out.go2rtc = c.go2rtc;
     if (out.go2rtc && Array.isArray(c.cameras)) c.cameras.slice(0, 6).forEach(function (cam) {
-      if (cam && typeof cam.name === 'string' && cam.name.trim() && typeof cam.src === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(cam.src)) out.cameras.push({ name: cam.name.trim().slice(0, 40), src: cam.src });
+      if (cam && typeof cam.name === 'string' && cam.name.trim() && typeof cam.src === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(cam.src)) {
+        out.cameras.push({ name: cam.name.trim().slice(0, 40), src: cam.src, full: typeof cam.full === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(cam.full) ? cam.full : '' });
+      }
     });
     return out;
   }());
@@ -893,15 +896,57 @@
     sheet: true,
     key: function (t, k) {
       var n = CONTROLS.cameras.length;
-      if (k === 'back') { if (t.full) t.full = false; else { stopCameras(); pop(); } return; }
-      if (k === 'ok') { t.full = !t.full; return; }
-      if (t.full) { if (k === 'left' || k === 'up') t.f.i = (t.f.i + n - 1) % n; else t.f.i = (t.f.i + 1) % n; return; }
+      if (k === 'back') { if (t.full) { t.full = false; stopFull(); } else { stopCameras(); pop(); } return; }
+      if (k === 'ok') { t.full = !t.full; if (t.full) startFull(t); else stopFull(); return; }
+      if (t.full) { t.f.i = k === 'left' || k === 'up' ? (t.f.i + n - 1) % n : (t.f.i + 1) % n; startFull(t); return; }
       t.f.i = cameraMove(t, k);
     },
     point: function (t, z, i) { if (z === 'cam') { t.f.i = i; this.key(t, 'ok'); } }
   };
   function cameraURL(cam) { return CONTROLS.go2rtc + '/api/stream.mjpeg?src=' + encodeURIComponent(cam.src); }
+  /* Full screen plays the camera's full-quality stream through the TV's own player (AVPlay, a
+     hardware video layer behind the page) as go2rtc HLS: repackaged, not re-encoded. The player
+     needs the avplay, network.public and tv.audio privileges and a Partner-signed package.
+     The MJPEG frame shows until the video runs, and stays if the TV cannot play the stream. */
+  var full = { token: 0, playing: false };
+  function avplay() { return window.webapis && window.webapis.avplay; }
+  function loadWebapis(done) {
+    if (avplay() || !window.tizen) { done(); return; }
+    var s = document.createElement('script'); s.src = '$WEBAPIS/webapis/webapis.js';
+    s.onload = s.onerror = function () { done(); }; document.head.appendChild(s);
+  }
+  function setFullClass(on) {
+    var root = document.documentElement;
+    root.className = root.className.replace(/ ?is-avplay/g, '') + (on ? ' is-avplay' : '');
+  }
+  function stopFull() {
+    full.token++;
+    if (avplay()) { try { avplay().stop(); } catch (e) { /* Not playing. */ } try { avplay().close(); } catch (e) { /* Not open. */ } }
+    full.playing = false; setFullClass(false);
+  }
+  function startFull(t) {
+    var cam = CONTROLS.cameras[t.f.i], token;
+    stopFull(); token = full.token;
+    if (!cam || !cam.full) return;
+    loadWebapis(function () {
+      var p = avplay();
+      if (!p || token !== full.token || top() !== t || !t.full) return;
+      // The player renders into the page's avplayer object.
+      if (!document.getElementById('avplayer')) { var o = document.createElement('object'); o.id = 'avplayer'; o.type = 'application/avplayer'; o.className = 'avplayer'; document.body.appendChild(o); }
+      try {
+        p.open(CONTROLS.go2rtc + '/api/stream.m3u8?src=' + encodeURIComponent(cam.full));
+        p.setListener({ onerror: function () { if (token === full.token) stopFull(); }, onstreamcompleted: function () { if (token === full.token) stopFull(); } });
+        p.setDisplayRect(0, 0, 1920, 1080);
+        p.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+        p.prepareAsync(function () {
+          if (token !== full.token) return;
+          p.play(); full.playing = true; setFullClass(true);
+        }, function () { if (token === full.token) stopFull(); });
+      } catch (e) { stopFull(); }
+    });
+  }
   function stopCameras() {
+    stopFull();
     // Dropping the src closes each MJPEG connection; nothing streams once the view is gone.
     Array.prototype.forEach.call(sheetView.querySelectorAll('.cam img'), function (im) { im.onload = null; im.removeAttribute('src'); });
   }

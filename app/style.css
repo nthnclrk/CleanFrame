@@ -637,4 +637,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .cams-full .s-title,.cams-full .cam-hint{display:none}
 .cams-full .cam{border-radius:0;box-shadow:none}
 .cam-hint{top:1000px}
+/* Full-quality camera: the TV's video layer sits behind the page, so the page goes clear. */
+html.is-avplay,html.is-avplay body,html.is-avplay .stage,html.is-avplay .sheet{background:transparent!important}
+/* !important: the frost's own visibility rule is more specific. */
+html.is-avplay .sheet-bg,html.is-avplay .sheet-veil,html.is-avplay .cams{visibility:hidden!important}
+html.is-avplay .scene{background:transparent!important}
+.avplayer{position:fixed;left:0;top:0;width:1px;height:1px;z-index:-1}
 

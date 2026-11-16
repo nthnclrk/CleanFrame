@@ -789,7 +789,7 @@ try {
     const camHits = [], lightPosts = [];
     const jpeg = (w, h) => current.evaluate(([w, h]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').fillRect(0, 0, w, h); return c.toDataURL('image/jpeg').split(',')[1]; }, [w, h]);
     await page({}, async p => {
-      await p.addInitScript(() => localStorage.setItem('cleanframe.controls.v1', JSON.stringify({ lights: true, go2rtc: 'http://192.168.1.2:1984', cameras: [{ name: 'Front door', src: 'doorbell' }, { name: 'Backyard', src: 'backyard' }, { name: 'Nursery', src: 'nursery' }] })));
+      await p.addInitScript(() => localStorage.setItem('cleanframe.controls.v1', JSON.stringify({ lights: true, go2rtc: 'http://192.168.1.2:1984', cameras: [{ name: 'Front door', src: 'doorbell', full: 'doorbell_hd' }, { name: 'Backyard', src: 'backyard' }, { name: 'Nursery', src: 'nursery' }] })));
       await p.route('http://192.168.1.2:1984/**', async route => {
         const src = new URL(route.request().url()).searchParams.get('src'); camHits.push(src);
         const size = { doorbell: [480, 640], backyard: [1920, 576], nursery: [1280, 720] }[src];
@@ -806,8 +806,22 @@ try {
     await current.waitForTimeout(100);
     const tiles = await current.evaluate(() => [...document.querySelectorAll('.cam')].map(b => { const r = b.getBoundingClientRect(), i = b.querySelector('img'); return { ratio: r.width / r.height, natural: i.naturalWidth / i.naturalHeight, area: r.width * r.height, inside: r.left >= 0 && r.top >= 0 && r.right <= 1920 && r.bottom <= 1080 }; }));
     check('Camera tiles keep each stream\'s shape and all stay a usable size', tiles.every(t => Math.abs(t.ratio - t.natural) < .02 && t.inside && t.area > 200000), tiles);
+    await current.evaluate(() => {
+      const log = window.__avplay = [];
+      window.webapis = { avplay: { open: u => log.push('open ' + u), setListener() {}, setDisplayRect() {}, setDisplayMethod() {}, prepareAsync: ok => setTimeout(ok, 10), play: () => log.push('play'), stop: () => log.push('stop'), close: () => log.push('close'), getState: () => 'PLAYING' } };
+    });
     await nav('ok'); check('OK shows one camera full screen', await current.evaluate(() => document.querySelectorAll('.cam.is-hidden').length === 2));
-    await nav('back'); await nav('back');
+    await current.waitForFunction(() => document.documentElement.classList.contains('is-avplay'));
+    check('Full screen plays the full-quality go2rtc HLS stream with every layer above the video clear', await current.evaluate(() => {
+      const clear = el => getComputedStyle(el).backgroundColor === 'rgba(0, 0, 0, 0)';
+      return window.__avplay.includes('open http://192.168.1.2:1984/api/stream.m3u8?src=doorbell_hd') && window.__avplay.includes('play') && getComputedStyle(document.getElementById('sheetBg')).visibility === 'hidden'
+        && clear(document.getElementById('scene')) && clear(document.getElementById('stage')) && clear(document.body) && !!document.getElementById('avplayer');
+    }), await current.evaluate(() => window.__avplay));
+    await nav('right');
+    check('A camera without a full-quality stream stays on its MJPEG frame', await current.evaluate(() => !document.documentElement.classList.contains('is-avplay') && window.__avplay.filter(l => l.startsWith('open')).length === 1));
+    await nav('back');
+    check('Back stops full-quality playback', await current.evaluate(() => !document.documentElement.classList.contains('is-avplay') && window.__avplay.includes('close')));
+    await nav('back');
     check('Leaving Cameras stops every stream', (await call('where')).view === 'home' && await current.evaluate(() => document.querySelectorAll('.cam img[src]').length === 0));
   });
   section = 'Run integrity';

@@ -13,6 +13,9 @@
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
   <access origin="http://127.0.0.1:8643" subdomains="false"/>
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
   <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
   <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
