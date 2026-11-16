@@ -19,7 +19,8 @@
     "check:device": "node --test scripts/test-device.mjs",
     "check:performance": "node scripts/check-performance.mjs",
     "check:art": "node --test scripts/test-art-bridge.mjs scripts/test-art-cache.mjs",
-    "pack:art": "node scripts/pack-art-bridge.mjs"
+    "pack:art": "node scripts/pack-art-bridge.mjs",
+    "build:pip": "dotnet build -c Release native/doorbell-pip/cleanframe-pip.csproj"
   },
   "devDependencies": {
     "eslint": "10.13.0",

@@ -43,3 +43,7 @@ PP*.woff2
 /explorations/
 /docs/research/
 /docs/articles/
+
+# Native doorbell PiP build output
+/native/doorbell-pip/bin/
+/native/doorbell-pip/obj/

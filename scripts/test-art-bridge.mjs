@@ -95,6 +95,20 @@ test('current.json never waits for Art settings, then reports the last good valu
     assert.deepEqual(Object.keys(JSON.parse(res.body)).sort(), ['contentId', 'height', 'imageUrl', 'look', 'revision', 'width']);
   });
 });
+test('MQTT packets are framed, bounded and parsed for the doorbell topic', () => {
+  const topic = Buffer.from('vetro/cleanframe/doorbell'), payload = Buffer.from('ring');
+  const body = Buffer.concat([Buffer.from([0, topic.length]), topic, payload]);
+  const publish = shard.mqttPacket(0x30, body), ack = Buffer.from([0x20, 2, 0, 0]);
+  const parsed = shard.mqttPackets(Buffer.concat([ack, publish, publish.subarray(0, 3)]));
+  assert.equal(parsed.packets.length, 2); assert.equal(parsed.rest.length, 3);
+  assert.equal(parsed.packets[0].type, 2);
+  assert.deepEqual(shard.mqttPublish(parsed.packets[1]), { topic: 'vetro/cleanframe/doorbell', payload: 'ring' });
+  // QoS 1 publishes carry a packet id before the payload.
+  const q1 = shard.mqttPackets(shard.mqttPacket(0x32, Buffer.concat([Buffer.from([0, topic.length]), topic, Buffer.from([0, 7]), Buffer.from('clear')]))).packets[0];
+  assert.deepEqual(shard.mqttPublish(q1), { topic: 'vetro/cleanframe/doorbell', payload: 'clear' });
+  const big = shard.mqttPacket(0x30, Buffer.alloc(200)); assert.equal(big[1], 0xC8); assert.equal(big[2], 1);
+  assert.throws(() => shard.mqttPackets(Buffer.from([0x30, 0xff, 0xff, 0xff, 0x7f])));
+});
 test('uploaded ID/path allowlist rejects injection, aliases and traversal', () => {
   for (const id of ['../MY_A', 'MY_..', 'MY_A\n', 'MY_a;id', 'MY_a$(id)', "MY_a'b", 'STORE_A', 'MY_' + 'a'.repeat(65)]) assert.throws(() => shard.imagePath(id, PHOTO + id + '.jpg'));
   for (const suffix of ['.JPG', '.jpeg', '.jpg/../a', '.jpg?x', '.jpg\0']) assert.throws(() => shard.imagePath('MY_A', PHOTO + 'MY_A' + suffix));
@@ -183,7 +197,8 @@ test('ES5 shard and deterministic bounded text bundle', () => {
   const run = () => { const r = spawnSync(process.execPath, ['scripts/pack-art-bridge.mjs']); assert.equal(r.status, 0); return readFileSync(new URL('../dist/cleanframe-art.vplugin', import.meta.url)); };
   const first = run(); assert.deepEqual(run(), first);
   const b = JSON.parse(first); assert.equal(b.format, 'vetro-plugin'); assert.equal(b.manifest.apiVersion, 1); assert.deepEqual(b.manifest.permissions, ['exec']);
-  assert.deepEqual(Object.keys(b.files), ['index.js']); assert.equal(b.files['index.js'], source); assert.ok(first.length < 512 * 1024);
+  assert.ok(['index.js', 'pip.b64.json'].join() === Object.keys(b.files).join() || Object.keys(b.files).join() === 'index.js'); assert.equal(b.files['index.js'], source); assert.ok(first.length < 512 * 1024);
+  if (b.files['pip.b64.json']) assert.deepEqual(Object.keys(JSON.parse(b.files['pip.b64.json'])).sort(), ['cleanframe-pip.dll', 'cleanframe-pip.runtimeconfig.json', 'res/frame.png', 'res/mask.png']);
 });
 
 test('TV interface mode refuses other LAN clients and nonlocal bindings', () => {
