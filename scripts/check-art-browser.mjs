@@ -59,6 +59,7 @@ try {
   await p.screenshot({ path: out + 'art-background-public.png' });
   const geometry = await p.evaluate(() => { const root = document.getElementById('stage').getBoundingClientRect(), rows = document.getElementById('appearanceRows').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect(); return rows.bottom <= desc.top && rows.right <= root.right; });
   check('Background choices fit above the remote hint', geometry);
+  check('Art background keeps its original brightness without gallery scrims', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none') && getComputedStyle(document.getElementById('bg'), '::after').content === 'none'));
   await p.setViewportSize({ width: 1280, height: 720 });
   check('Art Settings retains single focus at 720p', (await p.evaluate(() => ShoreQA.where())).focusCount === 1);
   await p.screenshot({ path: out + 'art-background-720-public.png' });
