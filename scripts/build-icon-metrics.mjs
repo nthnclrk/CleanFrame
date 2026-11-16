@@ -1,18 +1,23 @@
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { openPreview, root } from './browser.mjs';
-const ids = readdirSync(root + 'app/assets/icons').filter(n => n.endsWith('.svg')).map(n => n.slice(0, -4));
+const files = readdirSync(root + 'app/assets/icons').filter(n => /\.(svg|png)$/.test(n));
 const preview = await openPreview();
 try {
   const page = await preview.browser.newPage();
   await page.goto(preview.baseURL + '/build/dock.html');
-  const metrics = await page.evaluate(async ids => {
+  const metrics = await page.evaluate(async files => {
     const result = {}, size = 240;
-    for (const id of ids) {
-      const source = await (await fetch('/home/assets/icons/' + id + '.svg')).text();
-      const svg = new DOMParser().parseFromString(source, 'image/svg+xml').documentElement;
-      svg.setAttribute('width', size); svg.setAttribute('height', size);
-      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-      const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+    for (const file of files) {
+      const id = file.replace(/\.(svg|png)$/, '');
+      const response = await fetch('/home/assets/icons/' + file);
+      let blob;
+      if (file.endsWith('.svg')) {
+        const svg = new DOMParser().parseFromString(await response.text(), 'image/svg+xml').documentElement;
+        svg.setAttribute('width', size); svg.setAttribute('height', size);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' });
+      } else blob = await response.blob();
+      const url = URL.createObjectURL(blob);
       const image = new Image();
       image.src = url;
       await image.decode();
@@ -38,8 +43,8 @@ try {
       result[id] = { n: size, x: left, y: top, w: width, h: height, fill: ink / (width * height) };
     }
     return result;
-  }, ids);
+  }, files);
   mkdirSync(root + '.local/materials', { recursive: true });
-  writeFileSync(root + '.local/materials/metrics.js', '/* Visible SVG ink measured at build time. */\nwindow.FrameIconMetrics = ' + JSON.stringify(metrics) + ';\n');
-  console.log('Measured ' + ids.length + ' icons. Output: .local/materials/metrics.js');
+  writeFileSync(root + '.local/materials/metrics.js', '/* Visible icon ink measured at build time. */\nwindow.FrameIconMetrics = ' + JSON.stringify(metrics) + ';\n');
+  console.log('Measured ' + files.length + ' icons. Output: .local/materials/metrics.js');
 } finally { await preview.close(); }

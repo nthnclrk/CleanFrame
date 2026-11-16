@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const shard = require('../vetro/cleanframe-art/index.js');
 const PHOTO = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/shared/trusted/data/my_photo/';
 const KEY = 'ArtLatestFullScreenData';
-const jpeg = readFileSync(new URL('../app/assets/wallpapers/misty.jpg', import.meta.url));
+const jpeg = readFileSync(new URL('fixtures/art-test.jpg', import.meta.url));
 const dimensions = shard.jpegSize(jpeg);
 const content = (id = 'MY_TEST', patch = {}) => ({ ContentID: id, ImagePath: PHOTO + id + '.jpg', ImageWidth: dimensions.width, ImageHeight: dimensions.height, PhotoFilter: 'None', UserMatteType: '', ...patch });
 function pref(c = content(), extra = {}) {

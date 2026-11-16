@@ -16,5 +16,19 @@
     "source": "https://github.com/simple-icons/simple-icons/blob/develop/icons/tubi.svg",
     "licence": "CC0-1.0",
     "note": "Shape unchanged; white fill for launcher."
+  },
+  {
+    "icon": "espn",
+    "source": "https://commons.wikimedia.org/wiki/File:ESPN_wordmark.svg",
+    "asset": "https://upload.wikimedia.org/wikipedia/commons/2/2f/ESPN_wordmark.svg",
+    "licence": "Public domain (text logo); trademark rights retained",
+    "source_sha256": "945971e0bd0074581fa971c487eba22b7031b0e4e9cf77328f6bd5dd16a5d5ca",
+    "note": "Original path geometry retained in scripts/assets/espn.svg, recoloured white, rasterised on transparent 512px square. Rebuild with node scripts/build-home-icons.mjs."
+  },
+  {
+    "icon": "livetv",
+    "source": "Original CleanFrame drawing",
+    "licence": "MIT",
+    "note": "TV receiver outline for antenna/cable Live TV, distinct from Samsung TV Plus."
   }
 ]

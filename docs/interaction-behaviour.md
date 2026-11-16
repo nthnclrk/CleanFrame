@@ -16,24 +16,22 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 
 | Group | Choices |
 | --- | --- |
-| Background | Photo, Light, Dark; Gallery or Art Mode source; Wallpaper and Rotation for Photo / Gallery |
+| Background | Art Mode, Light or Dark |
 | Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
-| Focus | Type or Glass; Soft, Frost or Clear tint material |
+| Focus | Type or Glass with neutral surfaces |
 | Apps on Home | Membership and arrangement editor |
 | Samsung | Samsung Home, TV settings and Inputs |
 
-Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. Wallpaper has its own temporary photo preview, described below. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
+Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. The preview continues to show the committed appearance while a change loads. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
 
-Material applies to a photographic Dock, or Glass focus on a photographic List. Inactive material choices remain visible with an explanation and are skipped during navigation. Their stored value is retained. Wallpaper and rotation are also inactive on flat backgrounds.
-
-A font or photo change applies only after its resources are ready and storage succeeds. A load or storage failure keeps the previous appearance and checkmark, with a Try again action. Back cancels a pending change, leaves the group and keeps completed changes. Late load callbacks cannot apply a cancelled choice. There is no Save button. Returning to a group restores its last choice focus; returning to Settings restores its category focus. Rotation is nested within Background, and Back returns to its Rotation row.
+A font or photo change applies only after its resources are ready and storage succeeds. A load or storage failure keeps the previous appearance and checkmark, with a Try again action. Back cancels a pending change, leaves the group and keeps completed changes. Late load callbacks cannot apply a cancelled choice. There is no Save button. Returning to a group restores its last choice focus; returning to Settings restores its category focus. There is no bundled wallpaper picker or rotation menu.
 
 The selected font applies to Home app names, the clock and Home controls, including Newsreader. Settings, All apps, the Home editor and status text retain Manrope. The preview shows the committed Home appearance and its clock continues to update. Pangram faces are available in Nathan's private build when the local files are present; their binaries are not included in the public source. An unavailable optional face is omitted. If the baseline font is slow or missing, Home remains usable with a local fallback and can recover when the font loads.
 
 ## Streaming apps
 
-The nine default apps keep their known native IDs. Other installed consumer apps can also be added to Home. Launching uses the public `tizen.application.launch` API with the app's native ID. Missing apps and denied launches produce a real error. No web player, placeholder success page or account credential is embedded.
+Fresh Home defaults are Live TV, Stremio, Netflix, Disney+, YouTube, Apple TV, Prime Video, ESPN and Apple Music. ABC iview and SBS are no longer defaults; saved custom Home choices and installed-app discovery remain intact. ESPN uses its existing native target and a white transparent PNG wordmark. Live TV uses a separate TV symbol and source action. Other installed consumer apps can also be added to Home. Launching uses the public `tizen.application.launch` API with the app's native ID. Missing apps and denied launches produce a real error. No web player, placeholder success page or account credential is embedded.
 
 ## All apps
 
@@ -76,11 +74,13 @@ Selecting a source, opening Samsung’s viewer, seeing the expected HDMI picture
 
 The launcher stores appearance, Home order, recently removed apps, the last launched Home app, wallpaper and rotation locally. List and Dock share these preferences. The existing `cleanframe.home.v1` key is retained, with a fallback read from `cleanframe.shore.v1`. Legacy List maps to Dark + List + Type; Glass Dock and Glass Grid map to Photo + Dock + Glass. App order, wallpaper, rotation and the last Home app are preserved.
 
-The gallery contains 15 bundled wallpapers. Settings → Background → Wallpaper keeps the two-pane Settings frame. Up/Down browses a vertical thumbnail list without wrapping; the right-hand Home preview shows the candidate while the surrounding Settings backdrop stays on the applied photo. OK applies the focused photo and stays in Wallpaper. The tick marks the applied photo and preview status distinguishes unsaved browsing. Back restores the latest applied photo, cancels pending loading and returns to Background’s Wallpaper row. Photo and material assets change as one complete bundle; a failed load restores the applied preview and offers retry. Preview loading waits briefly for remote focus to settle. OK during loading queues application for that photo; another browse move or Back cancels it. Browsing never saves, and repeated OK on the applied photo does not write again.
+Home backgrounds are Art Mode, Light or Dark. The bundled gallery and generated material files have been removed to reduce widget size. Existing `photo` preferences migrate to Art Mode; Light and Dark stay unchanged. Safe legacy wallpaper IDs and rotation modes remain stored for preference compatibility, but no corresponding file is loaded and rotation has no timer or menu.
 
-Settings → Background → Rotation offers Fixed, Each time Home opens, Every 5 minutes, Every 15 minutes and Every hour. Each time Home opens advances once when the launcher loads; a return to the already-running launcher does not advance it. Timed rotation counts only visible Photo Home time in either List or Dock. Panels, flat backgrounds and time spent in other apps pause the cycle. Changing the photo or rotation mode starts a new interval.
+Art Mode reads the last-good app-private image before asynchronously refreshing on visible Home lifecycle events. Arrow-key navigation performs no networking, and hidden startup does not poll. Back, hiding, failed loads and preference-write failures keep the previous completed appearance. If no image has ever been cached, startup uses an inline neutral background while the bridge is unavailable. Unmeasured Art photos use a fixed readable scrim and neutral surfaces; no generated gallery materials are requested. [Setup and cache details](art-mode-wallpaper.md) include physical checks still required.
 
-Gallery wallpapers, materials and available fonts are bundled local assets. The opt-in Art Mode source uses a local Vetro bridge to cache the current unfiltered uploaded Art photo, keeping the last successful image if the bridge is unavailable. It refreshes only on visible Home lifecycle events, never on navigation or a polling timer. Gallery selection and rotation stay saved while Art Mode is active. Unknown Art photos use a fixed readable scrim and neutral surfaces rather than generated gallery materials. Native Art Mode selection is unchanged. Setup, cache semantics and unverified device behaviour are documented in [Art Mode wallpaper sync](art-mode-wallpaper.md).
+## Live TV
+
+The main Live TV entry means antenna/cable channels, not Samsung TV Plus. On explicit OK, the adapter discovers `TV` records from `VIDEOSOURCE`, selects the active tuner when available or the sole reported tuner, then opens `org.tizen.tv-viewer`. It does not invent tuner number zero or merely reopen a viewer that might still be on HDMI. Missing, ambiguous or denied sources produce an honest error. Back, timeout, hiding or a newer source action prevents late discovery/selection callbacks from opening the viewer. An already-issued native selection may be uncancellable. No source discovery runs on focus or hidden startup. Actual broadcast picture/channel availability remains a physical TV check.
 
 ## Sources
 
@@ -93,6 +93,6 @@ The native Home operation and startup configuration from 19 October remain separ
 
 Both layouts show the TV's local time in 12-hour format, without AM/PM or seconds. It updates at the minute boundary and on return to the launcher. No date or clock panel is shown.
 
-Photographic materials and blurred panel backgrounds are generated before packaging and stay aligned with the full-screen image. Photo colour and contrast metadata are also prepared offline. Navigation does not sample image pixels, run an optics engine or apply live backdrop blur. Flat backgrounds use matching light or dark panel colours. Focus feedback uses transforms and opacity; reduced motion removes animated scaling and movement while retaining opacity feedback.
+Art Mode photos use neutral panels and a fixed scrim without precomputed photo metadata. Navigation does not sample image pixels, run an optics engine or apply live backdrop blur. Flat backgrounds use matching light or dark panel colours. Focus feedback uses transforms and opacity; reduced motion removes animated scaling and movement while retaining opacity feedback.
 
-Hidden prelaunch can install a fully loaded wallpaper bundle without waiting for an animation frame. A valid loaded image remains usable if detached-image decoding rejects. A failed startup bundle retries when the launcher becomes visible; an active wallpaper preview keeps its candidate. Font recovery clears fallback measurements and cached markup. This readiness fallback uses a completed load and nonzero image dimensions; it does not prove a TV has painted the image, and an accepted bundle is not automatically decoded again on return. These paths have browser regression coverage; physical cold-boot behaviour still needs owner observation.
+Hidden prelaunch can install a fully loaded wallpaper bundle without waiting for an animation frame. A valid loaded image remains usable if detached-image decoding rejects. A failed startup bundle retries when the launcher becomes visible; pending appearance cancellation keeps the last committed preview. Font recovery clears fallback measurements and cached markup. This readiness fallback uses a completed load and nonzero image dimensions; it does not prove a TV has painted the image, and an accepted bundle is not automatically decoded again on return. These paths have browser regression coverage; physical cold-boot behaviour still needs owner observation.

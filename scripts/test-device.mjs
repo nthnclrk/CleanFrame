@@ -161,3 +161,32 @@ test('unknown and invalid ports cannot be substituted and a newer request cancel
   h.sourceRequests[0].ok(video); assert.equal(h.changes.length, 0);
   h.sourceRequests[1].ok(video); assert.equal(h.changes[0].source.number, 2);
 });
+
+test('Live TV selects the discovered tuner record before opening the viewer', () => {
+  const h = harness(), results = [], tuner = { type: 'TV', number: 7 };
+  h.device.liveTV(error => results.push(error));
+  h.sourceRequests[0].ok({ connected: [...video.connected, tuner], disconnected: [{ type: 'TV', number: 7 }] });
+  assert.equal(h.changes[0].source, tuner); assert.equal(h.launches.length, 0);
+  h.changes[0].ok(tuner); assert.equal(h.launches[0].id, 'org.tizen.tv-viewer'); assert.equal(results.length, 0);
+  h.launches[0].ok(); assert.deepEqual(results, [null]);
+});
+test('Live TV rejects missing/ambiguous tuners and honours the active tuner', () => {
+  for (const tuners of [[], [{ type: 'TV', number: 0 }, { type: 'TV', number: 1 }], [{ type: 'TV', number: '0' }]]) {
+    const h = harness(), results = []; h.device.liveTV(error => results.push(error));
+    h.sourceRequests[0].ok({ connected: tuners }); assert.equal(results.length, 1); assert.ok(results[0]); assert.equal(h.changes.length, 0);
+  }
+  const h = harness(); h.setCurrent({ type: 'TV', number: 1 }); h.device.liveTV(() => {});
+  h.sourceRequests[0].ok({ connected: [{ type: 'TV', number: 0 }, { type: 'TV', number: 1 }] }); assert.equal(h.changes[0].source.number, 1);
+});
+test('Live TV cancellation, timeout, mismatched selection and viewer failures remain errors', () => {
+  for (const mode of ['cancel', 'timeout', 'different', 'viewer', 'throw']) {
+    const h = harness({ throwSource: mode === 'throw' }), results = []; h.device.liveTV(error => results.push(error));
+    if (mode === 'cancel') h.device.cancelSource();
+    if (mode === 'timeout') h.advance(8000);
+    h.sourceRequests[0].ok({ connected: [{ type: 'TV', number: 0 }] });
+    if (mode === 'different') h.changes[0].ok({ type: 'HDMI', number: 0 });
+    if (mode === 'viewer') { h.changes[0].ok({ type: 'TV', number: 0 }); h.launches[0].fail(); }
+    assert.equal(results.length, 1); assert.ok(results[0]);
+    if (mode === 'cancel' || mode === 'timeout') assert.equal(h.changes.length, 0);
+  }
+});

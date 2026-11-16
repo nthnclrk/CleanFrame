@@ -8,21 +8,21 @@ Start with Node.js 22.13+ (22 LTS), or 24+, and Python 3.10+, then `npm ci`. The
 
 `npm run dev:public` serves the same interface using only the bundled public fonts, even when paid Pangram files exist locally. For a contributor's fresh clone, use the README and `docs/for-agents.md`; the signing/device setup below describes the reference machine and needs adaptation for another owner.
 
-All UI assets, public fonts and the fifteen gallery wallpapers are bundled. An optional [Art Mode wallpaper source](art-mode-wallpaper.md) uses a TV-local Vetro shard and an app-private last-good cache; the gallery requires no service. This private build also includes the three locally installed Pangram families through an ignored build overlay; their binaries are not in the public source tree. Glass materials and blurred panel backgrounds are rendered ahead of time; see app/assets/wallpapers/README.md.
+UI assets and public fonts are bundled. [Art Mode wallpaper sync](art-mode-wallpaper.md) uses a TV-local Vetro shard and an app-private last-good cache. This personal fork ships no photo gallery or material JPEGs; Light, Dark and an inline neutral fallback need no service. This private build also includes the three locally installed Pangram families through an ignored build overlay; their binaries are not in the public source tree. Art Mode uses fixed neutral surfaces; see [assets](assets.md).
 
 ## Runtime map and compatibility
 
-- `app/index.html` loads the device adapter, gallery/font/palette catalogues, `assets/icons/metrics.js` and `main.js`, with `style.css`.
-- `main.js` owns the List and Dock layouts, panel stack, focus, preferences and wallpaper timers. `art-mode.js` owns the optional TV-local fetch and private photo cache; it has no automatic polling. `device.js` owns installed-app discovery and Tizen calls. Keep device details in that adapter.
+- `app/index.html` loads the device adapter, the font catalogue, `assets/icons/metrics.js` and `main.js`, with `style.css`.
+- `main.js` owns the List and Dock layouts, panel stack, focus, preferences and atomic appearance bundles. `art-mode.js` owns the optional TV-local fetch and private photo cache; it has no automatic polling. `device.js` owns installed-app discovery and Tizen calls. Keep device details in that adapter.
 - The logical stage is 1920 x 1080, scaled uniformly to the viewport. Check at 1920 x 1080 and 1280 x 720. Glass geometry and cached materials must stay aligned.
 - Preferences use localStorage key `cleanframe.home.v1`, with a fallback read from `cleanframe.shore.v1`. Legacy fields are `dock`, `wallpaper`, `mode`, `lastApp` and `theme`. The 0.6 migration preserves app order, wallpaper, rotation and selection. Legacy `list` becomes Dark / List / Type; `shore` and `grid` become Photo / Dock / Glass. Appearance axes are stored separately. A saved dynamic app keeps its real app ID and name; discovery refreshes the installed catalogue. Keep migration checks when changing this format.
-- `window.ShoreQA.state()` and `.where()` expose state and focus for browser tests. `minuteMs` can shorten rotation intervals in an isolated browser test.
+- `window.ShoreQA.state()` and `.where()` expose state and focus for browser tests. Legacy wallpaper and rotation fields remain readable, but there is no gallery or rotation timer.
 
 The tested target is the Tizen 9.0 TV in [TV status](tv-status.md); [contributor reports](compatibility.md) cover other TVs. The manifest’s `required_version="5.0"` admits Tizen 5.0 and later for web installation. It is an installation floor, not proof that every device flow works on every admitted TV. Current-source and adapted-build reports are identified separately in the compatibility table; Tizen 4.0 remains an owner experiment. The exact reference TV Chromium/WebKit engine version has not been recorded. `npm run lint` uses ESLint's ES5 grammar for all runtime JavaScript and checks undefined names, unused code and dynamic evaluation. This does not check DOM/CSS or TV API availability; verify new APIs on the target before claiming support. The CSS guard rejects `inset` and flex `gap` declarations; use explicit top/right/bottom/left edges and child margins. The child-margin spacing targets the older engine reported in PR #11. The manifest minimum was lowered separately from those rendering changes. Geometry checks cover both Home layouts, all three control modes and both preview sizes; they do not establish TV compositor support. Tooling stays in development dependencies and outside the widget. See [ESLint's language options](https://eslint.org/docs/latest/use/configure/language-options).
 
 `npm run check` and `npm run check:device` are offline. The latter uses a synthetic Tizen API and clock; its name does not authorise or perform a device connection.
 
-Keep material rendering in the development tools. See [asset generation](assets.md) and [testing](testing.md).
+Keep any future material generation in development tools. See [asset generation](assets.md) and [testing](testing.md).
 
 ## Local TV tools and signing
 

@@ -18,15 +18,14 @@ The public app uses Manrope, Geist and Newsreader. A personal widget containing 
 | --- | --- |
 | Simple Icons service marks | CC0; exact revisions and adaptations in `app/assets/icons/SOURCES.json` and `ADDITIONAL-SOURCES.json`. The CC0 text is retained beside the icons. |
 | Disney+, ABC and SBS marks | [Custom Brand Icons](https://github.com/elax46/custom-brand-icons), MIT. The retained licence is `app/assets/icons/CUSTOM-BRAND-ICONS-LICENSE.txt`. ABC and SBS sources were replaced during the public-source review. Exact revisions, source files and extraction/recolour notes are in `SOURCES.json`. |
-| Art, apps, settings and home outlines | Original CleanFrame drawings, covered by the project's MIT licence. |
+| ESPN wordmark | [Wikimedia Commons source](https://commons.wikimedia.org/wiki/File:ESPN_wordmark.svg), identified there as public-domain text/logo geometry. White PNG derived from the retained path; provenance and source hash in `ADDITIONAL-SOURCES.json`. ESPN retains trademark rights. |
+| Art, apps, settings, home and Live TV outlines | Original CleanFrame drawings, covered by the project's MIT licence. |
 
 Brand marks identify services. Their owners retain trademark rights; this project claims no endorsement or affiliation. The older Australian TV icon archive's GPL text is retained for historical provenance only; no current icon uses that archive.
 
 ## Photographs and derived materials
 
-The fifteen photo pages were individually checked on 20 October 2026. Each displayed its credited author and free use under the [Unsplash License](https://unsplash.com/license). The [asset source register](docs/asset-sources.md) links every page. Runtime paths are in `app/assets/wallpapers/SOURCES.json`.
-
-Photographers retain their rights. Wallpapers, thumbnails, panel backgrounds and material fields derive from the credited photographs and retain their terms. The Unsplash licence permits copying, modification and distribution subject to its restrictions, including on selling unmodified images and building a competing image service.
+This personal fork no longer ships the fifteen bundled photographs, thumbnails, panel backdrops or derived materials. Their historical source/credit record remains in `docs/gallery-sources.json` and [the source register](docs/asset-sources.md). The original images remain available in Git history under their original terms. Owner-selected Art Mode photos are read locally into private caches and are never included in source or exported widgets. Owners retain responsibility for their photo rights.
 
 ## Development dependencies and exports
 
