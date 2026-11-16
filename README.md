@@ -72,6 +72,33 @@ The optional [2020 LS03T profile](scripts/native-home/frame-2020/README.md) supp
 
 The detailed [device record](docs/tv-status.md) separates observed results from SDK responses. Native Home/startup uses undocumented, guarded helpers; it is optional and can fail after firmware changes. Keep a recovery baseline before attempting that work. The app can be opened manually without it.
 
+## Samsung OLED TVs (S90F) and Windows
+
+CleanFrame was built for The Frame, whose matte LCD panel is meant to show a still picture. A QD-OLED panel such as the S90F can retain static images, so this build changes the defaults:
+
+- **No Art Mode control.** OLED TVs don't offer Samsung's Art Mode as a destination, so Home has All apps and Settings only.
+- **Pixel shift.** Every minute the whole stage moves one step through a nine-position pattern of up to 3 screen pixels.
+- **Idle protection.** After 3 minutes without a remote key, Home fades to 82% black; after 8 minutes it goes fully black (pixels off). Any key restores it.
+- **TV screen saver stays on.** `config.xml` never sets `screen-saver`, so the TV's own screen saver and sleep timers keep working.
+- **Fresh-install look.** Photo / Dock / Glass, starting on the darkest bundled photo, with rotation each time Home opens. Saved and legacy preferences are kept. Flat Dark is still available in Settings → Background.
+- **Default Home.** Nine streaming apps, including regional services; edit `DEFAULT_HOME` in `app/main.js` for your region, or change them in Apps on Home.
+
+### Extra setup steps on Windows
+
+These steps were needed on top of the [setup guide](docs/agent-tv-setup-guide.md) when building on Windows 11:
+
+1. **Clone with long paths.** Deep folders can exceed Windows' path limit: `git -c core.longpaths=true clone https://github.com/nthnclrk/CleanFrame.git`.
+2. **Make `python3` real.** The npm scripts call `python3`, which on Windows is often a Microsoft Store alias. Turn off the `python3` alias in Settings → Apps → Advanced app settings → App execution aliases, or put a `python3.exe` copy of your Python interpreter earlier on `PATH`. Then run `npx playwright install chromium` for the browser checks.
+3. **Install Tizen Studio as administrator.** The IDE installer (it includes Certificate Manager) needs elevation. Choose a path without spaces, for example `C:\Users\<you>\tizen-studio`. Then, in Package Manager → **Extension SDK**, install **TV Extensions** and **Samsung Certificate Extension**. Package Manager commands also need elevation.
+4. **Developer Mode and the host IP.** In Apps → App Settings, enter `12345` and set the Host PC IP to your computer's current LAN address. Then cut power at the wall for about ten seconds. Before trying SDB, confirm the setting took effect: `http://<TV_IP>:8001/api/v2/` should report `"developerMode": "1"` and your computer's address as `developerIP`. If your computer's DHCP address changes, the TV refuses SDB, so reserve the address in your router.
+5. **Connect and read the DUID.** Run `sdb connect <TV_IP>:26101`, `sdb capability` and `sdb shell 0 getduid`. Keep the DUID in `.local/`.
+6. **Certificates.** In Certificate Manager choose **+ → Samsung → TV**, create the author and distributor certificates (distributor privilege **Public**, with your DUID) and sign in to your Samsung account yourself.
+7. **Your own app identity.** The CLI on this SDK lists no TV-specific template, but `tizen create web-project -p tizen-9.0 -t WebBasicApplication -n CleanFrame -- <temp folder>` generates a valid random package ID. Copy `package` and `id` from its `config.xml` into `.local/signing.json`, set `sdk_path` with forward slashes and keep `password_file` as `null`.
+8. **Package, install and launch.** `scripts/package.py` relies on POSIX terminals, so on Windows use `python scripts/package_windows.py`. It runs the same build and identity checks and uses the SDK-managed certificate passwords. Then run `python scripts/tv.py install` and `python scripts/tv.py launch`.
+9. **Resetting preferences.** An in-place update keeps the app's saved preferences. To see new defaults, uninstall first with `sdb shell 0 vd_appuninstall <APP_ID>`, but only while no native Home assignment points at the app.
+
+Native Home/startup reassignment has not been attempted on an S90F. Follow the guarded process in the setup guide, including the recovery baseline, before trying it.
+
 ## Develop and check
 
 ```sh

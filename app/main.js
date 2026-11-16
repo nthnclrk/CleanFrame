@@ -25,6 +25,17 @@
     { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' }
   ];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
+  /* Fresh-install Home for the OLED build: nine common streaming apps (the Home maximum), including
+     regional services seen on an Indian-market S90F. Edit this list for your region. Apps without a
+     bundled mark use the TV's own icon once installed-app discovery runs at startup; an app that is
+     not installed reports a real launch error and can be removed in Apps on Home. */
+  var DEFAULT_EXTRA = [
+    { id: 'fiZNCxMH9Y.Hotstar', name: 'JioHotstar' }, { id: 'wKDM33Rods.ZEE5', name: 'ZEE5' },
+    { id: 'EUKHUxrGQA.SonyLIV', name: 'SonyLIV' }, { id: '0KIXYIdUgJ.FanCode', name: 'FanCode' },
+    { id: 'dY5YOOBTrj.airtelxstream', name: 'Xstream Play' }
+  ];
+  DEFAULT_EXTRA.forEach(function (a) { APPS.push({ id: a.id, appId: a.id, name: a.name, mark: false }); });
+  var DEFAULT_HOME = ['netflix', 'youtube', 'primevideo', 'fiZNCxMH9Y.Hotstar', 'wKDM33Rods.ZEE5', 'EUKHUxrGQA.SonyLIV', 'appletv', '0KIXYIdUgJ.FanCode', 'dY5YOOBTrj.airtelxstream'];
   var WALLS = window.CleanFrameWallpapers || [{ id: 'misty', name: 'Misty coast', tone: 'light', ut: { tr: 'mist', br: 'mist' }, frostVeil: .20 }];
   var ADAPTIVE_INK = window.CleanFrameAdaptiveInk || {};
   WALLS.forEach(function (w) { w.ut = w.ut || { tr: 'light', br: 'light' }; w.frostVeil = w.frostVeil || .12; });
@@ -47,7 +58,7 @@
   var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var UTIL = { apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
@@ -328,7 +339,7 @@
   }
   function clean(saved) {
     var s = saved && typeof saved === 'object' ? saved : {}, modern = s.look && typeof s.look === 'object' ? s.look : s;
-    var legacyList = s.theme === 'list', h = [], recent = [], records = Array.isArray(s.appRecords) ? s.appRecords : [];
+    var legacyList = s.theme === 'list', legacyPhoto = s.theme === 'shore' || s.theme === 'grid', fresh = !legacyList && !legacyPhoto && !s.look, h = [], recent = [], records = Array.isArray(s.appRecords) ? s.appRecords : [];
     records.slice(0, 256).forEach(function (a) {
       if (!a || !safeId(a.id) || !safeId(a.appId) || typeof a.name !== 'string' || !a.name.trim() || app(a.id)) return;
       APPS.push({ id: a.id, appId: a.appId, name: a.name.slice(0, 160), brand: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0 ? a.brand : '', mark: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0, icon: safeIcon(a.icon) });
@@ -338,15 +349,15 @@
       if (!app(id) && id.indexOf('.') > 0) APPS.push({ id: id, appId: id, name: id.split('.').pop(), mark: false });
       if (app(id)) h.push(id);
     });
-    if (!h.length) h = PRIMARY.slice();
+    if (!h.length) h = DEFAULT_HOME.slice();
     (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
-      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
+      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : fresh && wall('night') ? 'night' : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
-      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
+      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), fresh ? 'open' : 'fixed')
     };
   }
   function serialise(c) {
@@ -491,15 +502,14 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings']; }
+  function utils() { return ['apps', 'settings']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
   function utilAction(u) {
-    if (u === 'art') perform('Art Mode', FrameDevice.art);
-    else if (u === 'apps') openApps();
+    if (u === 'apps') openApps();
     else openSettings();
   }
   function addAppsRoute() { openEditor('home'); }
@@ -1789,11 +1799,24 @@
       if (rotationActive()) setLook({ wall: WALLS[(wallIndex(S.c.wall) + 1) % WALLS.length].id }, { row: 'bg' });
     }, Math.max(10, mode().min * QA.minuteMs - activeMs));
   }
+  /* OLED protection: Home never sits still. Each minute the whole stage moves a few pixels, and after
+     idle time it dims to near-black, then to pure black. The TV's own screen saver stays enabled. */
+  var SHIFTS = [[0, 0], [3, 0], [3, 3], [0, 3], [-3, 3], [-3, 0], [-3, -3], [0, -3], [3, -3]], shiftStep = 0;
+  var idleTimer = 0, idleDeepTimer = 0, IDLE_DIM_MS = 3 * QA.minuteMs, IDLE_BLACK_MS = 8 * QA.minuteMs;
+  function advanceShift() { shiftStep = (shiftStep + 1) % SHIFTS.length; shiftX = SHIFTS[shiftStep][0]; shiftY = SHIFTS[shiftStep][1]; fit(); }
+  function wake() {
+    clearTimeout(idleTimer); clearTimeout(idleDeepTimer);
+    stage.classList.remove('oled-dim', 'oled-black');
+    if (document.hidden) return;
+    idleTimer = setTimeout(function () { stage.classList.add('oled-dim'); }, IDLE_DIM_MS);
+    idleDeepTimer = setTimeout(function () { stage.classList.add('oled-black'); }, IDLE_BLACK_MS);
+  }
+  function clockTick() { advanceShift(); updateClock(); }
   function updateClock() {
     clearTimeout(clockTimer);
     if (document.hidden) return;
     if (top().id === 'home' || isSettingsDetail(top())) renderCaption(top(), homeState(top()));
-    clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
+    clockTimer = setTimeout(clockTick, 60000 - (Date.now() % 60000) + 30);
   }
   function focusStage() { try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
   function after() {
@@ -1812,11 +1835,12 @@
     else if (name === 'editor') { openSettings(); openEditor('settings'); }
     after();
   }
+  var shiftX = 0, shiftY = 0;
   function fit() {
     var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
     stage.style.transform = 'scale(' + scale + ')';
-    stage.style.left = ((window.innerWidth - 1920 * scale) / 2) + 'px';
-    stage.style.top = ((window.innerHeight - 1080 * scale) / 2) + 'px';
+    stage.style.left = ((window.innerWidth - 1920 * scale) / 2 + shiftX) + 'px';
+    stage.style.top = ((window.innerHeight - 1080 * scale) / 2 + shiftY) + 'px';
   }
   function renderedAction(el) {
     return el.getClientRects().length > 0 && window.getComputedStyle(el).visibility !== 'hidden';
@@ -1867,19 +1891,21 @@
     if (code === 9) { ev.preventDefault(); return; }
     if (!k || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     ev.preventDefault();
+    wake();
     if (k === 'ok' || k === 'back') { if (ev.repeat || heldKeys[code]) return; heldKeys[code] = true; }
     press(k);
   });
   document.addEventListener('keyup', function (ev) { delete heldKeys[ev.keyCode]; });
   window.addEventListener('blur', function () { heldKeys = {}; });
-  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); });
+  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); wake(); });
   document.addEventListener('visibilitychange', function () {
     heldKeys = {};
-    if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
+    if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); clearTimeout(idleTimer); clearTimeout(idleDeepTimer); }
     else {
       release();
       if (S.c.bg === 'photo' && !S.pending && !S.previewBundle && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
-      refreshInputsOnReturn(); after(); updateClock(); focusStage();
+      refreshInputsOnReturn(); after(); updateClock(); focusStage(); wake();
+      if (!catalog.loaded) refreshCatalog();
     }
   });
   window.addEventListener('resize', fit);
@@ -1918,5 +1944,6 @@
   cueL.innerHTML = icon('left'); cueR.innerHTML = icon('right');
   initialise();
   setLook({}, { transient: true, startup: true });
-  norm(); render(); fit(); focusStage(); updateClock(); syncRotation();
+  norm(); render(); fit(); focusStage(); updateClock(); syncRotation(); wake();
+  if (!document.hidden) refreshCatalog();
 })();

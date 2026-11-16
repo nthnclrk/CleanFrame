@@ -24,6 +24,7 @@ const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/styl
 const hashes = () => Object.fromEntries(sourceFiles.map(f => [f, createHash('sha256').update(readFileSync(root + f)).digest('hex')]));
 const report = { scope: 'Production UI in Chromium; mock public Tizen API only; no TV contacted.', sourceBefore: hashes(), checks: [], failures: [], pageErrors: [], expectedNetworkFailures: [] };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const UTIL_COUNT = 2; // Home controls: util.apps and util.settings
 const baseline = (patch = {}) => ({ dock: PRIMARY.slice(), wallpaper: walls[0].id, mode: 'fixed', lastApp: 'netflix', theme: 'shore', ...patch });
 let preview, current, section = '';
 
@@ -235,8 +236,14 @@ try {
       const s = await state();
       check(theme + ' preserves order, wallpaper and rotation', same(s.dock, ['youtube', 'netflix']) && s.wallpaper === walls[1].id && s.mode === '15' && s.lastApp === 'youtube', s);
       check(theme + ' maps to intended two-layout appearance', s.look.layout === (theme === 'list' ? 'list' : 'dock') && s.look.bg === (theme === 'list' ? 'dark' : 'photo'), s.look);
+      if (theme === 'list') check('list migrates to Type focus', s.look.focus === 'type', s.look);
       await closePage();
     }
+    await page({ seed: { lastApp: 'netflix' } });
+    check('Fresh install defaults to Photo, Dock and Glass with rotation on open', (await state()).committed.bg === 'photo' && (await state()).committed.focus === 'glass' && (await state()).committed.mode === 'open', (await state()).committed);
+    check('Fresh install Home holds the nine installed streaming apps', (await state()).committed.home.length === 9 && (await state()).committed.home.includes('fiZNCxMH9Y.Hotstar'), (await state()).committed.home);
+    check('Fresh install Home has exactly two utility controls', same(await current.locator('#utils .u').evaluateAll(es => es.map(e => e.dataset.action)), ['util.apps', 'util.settings']));
+    await closePage();
     await page({ seed: undefined, legacy: baseline({ theme: 'list', dock: ['netflix'], lastApp: 'netflix' }) });
     check('Old shore key is read', (await state()).dock.length === 1 && (await state()).look.layout === 'list');
     await look({ controls: 'text' });
@@ -300,7 +307,8 @@ try {
       p.__expectedFailures.push('/assets/materials/');
       await p.route('**/assets/materials/*', route => failImages ? route.abort('failed') : route.continue());
     });
-    await current.waitForFunction(() => window.ShoreQA && !ShoreQA.state().pending && !ShoreQA.ready());
+    // Timer polling: the harness pauses requestAnimationFrame while hidden, which would stall rAF polling.
+    await current.waitForFunction(() => window.ShoreQA && !ShoreQA.state().pending && !ShoreQA.ready(), null, { polling: 50 });
     const before = await stored();
     failImages = false;
     await current.evaluate(() => window.__setHidden(false)); await ready();
@@ -348,7 +356,7 @@ try {
         await look({ bg: 'photo', layout, controls, focus: 'glass', font: 'manrope' }); await scene('home');
         if ((await call('where')).zone === 'util') await nav('back');
         await nav(layout === 'dock' ? 'up' : 'right');
-        await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+        await nav(...Array(UTIL_COUNT).fill(layout === 'dock' ? 'left' : 'up'));
         await current.waitForTimeout(180);
         const spacing = await current.evaluate(({ layout, controls }) => {
           const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -361,9 +369,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === UTIL_COUNT && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < UTIL_COUNT; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -453,6 +461,16 @@ try {
     await current.waitForSelector('[data-action="inputs.retry"]');
     check('Empty inventory is truthful', (await current.locator('#stage').innerText()).includes('No HDMI inputs were reported'));
   });
+  await run('OLED idle protection', async () => {
+    await page({ minuteMs: 200 });
+    check('Stage starts undimmed', await current.evaluate(() => { const c = document.getElementById('stage').classList; return !c.contains('oled-dim') && !c.contains('oled-black'); }));
+    await current.waitForSelector('#stage.oled-dim', { state: 'attached', timeout: 4000 });
+    check('Idle dims before going black', !(await current.evaluate(() => document.getElementById('stage').classList.contains('oled-black'))));
+    await current.waitForSelector('#stage.oled-black', { state: 'attached', timeout: 6000 });
+    await current.keyboard.press('ArrowDown');
+    check('Any key clears dim and black', await current.evaluate(() => { const c = document.getElementById('stage').classList; return !c.contains('oled-dim') && !c.contains('oled-black'); }));
+    await current.waitForSelector('#stage.oled-dim', { state: 'attached', timeout: 4000 });
+  });
   await run('Real catalogue and native launch boundary', async () => {
     await page(); await library();
     const names = await current.locator('[data-action^="apps.open."] .label').allTextContents();
@@ -465,14 +483,11 @@ try {
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => __tv.calls.length === 2);
     check('Primary app keeps verified target', (await current.evaluate(() => __tv.calls.at(-1))).id === IDS[1]);
     await current.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await act('util.art'); await current.waitForFunction(() => __tv.calls.length === 3);
-    const art = await current.evaluate(() => __tv.calls.at(-1));
-    check('Art Mode uses app-control with fullscreen request', art.method === 'launchAppControl' && art.id === 'org.tizen.art-app' && art.control.data.some(d => d.key === 'mode' && d.value[0] === 'fullscreen'), art);
     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.home');
-    await current.waitForFunction(() => __tv.calls.length === 4);
+    await current.waitForFunction(() => __tv.calls.length === 3);
     check('Samsung escape keeps CSFS target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.csfs');
     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.settings');
-    await current.waitForFunction(() => __tv.calls.length === 5);
+    await current.waitForFunction(() => __tv.calls.length === 4);
     check('TV settings keeps installed target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.coba.setting');
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.launchFailure = true; });
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
@@ -585,7 +600,8 @@ try {
       await current.setViewportSize({ width, height: width * 9 / 16 }); await look({ layout });
       await current.waitForFunction(w => Math.abs(document.getElementById('stage').getBoundingClientRect().width - w) < 1, width);
       const g = await current.evaluate(() => { const b = document.getElementById('stage').getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, focus: ShoreQA.where().focusCount }; });
-      check(layout + ' fits ' + width + ' with one focus', Math.abs(g.x) < 1 && Math.abs(g.y) < 1 && Math.abs(g.width - width) < 1 && Math.abs(g.height - width * 9 / 16) < 1 && g.focus === 1, g);
+      // OLED pixel shift may offset the stage by up to 3 screen px after a minute boundary.
+      check(layout + ' fits ' + width + ' with one focus', Math.abs(g.x) <= 3 && Math.abs(g.y) <= 3 && Math.abs(g.width - width) < 1 && Math.abs(g.height - width * 9 / 16) < 1 && g.focus === 1, g);
       await current.screenshot({ path: out + 'production-' + layout + '-' + width + '.jpg', quality: 90 });
     }
     check('No live blur/backdrop filters', (await noLiveFilters()).length === 0, await noLiveFilters());
