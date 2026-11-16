@@ -114,7 +114,7 @@ try {
   report.startupMs = Date.now() - start;
   const startupResources = await page.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
   check('No wallpaper gallery thumbnail fetch at startup', !startupResources.some(u => /-thumb\./.test(u)));
-  await look({ bg: 'photo', layout: 'list', apps: 'both', controls: 'icons', focus: 'glass', material: 'soft', font: 'manrope' });
+  await look({ layout: 'list', apps: 'both', controls: 'icons', focus: 'glass', material: 'soft', font: 'inter' });
   await sample('Photo List navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
   await look({ layout: 'dock' });
   await sample('Photo Dock navigation', ['right', 'right', 'right', 'left', 'left', 'left']);
@@ -123,7 +123,8 @@ try {
   await scene('settings');
   await sample('Settings navigation', ['down', 'down', 'up', 'up']);
   await scene('apps');
-  check('Performance inventory includes 24 real-adapter rows including Live TV', (await call('state')).catalog.ids.length === 24);
+  const inventory = (await call('state')).catalog.ids;
+  check('Performance inventory has 23 real-adapter rows after Live TV and HDMI 1-4', inventory.length === 28 && JSON.stringify(inventory.slice(0, 5)) === JSON.stringify(['livetv', 'hdmi1', 'hdmi2', 'hdmi3', 'hdmi4']), inventory);
   await sample('All Apps grid navigation', ['down', 'down', 'right', 'up', 'up', 'left']);
   await scene('editor');
   await sample('Apps on Home navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
@@ -133,20 +134,21 @@ try {
   await scene('appearance');
   await sample('Appearance row navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
   await scene('home');
-  await look({ font: 'newsreader', layout: 'list', apps: 'text', controls: 'text' });
-  await sample('Newsreader List navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
+  await look({ layout: 'list', apps: 'text', controls: 'text' });
+  await sample('Text List navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
   await call('nav', 'right');
-  await sample('Newsreader Home controls', ['up', 'up', 'down', 'down']);
+  await sample('Text Home controls', ['up', 'up', 'down', 'down']);
 
-  const backgrounds = ['photo', 'light', 'dark'];
+  // Art Mode is the only background; cycle the remaining Home appearance axes instead.
+  const cycle = [{ layout: 'dock', focus: 'glass', apps: 'both' }, { layout: 'list', focus: 'type', apps: 'text' }, { layout: 'list', focus: 'glass', apps: 'icons' }];
   const loadTimes = [];
   await scene('home');
-  for (const bg of backgrounds) {
-    const t = Date.now(); await call('look', { bg }); await ready();
-    loadTimes.push({ bg, ms: Date.now() - t });
+  for (const patch of cycle) {
+    const t = Date.now(); await call('look', patch); await ready();
+    loadTimes.push({ ...patch, ms: Date.now() - t });
   }
   report.appearanceLoads = loadTimes;
-  check('All backgrounds apply within bounded browser budget', loadTimes.every(r => r.ms < report.budgets.appearanceMaximumMs), loadTimes);
+  check('All appearance changes apply within bounded browser budget', loadTimes.every(r => r.ms < report.budgets.appearanceMaximumMs), loadTimes);
   await page.waitForLoadState('networkidle');
   const beforeSame = await memory();
   const sameWall = (await call('state')).wallpaper;
@@ -155,20 +157,22 @@ try {
   const afterSame = await memory();
   check('Selecting current photo reuses bundle', beforeSame.images.resources === afterSame.images.resources && beforeSame.images.elements === afterSame.images.elements, { before: beforeSame.images, after: afterSame.images });
   // Prime the small cycle before comparing retained objects.
-  const cycle = backgrounds;
-  for (const bg of cycle) { await call('look', { bg }); await ready(); }
+  for (const patch of cycle) { await call('look', patch); await ready(); }
   await page.waitForTimeout(300);
   report.memoryBefore = await memory();
-  for (let repeat = 0; repeat < 4; repeat++) for (const bg of cycle) { await call('look', { bg }); await ready(); }
+  for (let repeat = 0; repeat < 4; repeat++) for (const patch of cycle) { await call('look', patch); await ready(); }
   await page.waitForTimeout(300);
   report.memoryAfter = await memory();
   const a = report.memoryAfter, b = report.memoryBefore;
-  check('Photo cycles retain bounded DOM/image count', a.dom.nodes - b.dom.nodes < 40 && a.images.elements <= b.images.elements + 2, { before: b.dom, after: a.dom, imagesBefore: b.images.elements, imagesAfter: a.images.elements });
-  check('Post-GC JS heap has no multi-megabyte growth over photo cycles', a.heapBytes - b.heapBytes < 2 * 1024 * 1024, { before: b.heapBytes, after: a.heapBytes, growth: a.heapBytes - b.heapBytes });
+  check('Appearance cycles retain bounded DOM/image count', a.dom.nodes - b.dom.nodes < 40 && a.images.elements <= b.images.elements + 2, { before: b.dom, after: a.dom, imagesBefore: b.images.elements, imagesAfter: a.images.elements });
+  check('Post-GC JS heap has no multi-megabyte growth over appearance cycles', a.heapBytes - b.heapBytes < 2 * 1024 * 1024, { before: b.heapBytes, after: a.heapBytes, growth: a.heapBytes - b.heapBytes });
 
   report.layers = layers.filter(l => l.drawsContent).map(l => ({ width: l.width, height: l.height, paintCount: l.paintCount }));
   report.liveFilters = await page.evaluate(() => [...document.querySelectorAll('#stage, #stage *')].filter(e => e.getClientRects().length).map(e => {
-    const s = getComputedStyle(e); return { tag: e.tagName, cls: e.className, filter: s.filter, backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none' };
+    const s = getComputedStyle(e);
+    // As in check-browser: the Art photo and its frosted sheet copy may carry the static #artCurve colour curve only.
+    const curve = document.getElementById('artCurve'), colourOnly = (e.id === 'photo' || e.id === 'sheetBg' || e.id === 'matImg') && curve && curve.querySelectorAll('*').length === [...curve.querySelectorAll('feComponentTransfer, feFuncR, feFuncG, feFuncB')].length;
+    return { tag: e.tagName, cls: e.className, filter: colourOnly ? s.filter.replace(/url\("?#artCurve"?\)/, '') : s.filter, backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none' };
   }).filter(s => /blur|url\(/.test(s.filter) || s.backdrop !== 'none'));
   check('No runtime optical blur/backdrop layer', report.liveFilters.length === 0, report.liveFilters);
   check('No browser/resource errors', report.errors.length === 0, report.errors);

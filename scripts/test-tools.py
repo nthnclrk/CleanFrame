@@ -273,11 +273,10 @@ with zipfile.ZipFile(target, 'a') as archive:
 
     def test_public_check_reads_index_and_history(self):
         for name in ['scripts/check-public.py', 'scripts/font_assets.py', 'scripts/local_config.py', 'scripts/private_files.py',
-                     'app/assets/fonts/SOURCES.json', 'app/assets/manrope.woff2', 'app/assets/manrope-OFL.txt',
-                     'app/assets/fonts/geist/OFL.txt', 'app/assets/fonts/newsreader/OFL.txt']:
+                     'app/assets/inter.woff2', 'app/assets/inter-OFL.txt']:
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(b'[]' if name.endswith('SOURCES.json') else (ROOT / name).read_bytes())
+            target.write_bytes((ROOT / name).read_bytes())
         git_env = {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
         git_env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
         def git(*args):

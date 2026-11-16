@@ -14,7 +14,7 @@ with zipfile.ZipFile(output, 'a', zipfile.ZIP_DEFLATED) as archive:
     names = archive.namelist()
     assert not any(name.startswith('assets/private-fonts/') for name in names), 'Private font in public widget'
     assert not any(Path(name).name.startswith('PP') and Path(name).suffix.lower() in ['.ttf', '.otf', '.woff', '.woff2'] for name in names), 'Proprietary font in public widget'
-    assert 'CleanFramePrivateFontIDs = ["geist", "newsreader"]' in archive.read('assets/font-catalog.js').decode(), 'Unexpected public font catalogue'
+    assert 'CleanFramePrivateFontIDs = []' in archive.read('assets/font-catalog.js').decode(), 'Unexpected public font catalogue'
     for notice in ['LICENSE', 'THIRD_PARTY_NOTICES.md']:
         assert (ROOT / notice).is_file(), 'Missing distribution notice: ' + notice
         archive.write(ROOT / notice, notice)

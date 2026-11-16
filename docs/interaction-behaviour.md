@@ -13,22 +13,25 @@
 
 ## Settings and appearance
 
-Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps on Home and Samsung. OK opens a group. Appearance groups use a two-pane screen with visible choices on the left and the committed Home preview on the right.
+Settings has three rows: **Apps on Home** (the membership and arrangement editor), **Visual** and **Samsung Home**. Samsung Home is an action: OK opens Samsung's Home screen directly. The background is always the Art Mode photo, and Inter is the only typeface. Visual uses a two-pane screen with visible choices on the left and the committed Home preview on the right.
 
-| Group | Choices |
+| Visual row | Choices |
 | --- | --- |
-| Background | Art Mode, Light or Dark |
-| Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
-| Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
-| Focus | Type or Glass (default); on Art Mode, Glass is a translucent frosted pane |
-| Apps on Home | Membership and arrangement editor |
-| Samsung | Samsung Home, TV settings and Inputs |
+| Layout | List or Dock |
+| Focus | Glass (default) or Text; on Art Mode, Glass is a translucent frosted pill |
+| App display | Text, Icons or Both |
+| Home controls | Text, Icons or Both |
+| Inputs on Home | When connected (default) or Always, for HDMI entries on Home |
 
 Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. The preview continues to show the committed appearance while a change loads. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
 
 A font or photo change applies only after its resources are ready and storage succeeds. A load or storage failure keeps the previous appearance and checkmark, with a Try again action. Back cancels a pending change, leaves the group and keeps completed changes. Late load callbacks cannot apply a cancelled choice. There is no Save button. Returning to a group restores its last choice focus; returning to Settings restores its category focus. There is no bundled wallpaper picker or rotation menu.
 
-The selected font applies to Home app names, the clock and Home controls, including Newsreader. Settings, All apps, the Home editor and status text retain Manrope. The preview shows the committed Home appearance and its clock continues to update. Pangram faces are available in Nathan's private build when the local files are present; their binaries are not included in the public source. An unavailable optional face is omitted. If the baseline font is slow or missing, Home remains usable with a local fallback and can recover when the font loads.
+Settings, All apps, the Home editor and Home all use Inter. If Inter is slow or missing, Home remains usable with a local fallback and recovers when the font loads.
+
+## Lights and Cameras
+
+When configured on the TV (`cleanframe.controls.v1`), Home's controls start with **Lights** and **Cameras**; otherwise only Apps and Settings appear. Lights asks the TV-local bridge to fire the owner's Vetro rule, which publishes an MQTT message for Home Assistant; the label briefly confirms "TV lights" or reports "Lights unavailable". Cameras opens a view of go2rtc MJPEG streams that start only when it opens and stop when it closes or CleanFrame is hidden. Each tile keeps its stream's own shape; the arrangement (row, column, a tall or wide tile beside the rest, or two rows) that gives every camera the most picture is chosen. Arrows move between cameras, OK shows one full screen, Back returns.
 
 ## Streaming apps
 
@@ -36,13 +39,13 @@ Fresh Home defaults are Live TV, Stremio, Netflix, Disney+, YouTube, Apple TV, P
 
 ## All apps
 
-The panel reads `tizen.application.getAppsInfo` on entry and shows the filtered consumer apps alphabetically. Samsung's visibility flag alone also exposes system utilities, so EP packages, background services, ad players, account utilities, placeholders and duplicates are omitted. Known brands use bundled marks. Other apps use their local installed icon, with initials as a fallback.
+The panel reads `tizen.application.getAppsInfo` on entry and shows Live TV and HDMI 1–4 first, then the filtered consumer apps alphabetically. Samsung's visibility flag alone also exposes system utilities, so EP packages, background services, ad players, account utilities, placeholders and duplicates are omitted. Known brands use bundled marks. Other apps use their local installed icon, with initials as a fallback.
 
 The five-column grid scrolls with remote focus. OK launches an app; its On Home badge shows membership. Up from the first row reaches Apps on Home, which opens the editor. An API failure shows a retry and keeps saved Home choices. Browser previews report that installed-app discovery and launching require the TV.
 
 ## Apps on Home
 
-Open the editor from Settings or All apps. On Home shows the current order on the left. Not on Home shows Recently removed first, followed by other installed apps on the right. Home holds one to nine apps.
+Open the editor from Settings or All apps. On Home shows the current order on the left. Not on Home shows Recently removed first, followed by other installed apps on the right. Home holds one to 24 apps; the On Home column scrolls, and a "Then scroll" line marks where Home itself starts scrolling.
 
 - Reorder: OK on an app name picks it up. Up/Down moves it. OK places it and saves the order. Back puts an unplaced app back without saving that move.
 - Remove: Right from an app name reaches Remove from Home. OK saves the removal and moves focus to the same app in Recently removed. The app stays installed.

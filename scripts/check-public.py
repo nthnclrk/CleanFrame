@@ -60,10 +60,8 @@ def forbidden(name):
             or (path.name.startswith('PP') and path.suffix.lower() in font_suffixes))
 
 
-public_fonts = {'app/assets/manrope.woff2': 'e310b55a7fd9677f5e3555e6c6c4d064fa1f1d24393f0ddbe217cea12a8c432f'}
-for record in json.loads((ROOT / 'app/assets/fonts/SOURCES.json').read_text()):
-    if Path(record['file']).suffix.lower() in font_suffixes:
-        public_fonts['app/assets/fonts/' + record['file']] = record['sha256']
+public_fonts = {'app/assets/inter.woff2': '693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3'}
+# Inter 4.1 InterVariable.woff2, https://github.com/rsms/inter/releases/tag/v4.1 (SIL OFL 1.1).
 
 for name in sorted(candidates):
     if forbidden(name):
@@ -121,7 +119,7 @@ for path in private_fonts:
     if git('hash-object', str(path)).decode().strip() in object_ids:
         findings.append('Known proprietary font bytes in Git history: ' + path.name)
 
-for name in ['app/assets/fonts/geist/OFL.txt', 'app/assets/fonts/newsreader/OFL.txt', 'app/assets/manrope-OFL.txt']:
+for name in ['app/assets/inter-OFL.txt']:
     if not (ROOT / name).is_file():
         findings.append('Missing public font licence: ' + name)
 

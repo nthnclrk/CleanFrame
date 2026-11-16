@@ -14,14 +14,14 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%}
-body{font-family:Manrope,Arial,sans-serif;background:#e7e5df;color:#1c1c1a;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+body{font-family:Inter,Arial,sans-serif;background:#e7e5df;color:#1c1c1a;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
 [hidden]{display:none!important}
 
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
 
 /* ---------- Stage ---------- */
-.stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:#1d2a30;color:var(--ink);font-family:Manrope,Arial,sans-serif;font-size:32px;line-height:1.2;outline:0;-webkit-user-select:none;user-select:none;cursor:default}
+.stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:#1d2a30;color:var(--ink);font-family:Inter,Arial,sans-serif;font-size:32px;line-height:1.2;outline:0;-webkit-user-select:none;user-select:none;cursor:default}
 .stage [data-z]{cursor:pointer}
 .stage .ico{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .home{position:absolute;left:0;top:0;width:1920px;height:1080px}
@@ -143,7 +143,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .cue{position:absolute;top:768px;left:0;width:48px;height:48px;border-radius:24px;background:rgba(8,14,18,.28);color:#fff;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 160ms linear;pointer-events:none}
 .cue.is-on{opacity:.8}
 .cue .ico{width:30px;height:30px;stroke-width:2}
-.dock-action{position:absolute;left:0;top:932px;width:288px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:500;letter-spacing:-.3px;white-space:nowrap;color:var(--mute);background:none;opacity:0;pointer-events:none;transition:transform var(--t) var(--ease),opacity 120ms linear,background-color 120ms linear}
+.dock-action{position:absolute;left:0;top:988px;width:288px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:500;letter-spacing:-.3px;white-space:nowrap;color:var(--mute);background:none;opacity:0;pointer-events:none;transition:transform var(--t) var(--ease),opacity 120ms linear,background-color 120ms linear}
 .dock-action.is-on{opacity:1;pointer-events:auto}
 .dock-action.is-focus{background:var(--solid);color:var(--solid-ink)}
 .dock-action>span{display:block;max-width:100%;padding:0 20px;overflow:hidden;text-overflow:ellipsis}
@@ -359,7 +359,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .focus-status.is-on{display:flex}
 .focus-status.dark-ink{color:var(--solid-warn)}
 .focus-status.photo-status{background:none}
-.dock-action.has-local-status{top:924px;height:84px}
+.dock-action.has-local-status{top:980px;height:84px}
 .dock-action.has-local-status>span,.er-rm.has-local-status>span{transform:translateY(-13px);font-size:26px}
 .u.has-local-status .u-label,.btn.has-local-status>span{transform:translateY(-12px);font-size:26px}
 .er-name.has-local-status .er-text,.eo.has-local-status .eo-text,.set-row.has-local-status>span{transform:translateY(-12px)}
@@ -491,7 +491,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .is-horizontal .setting-tick{width:26px;margin-left:0}
 .is-horizontal .setting-tick .ico{width:26px;height:26px}
 .section-material .setting-choice:last-child{flex:1.4}
-.detail-layout .setting-section+.setting-section,.detail-focus .setting-section+.setting-section{margin-top:64px}
+/* Visual holds five rows of choices; keep them compact enough to sit above the remote hint. */
+.detail-layout .setting-section+.setting-section{margin-top:20px}
+.detail-layout.appearance .appearance-rows{top:216px}
+.detail-layout .is-horizontal .setting-choice{min-height:68px;padding:8px 18px;font-size:32px;line-height:40px}
 .detail-typography .setting-choice{min-height:88px}
 .detail-typography .appearance-rows,.detail-samsung .appearance-rows{top:260px}
 .setting-choice.has-description{min-height:120px}
@@ -541,7 +544,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .quiet-utils.is-text .u{padding:0 14px}
 .l-list .quiet-utils.is-text .u-label{max-width:330px}
 
-/* Selected fonts affect Home only. Settings, editors and status retain Manrope. */
+/* Selected fonts affect Home only. Settings, editors and status retain Inter. */
 .home{font-synthesis:none}
 .font-custom .home{font-family:var(--font-ui-family),sans-serif;font-weight:var(--font-ui-weight)}
 .font-custom .home .ph-name{font-family:var(--font-display-family),sans-serif;font-weight:var(--font-display-weight);letter-spacing:-.01em}
@@ -553,14 +556,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .font-custom .home .quiet-utils .u-label{position:relative;top:var(--font-utility-shift)}
 .font-custom.l-list .home .quiet-utils .u-label{top:calc(-1px + var(--font-utility-shift))}
 .font-custom .home .ph-action>span,.font-custom .home .dock-action>span{position:relative;top:var(--font-action-shift)}
-.home .monogram,.home .cap-count,.home .cap-line:not(.full-name),.home .wall-keep,.home .error-chip{font-family:Manrope,Arial,sans-serif}
-.font-newsreader .home{font-variation-settings:"opsz" 28;font-optical-sizing:none}
-.font-newsreader .home .ph-name{font-variation-settings:"opsz" 72;font-optical-sizing:none}
-.font-newsreader .home .clock{font-variation-settings:"opsz" 48;font-optical-sizing:none}
-.font-newsreader .home .tile .label,.font-newsreader .home .app-focus-name,.font-newsreader .home .full-name{font-variation-settings:"opsz" 36;font-optical-sizing:none}
-.font-newsreader .home .cap-title,.font-newsreader .home .header-utils,.font-newsreader .home .dock-action,.font-newsreader .home .ph-action,.font-newsreader .home .btn,.font-newsreader .home .dock-empty p,.font-newsreader .home .ph-empty p{font-variation-settings:"opsz" 36}
-.font-newsreader .home .wall-keep{font-family:var(--font-ui-family),serif;font-weight:400;font-variation-settings:"opsz" 36;letter-spacing:0}
-.font-newsreader .home .header-utils .u-label,.font-newsreader .home .wall-keep{position:relative;top:var(--font-action-shift)}
+.home .monogram,.home .cap-count,.home .cap-line:not(.full-name),.home .wall-keep,.home .error-chip{font-family:Inter,Arial,sans-serif}
 .is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation:font-in 160ms linear}
 @keyframes font-in{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){.is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation-duration:120ms}}
@@ -610,7 +606,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .art-curve{position:absolute;left:0;top:0;width:0;height:0;overflow:hidden}
 .source-art .home{--ink:#f4f4f1;--ph-ink:#f4f4f1;color:#f4f4f1}
 .source-art .clock,.source-art .ph-name,.source-art .quiet-utils .u,.source-art .util-focus-label{text-shadow:-1px 0 #111,1px 0 #111,0 -1px #111,0 1px #111,0 2px 8px rgba(0,0,0,.65)}
-.source-art .mat{background:#182026}
+.source-art .mat{background:rgba(24,32,38,.5)}
+.source-art .mat-img.is-frost{visibility:visible}
+.source-art .mat .mat-veil{visibility:visible;background:rgba(255,255,255,.08)}
 .source-art .mat-img,.source-art .mat-scrim,.source-art .mat-veil,.source-art .ph-field{visibility:hidden}
 /* Frosted focus on Art: a translucent light pane over the original photo.
    Static gradients only; no backdrop blur or pixel sampling on the TV. */
@@ -629,3 +627,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .detail-background .setting-swatch{width:64px;height:40px}
 
 .swatch-art{background:#182026;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+/* Cameras: tiles keep each stream's own shape; no transitions on size or position. */
+.cams{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.cam{position:absolute;padding:0;border:0;border-radius:24px;overflow:hidden;background:#05080a;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+.cam img{display:block;width:100%;height:100%;object-fit:contain}
+.cam-name{position:absolute;left:16px;bottom:16px;padding:4px 14px;border-radius:18px;background:rgba(8,10,12,.62);font-size:26px;line-height:32px;font-weight:600;color:#f4f4f1}
+.cam.is-focus{box-shadow:0 0 0 5px rgba(255,255,255,.92),0 12px 36px rgba(0,0,0,.36)}
+.cam.is-hidden{visibility:hidden}
+.cams-full .s-title,.cams-full .cam-hint{display:none}
+.cams-full .cam{border-radius:0;box-shadow:none}
+.cam-hint{top:1000px}
+

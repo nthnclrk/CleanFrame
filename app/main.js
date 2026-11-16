@@ -4,13 +4,14 @@
 
   /* ---------- Bundled data ---------- */
   var ASSETS = 'assets/', ICONS = ASSETS + 'icons/';
-  var CAP = 9, SCRIM_Y = 560;
+  var CAP = 24, SCRIM_Y = 560; // Home scrolls, so the cap only guards against runaway lists.
   var DOCK_MODES = { both: { tw: 288, th: 200, pitch: 296 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
+  var DOCK_BOTTOM = 964; // The dock sits low on the screen, clear of the middle.
   var ED_ROW = 80, ED_SEP = 56, ED_VIEW = 752;
   var PH_LEFT = 80, PH_TOP = 136, PH_LIST_TOP = 40, PH_PITCH = 128, PH_FULL = 7, PH_HEIGHT = 1040, PH_COMPACT_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9, PH_PLATE_H = 106, PH_GROW = 1.06;
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
-  var FULL = 'Home holds nine apps. Remove one first.', LAST = 'Home needs one app';
+  var FULL = 'Home holds ' + CAP + ' apps. Remove one first.', LAST = 'Home needs one app';
 
   var PRIMARY_APPS = [
     { id: 'stremio', name: 'Stremio', mark: true, appId: 'IkWsFHtOY9.Stremio' },
@@ -24,24 +25,37 @@
     { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' }
   ];
   PRIMARY_APPS.push({ id: 'espn', name: 'ESPN', mark: true, appId: 'XtU8fQk2gN.ESPN' }, { id: 'livetv', name: 'Live TV', mark: true, appId: 'org.tizen.tv-viewer', source: true },
-    { id: 'browser', name: 'Browser', mark: true, appId: 'org.tizen.browser' }, { id: 'hdmi4', name: 'HDMI 4', mark: true, appId: 'org.tizen.tv-viewer', source: true, port: 4 });
+    { id: 'browser', name: 'Browser', mark: true, appId: 'org.tizen.browser' }, { id: 'hdmi1', name: 'HDMI 1', mark: true, brand: 'hdmi4', appId: 'org.tizen.tv-viewer', source: true, port: 1 },
+    { id: 'hdmi2', name: 'HDMI 2', mark: true, brand: 'hdmi4', appId: 'org.tizen.tv-viewer', source: true, port: 2 },
+    { id: 'hdmi3', name: 'HDMI 3', mark: true, brand: 'hdmi4', appId: 'org.tizen.tv-viewer', source: true, port: 3 },
+    { id: 'hdmi4', name: 'HDMI 4', mark: true, appId: 'org.tizen.tv-viewer', source: true, port: 4 });
+  var SOURCES = ['livetv', 'hdmi1', 'hdmi2', 'hdmi3', 'hdmi4'];
   var DEFAULT_HOME = ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'hdmi4'];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = {};
   var FONTS = {
-    manrope: { name: 'Manrope', family: 'Manrope', display: 600, ui: 500, clock: 500 },
-    montreal: { name: 'Neue Montreal', family: 'Study Montreal', display: 300, ui: 400, clock: 300 },
-    mori: { name: 'Mori', family: 'Study Mori', display: 200, ui: 400, clock: 200 },
-    pangram: { name: 'Pangram Sans', family: 'Study Pangram', display: 300, ui: 400, clock: 300 },
-    geist: { name: 'Geist', family: 'Study Geist', display: 300, ui: 400, clock: 300 },
-    newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
+    inter: { name: 'Inter', family: 'Inter', display: 600, ui: 500, clock: 500 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { source: ['art'], bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
+  var LOOK_VALUES = { source: ['art'], bg: ['photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'inter' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], inputs: ['connected', 'always'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { apps: ['Apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Text', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', connected: 'When connected', always: 'Always' };
+  var UTIL = { lights: ['Lights', 'lights'], cameras: ['Cameras', 'cameras'], apps: ['Apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  /* Optional owner controls, configured on the TV (never in public source):
+     cleanframe.controls.v1 = { lights: true, go2rtc: 'http://192.168.x.y:1984', cameras: [{ name, src }] }.
+     Without it, Home shows only Apps and Settings. */
+  var CONTROLS = (function () {
+    var c = null, out = { lights: false, go2rtc: '', cameras: [] };
+    try { c = JSON.parse(localStorage.getItem('cleanframe.controls.v1')); } catch (e) { c = null; }
+    if (!c || typeof c !== 'object') return out;
+    out.lights = c.lights === true;
+    if (typeof c.go2rtc === 'string' && /^http:\/\/(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2,3}:\d{2,5}$/.test(c.go2rtc)) out.go2rtc = c.go2rtc;
+    if (out.go2rtc && Array.isArray(c.cameras)) c.cameras.slice(0, 6).forEach(function (cam) {
+      if (cam && typeof cam.name === 'string' && cam.name.trim() && typeof cam.src === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(cam.src)) out.cameras.push({ name: cam.name.trim().slice(0, 40), src: cam.src });
+    });
+    return out;
+  }());
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
@@ -51,6 +65,8 @@
     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
     settings: '<path d="m9 3-.6 2.4-2 1.2L4 6l-2 3.5L3.8 11v2L2 14.5 4 18l2.4-.6 2 1.2L9 21h6l.6-2.4 2-1.2 2.4.6 2-3.5-1.8-1.5v-2L22 9.5 20 6l-2.4.6-2-1.2L15 3Z"/><circle cx="12" cy="12" r="3.2"/>',
     home: '<path d="M4 11 12 4.5l8 6.5v8a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/>',
+    lights: '<path d="M9 18h6M10 21h4M8.2 14.5A6 6 0 1 1 15.8 14.5c-.8.7-1.3 1.6-1.3 2.5h-5c0-.9-.5-1.8-1.3-2.5Z"/>',
+    cameras: '<rect x="3" y="6.5" width="13" height="11" rx="2.2"/><path d="m16 10.5 5-3v9l-5-3"/>',
     undo: '<path d="M9 6 5 10l4 4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H11"/>',
     check: '<path d="m5.5 12.5 4 4 9-9"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -67,20 +83,20 @@
   var REDUCED_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var S = {
     variant: 'B', geom: 'broad', c: null, stack: null,
-    sel: null, selIdx: 0, lastUtil: 0, appsFocus: null, settingsFocus: 'background', appearanceFocus: 'bg', detailFocus: {},
+    sel: null, selIdx: 0, lastUtil: 0, appsFocus: null, settingsFocus: 'editor', appearanceFocus: 'layout', detailFocus: {},
     undo: [], removedAt: {}, note: null, err: null,
     writes: 0, failed: 0, log: [], logN: 0, lastLaunch: null, press: null,
     wallShown: null, wallPending: null, wallError: null,
     shown: null, pending: null, lookError: null, bundleKey: null, reflow: false, fontSwitch: false
   };
   var scroll = { first: 0, off: 0, photo: 0, photoArrange: 0 };
-  var homeSources = { active: false, hdmi4: false, request: 0, stop: null };
+  var homeSources = { active: false, ports: {}, request: 0, stop: null };
   function pick(v, list, fallback) {
     v = String(v || '').toLowerCase();
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { source: c.source, bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function lookOf(c) { return { source: c.source, bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, inputs: c.inputs }; }
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
@@ -89,9 +105,11 @@
   function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function onHome(id) { return S.c.home.indexOf(id) >= 0; }
-  function visibleHome() { return S.c.home.filter(function (id) { return id !== 'hdmi4' || homeSources.hdmi4; }); }
+  function hdmiPort(id) { var a = app(id); return a && a.source && a.port || 0; }
+  /* HDMI entries show while their input is connected, or always when Inputs on Home is Always. */
+  function visibleHome() { return S.c.home.filter(function (id) { var p = hdmiPort(id); return !p || S.c.inputs === 'always' || homeSources.ports[p]; }); }
   function syncHomeSources() {
-    var eligible = !document.hidden && top().id === 'home' && onHome('hdmi4'), token, events = 0, initialEvents;
+    var eligible = !document.hidden && top().id === 'home' && S.c.inputs !== 'always' && S.c.home.some(hdmiPort), token, events = 0, initialEvents;
     if (!eligible) {
       if (homeSources.active) {
         homeSources.active = false; homeSources.request++;
@@ -104,8 +122,9 @@
     homeSources.active = true; token = ++homeSources.request;
     function accept(err, inputs) {
       if (token !== homeSources.request || !homeSources.active || document.hidden || top().id !== 'home') return;
-      var connected = !err && inputs.some(function (input) { return input.number === 4 && input.connected; });
-      if (homeSources.hdmi4 !== connected) { homeSources.hdmi4 = connected; ensureSel(); render(); }
+      var ports = {};
+      if (!err) inputs.forEach(function (input) { if (input.connected) ports[input.number] = true; });
+      if (JSON.stringify(ports) !== JSON.stringify(homeSources.ports)) { homeSources.ports = ports; ensureSel(); render(); }
     }
     homeSources.stop = FrameDevice.watchSources(function (inputs) { events++; accept(null, inputs); });
     initialEvents = events;
@@ -161,16 +180,16 @@
   measureSpan.setAttribute('aria-hidden', 'true');
   measureSpan.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;white-space:pre;font-synthesis:none;';
   document.body.appendChild(measureSpan);
-  function homeFont() { return S.shown && S.shown.font || 'manrope'; }
+  function homeFont() { return S.shown && S.shown.font || 'inter'; }
   function fontRole(id, role, size) {
-    var f = FONTS[id], serif = id === 'newsreader';
+    var f = FONTS[id], serif = false;
     return { family: f.family,
       weight: role === 'display' || role === 'clock' ? f.display : serif ? 400 : f.ui,
       opsz: serif ? role === 'display' ? 72 : role === 'clock' ? 48 : role === 'ui' && (!size || size === 28) ? 28 : 36 : 0 };
   }
   function measureFace(id, faces) {
     var result = { roles: {}, digits: [], digitCell: 0 }, roles = { display: [88, 76, 56], clock: [48], primary: [30, 32, 34, 36, 40], ui: [28, 30, 48] };
-    var face = id === 'newsreader' ? faces[0][0] : null, original = face ? face.variationSettings : '', r, widths, min, max;
+    var face = null, original = face ? face.variationSettings : '', r, widths, min, max;
     Object.keys(roles).forEach(function (role) {
       result.roles[role] = {};
       // Canvas has no optical-size property. Set this face's default only while measuring;
@@ -194,7 +213,7 @@
     return result;
   }
   function fontChoices() {
-    LOOK_VALUES.font = Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0 && !unavailableFonts[id]; });
+    LOOK_VALUES.font = Object.keys(FONTS).filter(function (id) { return id === 'inter' || PRIVATE_FONTS.indexOf(id) >= 0 && !unavailableFonts[id]; });
   }
   function retryFontFaces(id) {
     // A rejected CSS FontFace cannot load again. Recreate only that failed family's
@@ -215,9 +234,9 @@
   function loadFont(id, done) {
     var f = FONTS[id], weights = [f.display], timer, ended = false;
     if (fontMetrics[id]) { done(true); return; }
-    if (!document.fonts || !document.fonts.load) { if (id === 'manrope') { fontMetrics.manrope = measureFace('manrope', []); fontsReady = true; done(true); } else done(false, 'unsupported'); return; }
+    if (!document.fonts || !document.fonts.load) { if (id === 'inter') { fontMetrics.inter = measureFace('inter', []); fontsReady = true; done(true); } else done(false, 'unsupported'); return; }
     if (unavailableFonts[id]) retryFontFaces(id);
-    if (id !== 'newsreader' && weights.indexOf(f.ui) < 0) weights.push(f.ui);
+    if (weights.indexOf(f.ui) < 0) weights.push(f.ui);
     function finish(ok, reason, faces) {
       if (ended) return;
       ended = true; clearTimeout(timer);
@@ -225,7 +244,7 @@
         fontMetrics[id] = measureFace(id, faces); delete unavailableFonts[id];
         // Measurements and cached markup belong to a particular loaded font.
         widthCache = {}; fontRevision++;
-        if (id === 'manrope') fontsReady = true;
+        if (id === 'inter') fontsReady = true;
       } else if (reason !== 'timeout') unavailableFonts[id] = true;
       fontChoices(); done(ok, reason);
     }
@@ -236,35 +255,35 @@
   }
   var baselineRecovery = false;
   function ensureFont(id, done) {
-    loadFont('manrope', function (ok, reason) {
-      if (!ok && id === 'manrope') {
+    loadFont('inter', function (ok, reason) {
+      if (!ok && id === 'inter') {
         // The local fallback keeps Home usable if the baseline face is slow or missing.
-        fontMetrics.manrope = measureFace('manrope', []); fontMetrics.manrope.fallback = true; fontsReady = true;
+        fontMetrics.inter = measureFace('inter', []); fontMetrics.inter.fallback = true; fontsReady = true;
         done(true, reason);
         if (!baselineRecovery && document.fonts && document.fonts.ready) {
           baselineRecovery = true;
           document.fonts.ready.then(function () {
-            delete fontMetrics.manrope; delete unavailableFonts.manrope;
-            loadFont('manrope', function (loaded) {
-              if (!loaded) { fontMetrics.manrope = measureFace('manrope', []); fontMetrics.manrope.fallback = true; fontsReady = true; }
+            delete fontMetrics.inter; delete unavailableFonts.inter;
+            loadFont('inter', function (loaded) {
+              if (!loaded) { fontMetrics.inter = measureFace('inter', []); fontMetrics.inter.fallback = true; fontsReady = true; }
               render();
             });
           });
         }
         return;
       }
-      if (!ok || id === 'manrope') done(ok, reason); else loadFont(id, done);
+      if (!ok || id === 'inter') done(ok, reason); else loadFont(id, done);
     });
   }
   function fontShift(role, size) {
-    var id = homeFont(), base = fontMetrics.manrope, metrics = fontMetrics[id], a, b;
-    if (id === 'manrope' || !base || !metrics) return 0;
+    var id = homeFont(), base = fontMetrics.inter, metrics = fontMetrics[id], a, b;
+    if (id === 'inter' || !base || !metrics) return 0;
     a = base.roles[role][size]; b = metrics.roles[role][size];
     return (a.ascent - a.descent - a.cap - b.ascent + b.descent + b.cap) / 2;
   }
   function textWidth(text, size, weight, spacing, role) {
     var id = homeFont(), r = fontRole(id, role || 'ui', size), key, width;
-    if (id !== 'manrope') { weight = r.weight; spacing = role === 'display' ? -size * .01 : 0; }
+    if (id !== 'inter') { weight = r.weight; spacing = role === 'display' ? -size * .01 : 0; }
     key = [id, role || 'ui', text, size, weight, spacing].join('|');
     if (widthCache.hasOwnProperty(key)) return widthCache[key];
     if (r.opsz) {
@@ -287,8 +306,7 @@
   function photoLabel(id, compact) {
     var text = app(id).name, size = compact ? 56 : 88, limit = compact ? 640 : 992, width = textWidth(text, size, 600, -1.8, 'display');
     if (!compact && width > limit) { size = 76; width = textWidth(text, size, 600, -1.8, 'display'); }
-    // Newsreader's ninth compact Type row otherwise enters the lower fade by .63px.
-    return { size: size, top: (compact ? 10.66 : size === 76 ? 10.36 : 9.68) + fontShift('display', size) - (compact && homeFont() === 'newsreader' ? .7 : 0), width: Math.min(limit, width), ellipsis: width > limit };
+    return { size: size, top: (compact ? 10.66 : size === 76 ? 10.36 : 9.68) + fontShift('display', size), width: Math.min(limit, width), ellipsis: width > limit };
   }
   function listPlateWidth(id, compact) {
     if (S.c.apps === 'icons') return compact ? 120 : 144;
@@ -341,26 +359,36 @@
     }
     return null;
   }
+  var BRANDS = ['hbomax', 'spotify', 'tubi', 'youtubetv'];
+  /* Saved ids that name a built-in app by its Tizen id map to the built-in entry. */
+  function canonicalId(id) {
+    for (var i = 0; i < PRIMARY_APPS.length; i++) if (!PRIMARY_APPS[i].source && PRIMARY_APPS[i].appId === id) return PRIMARY_APPS[i].id;
+    return id;
+  }
   function clean(saved) {
     var s = saved && typeof saved === 'object' ? saved : {}, modern = s.look && typeof s.look === 'object' ? s.look : s;
     var legacyList = s.theme === 'list', h = [], recent = [], records = Array.isArray(s.appRecords) ? s.appRecords : [];
     records.slice(0, 256).forEach(function (a) {
-      if (!a || !safeId(a.id) || !safeId(a.appId) || typeof a.name !== 'string' || !a.name.trim() || app(a.id)) return;
-      APPS.push({ id: a.id, appId: a.appId, name: a.name.slice(0, 160), brand: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0 ? a.brand : '', mark: ['hbomax', 'spotify', 'tubi'].indexOf(a.brand) >= 0, icon: safeIcon(a.icon) });
+      var brand;
+      // A record for a built-in app (e.g. ESPN by its Tizen id) would list it twice.
+      if (!a || !safeId(a.id) || !safeId(a.appId) || typeof a.name !== 'string' || !a.name.trim() || app(a.id) || canonicalId(a.id) !== a.id) return;
+      brand = BRANDS.indexOf(a.brand) >= 0 ? a.brand : (window.FrameBrands || {})[a.appId] || '';
+      APPS.push({ id: a.id, appId: a.appId, name: a.name.slice(0, 160), brand: brand, mark: !!brand, icon: safeIcon(a.icon) });
     });
     (Array.isArray(s.home) ? s.home : Array.isArray(s.dock) ? s.dock : []).forEach(function (id) {
+      id = canonicalId(id);
       if (!safeId(id) || h.indexOf(id) >= 0 || h.length >= CAP) return;
       if (!app(id) && id.indexOf('.') > 0) APPS.push({ id: id, appId: id, name: id.split('.').pop(), mark: false });
       if (app(id)) h.push(id);
     });
     if (!h.length) h = DEFAULT_HOME.slice();
-    (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
+    (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { id = canonicalId(id); if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
       source: 'art',
-      bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
+      bg: 'photo', layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
-      focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
-      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: safeId(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : 'art',
+      focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'), inputs: pick(modern.inputs, LOOK_VALUES.inputs, 'connected'),
+      font: pick(modern.font, LOOK_VALUES.font, 'inter'), wall: safeId(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : 'art',
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
       mode: pick(s.mode, ['fixed', 'open', '5', '15', '60'], 'fixed')
     };
@@ -491,7 +519,7 @@
       catalog.loading = false;
       if (err) { catalog.error = err.message || 'Could not read installed apps.'; if (!catalog.loaded) ALPHA = []; render(); return; }
       oldFocus = top().id === 'apps' ? ALPHA[top().f.i] : null;
-      ALPHA = ['livetv', 'hdmi4'];
+      ALPHA = [];
       entries.forEach(function (entry) {
         var id = PRIMARY.indexOf(entry.brand) >= 0 ? entry.brand : entry.appId, a;
         if (!safeId(id) || !safeId(entry.appId) || entry.appId === 'org.tizen.tv-viewer' || ALPHA.indexOf(id) >= 0) return;
@@ -503,6 +531,7 @@
         ALPHA.push(id);
       });
       ALPHA.sort(function (a, b) { return app(a).name.toLowerCase().localeCompare(app(b).name.toLowerCase()); });
+      ALPHA = SOURCES.concat(ALPHA); // Live TV and inputs lead All apps.
       catalog.loaded = true; catalog.error = null; catalog.revision++;
       if (top().id === 'apps' && oldFocus && ALPHA.indexOf(oldFocus) >= 0) top().f.i = ALPHA.indexOf(oldFocus);
       norm(); render();
@@ -510,20 +539,39 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['apps', 'settings']; }
+  function utils() { return (CONTROLS.lights ? ['lights'] : []).concat(CONTROLS.cameras.length ? ['cameras'] : [], ['apps', 'settings']); }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
   function utilAction(u) {
-    if (u === 'apps') openApps();
+    if (u === 'lights') pressLights();
+    else if (u === 'cameras') openCameras();
+    else if (u === 'apps') openApps();
     else openSettings();
   }
+  /* Lights: the TV-local bridge fires the owner's Vetro rule, which tells Home Assistant over MQTT. */
+  var lightsFlash = null, lightsTimer = 0;
+  function pressLights() {
+    var xhr = new window.XMLHttpRequest(), done = false;
+    function finish(ok) {
+      if (done) return; done = true;
+      lightsFlash = ok ? 'TV lights' : 'Lights unavailable'; clearTimeout(lightsTimer);
+      lightsTimer = setTimeout(function () { lightsFlash = null; render(); }, 2500); render();
+    }
+    try {
+      xhr.open('POST', window.FrameArt.bridge() + '/lights', true); xhr.timeout = 6000;
+      xhr.onload = function () { finish(xhr.status === 204); };
+      xhr.onerror = xhr.ontimeout = function () { finish(false); };
+      xhr.send('');
+    } catch (e) { finish(false); }
+  }
+  function openCameras() { push({ id: 'cameras', f: { i: 0 }, full: false, ratios: {} }); }
   function addAppsRoute() { openEditor('home'); }
   function openSettings() { push({ id: 'settings', f: { id: S.settingsFocus } }); }
   function openAppearance(group) {
-    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
+    var axis = { layout: 'layout' }[group];
     var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : 'samsung.home');
     push({ id: 'appearance', group: group, f: { action: action } });
   }
@@ -636,7 +684,8 @@
     return { recent: rec, rest: ALPHA.filter(function (id) { return !onHome(id) && rec.indexOf(id) < 0; }) };
   }
   function otherList() { var o = otherGroups(); return o.recent.concat(o.rest); }
-  function editorCut() { return 5; }
+  // The editor's 'Then scroll' line sits after the apps Home shows before scrolling.
+  function editorCut() { return S.c.layout === 'list' ? PH_FULL : 5; }
   function editorHomeY(i) { return i * ED_ROW + (i >= editorCut() ? 24 : 0); }
   function editorOtherY(j) {
     var o = otherGroups();
@@ -737,12 +786,9 @@
   /* ---------- Settings, Layout and messages ---------- */
   function settingsRows() {
     var n = S.c.home.length;
-    return [{ id: 'background', label: 'Background', value: VALUE_NAMES[S.c.bg] },
-      { id: 'layout', label: 'Layout', value: VALUE_NAMES[S.c.layout] },
-      { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
-      { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] },
-      { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
-      { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
+    return [{ id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
+      { id: 'layout', label: 'Visual', value: VALUE_NAMES[S.c.layout] + ' · ' + VALUE_NAMES[S.c.focus] + ' focus' },
+      { id: 'samsung', label: 'Samsung Home', value: 'Leave CleanFrame for Samsung’s Home screen', button: true }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
   V.settings = {
@@ -760,35 +806,26 @@
   };
   function settingsOk(id) {
     if (id === 'editor') openEditor('settings');
+    else if (id === 'samsung') perform('Samsung Home', FrameDevice.home);
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', samsung: 'Samsung', inputs: 'Inputs' };
+  var DETAIL_NAMES = { layout: 'Visual' };
   function choice(axis, value, disabled) {
     return { action: 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
   }
   function detailSections(t) {
     function options(axis, values, disabled) { return values.map(function (value) { return choice(axis, value, disabled); }); }
-    if (t.group === 'inputs') return [{ id: 'inputs', title: '', items: t.inputs.length ? t.inputs.map(function (input) {
-      return { action: 'input.' + input.number, label: input.name, description: input.active ? 'Active' : input.connected ? 'Connected' : 'Disconnected — may be asleep' };
-    }) : [{ action: 'inputs.retry', label: t.loading ? 'Loading inputs…' : 'Try again', disabled: t.loading }],
-      reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
-    if (t.group === 'background') return [{ id: 'bg', title: 'Background', items: options('bg', ['photo', 'light', 'dark']) }];
-    if (t.group === 'layout') return [
+    return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
+      { id: 'focus', title: 'Focus', horizontal: true, items: options('focus', ['glass', 'type']) },
       { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
-      { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
+      { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) },
+      { id: 'inputs', title: 'Inputs on Home', horizontal: true, items: options('inputs', ['connected', 'always']) }
     ];
-    if (t.group === 'typography') return [{ id: 'font', title: '', items: options('font', LOOK_VALUES.font) }];
-    if (t.group === 'focus') return [{ id: 'focus', title: 'Focus style', horizontal: true, items: options('focus', ['type', 'glass']) }];
-    return [{ id: 'samsung', title: '', items: [
-      { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
-      { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' },
-      { action: 'samsung.inputs', label: 'Inputs', description: 'Choose an HDMI input' }
-    ] }];
   }
   function detailRows(t) {
-    var rows = [[{ action: 'settings.back', label: t.group === 'inputs' ? 'Samsung' : 'Settings' }]];
+    var rows = [[{ action: 'settings.back', label: 'Settings' }]];
     detailSections(t).forEach(function (section) {
       var enabled = section.items.filter(function (item) { return !item.disabled; });
       if (section.horizontal && enabled.length) rows.push(enabled);
@@ -808,16 +845,6 @@
     if (column !== undefined) t.f.column = column;
     if (item.axis) S.appearanceFocus = item.axis;
   }
-  function loadInputs(t) {
-    t.loading = true; t.inputError = null;
-    FrameDevice.sources(function (err, list) {
-      if (top() !== t) return;
-      t.loading = false; t.inputs = list || []; t.inputError = err ? err.message : null; after();
-    });
-  }
-  function openInputs() {
-    openAppearance('inputs'); var t = top(); t.inputs = []; loadInputs(t);
-  }
   function detailBack() { cancelLook(); S.err = null; pop(); FrameDevice.cancelSource(); }
   function detailOk(t, item) {
     var patch = {}, error = S.lookError;
@@ -827,21 +854,11 @@
       if (error && error.patch[error.row] !== undefined) detailFocus(t, choice(error.row, error.patch[error.row]), 0);
       if (error) setLook(error.patch, { row: error.row });
     } else if (item.axis) { patch[item.axis] = item.value; setLook(patch, { row: item.axis }); }
-    else if (item.action === 'samsung.home') perform('Samsung Home', FrameDevice.home);
-    else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
-    else if (item.action === 'samsung.inputs') openInputs();
-    else if (item.action === 'inputs.retry') loadInputs(t);
-    else if (item.action.indexOf('input.') === 0) perform(item.label, function (done) {
-      FrameDevice.setSource(Number(item.action.slice(6)), function (err) {
-        t.refreshInputs = true;
-        done(top() === t && !document.hidden && !(err && err.cancelled) ? err : null);
-      });
-    });
   }
   V.appearance = {
     norm: function (t) {
       var rows = detailRows(t), exists = false, applied = null;
-      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[t.group];
+      var axis = { layout: 'layout' }[t.group];
       rows.forEach(function (items) { items.forEach(function (item) {
         if (item.action === t.f.action) exists = true;
         if (item.axis === axis && item.value === S.c[axis]) applied = item;
@@ -871,6 +888,108 @@
     }
   };
   function messageContent(t) { return t.content || MSG[t.msg]; }
+  /* ---------- Cameras: loaded only while this view is open ---------- */
+  V.cameras = {
+    sheet: true,
+    key: function (t, k) {
+      var n = CONTROLS.cameras.length;
+      if (k === 'back') { if (t.full) t.full = false; else { stopCameras(); pop(); } return; }
+      if (k === 'ok') { t.full = !t.full; return; }
+      if (t.full) { if (k === 'left' || k === 'up') t.f.i = (t.f.i + n - 1) % n; else t.f.i = (t.f.i + 1) % n; return; }
+      t.f.i = cameraMove(t, k);
+    },
+    point: function (t, z, i) { if (z === 'cam') { t.f.i = i; this.key(t, 'ok'); } }
+  };
+  function cameraURL(cam) { return CONTROLS.go2rtc + '/api/stream.mjpeg?src=' + encodeURIComponent(cam.src); }
+  function stopCameras() {
+    // Dropping the src closes each MJPEG connection; nothing streams once the view is gone.
+    Array.prototype.forEach.call(sheetView.querySelectorAll('.cam img'), function (im) { im.onload = null; im.removeAttribute('src'); });
+  }
+  var CAM_BOX = { x: 80, y: 168, w: 1760, h: 808 }, CAM_GAP = 24;
+  /* Tiles keep each camera's own shape (no crop, no bars). Every order of the cameras is
+     tried as a row, a column, one tall tile beside a stack (either side), a wide tile above
+     or below a row, and two rows; the arrangement that gives every camera the most picture wins. */
+  function cameraLayout(ratios) {
+    var B = CAM_BOX, G = CAM_GAP, best = null, bestArea = -1;
+    function row(list, x, y, w, h) {
+      var sum = 0, height, cx, out = [];
+      list.forEach(function (r) { sum += r.r; });
+      height = Math.min(h, (w - G * (list.length - 1)) / sum); cx = x + (w - (height * sum + G * (list.length - 1))) / 2;
+      list.forEach(function (r) { out.push({ i: r.i, x: cx, y: y + (h - height) / 2, w: height * r.r, h: height }); cx += height * r.r + G; });
+      return out;
+    }
+    function column(list, x, y, w, h) {
+      var inv = 0, width, cy, out = [];
+      list.forEach(function (r) { inv += 1 / r.r; });
+      width = Math.min(w, (h - G * (list.length - 1)) / inv); cy = y + (h - (width * inv + G * (list.length - 1))) / 2;
+      list.forEach(function (r) { out.push({ i: r.i, x: x + (w - width) / 2, y: cy, w: width, h: width / r.r }); cy += width / r.r + G; });
+      return out;
+    }
+    // Shrink-wrap a candidate and centre it in the box.
+    function centre(tiles) {
+      var l = Infinity, tp = Infinity, r = -Infinity, b = -Infinity, dx, dy;
+      tiles.forEach(function (c) { l = Math.min(l, c.x); tp = Math.min(tp, c.y); r = Math.max(r, c.x + c.w); b = Math.max(b, c.y + c.h); });
+      dx = B.x + (B.w - (r - l)) / 2 - l; dy = B.y + (B.h - (b - tp)) / 2 - tp;
+      return tiles.map(function (c) { return { i: c.i, x: c.x + dx, y: c.y + dy, w: c.w, h: c.h }; });
+    }
+    function consider(tiles) {
+      var area = 0; tiles.forEach(function (c) { area += Math.sqrt(c.w * c.h); }); // Fair share: no camera shrinks to a sliver.
+      if (area > bestArea + 1) { bestArea = area; best = centre(tiles); }
+    }
+    // Move a group so its leading edge sits at `to` along axis x or y (no gap between groups).
+    function extent(tiles, axis) { var d = axis === 'x' ? 'w' : 'h', lo = Infinity, hi = -Infinity; tiles.forEach(function (c) { lo = Math.min(lo, c[axis]); hi = Math.max(hi, c[axis] + c[d]); }); return hi - lo; }
+    function flush(tiles, axis, to) { var lo = Math.min.apply(null, tiles.map(function (c) { return c[axis]; })); return tiles.map(function (c) { var o = { i: c.i, x: c.x, y: c.y, w: c.w, h: c.h }; o[axis] += to - lo; return o; }); }
+    // One group takes a share of the box (left/right or top/bottom); the other fills the rest.
+    function split(first, rest, vertical, firstSide) {
+      [0.3, 0.4, 0.5, 0.6, 0.7].forEach(function (share) {
+        var a, b2, size;
+        if (!vertical) {
+          a = column(first, 0, B.y, (B.w - G) * share, B.h);
+          size = Math.max.apply(null, a.map(function (c) { return c.w; }));
+          a = column(first, firstSide ? B.x : B.x + B.w - size, B.y, size, B.h);
+          b2 = column(rest, firstSide ? B.x + size + G : B.x, B.y, B.w - size - G, B.h);
+          b2 = flush(b2, 'x', firstSide ? a[0].x + size + G : a[0].x - G - extent(b2, 'x'));
+        } else {
+          a = row(first, B.x, 0, B.w, (B.h - G) * share);
+          size = Math.max.apply(null, a.map(function (c) { return c.h; }));
+          a = row(first, B.x, firstSide ? B.y : B.y + B.h - size, B.w, size);
+          b2 = row(rest, B.x, firstSide ? B.y + size + G : B.y, B.w, B.h - size - G);
+          b2 = flush(b2, 'y', firstSide ? a[0].y + size + G : a[0].y - G - extent(b2, 'y'));
+        }
+        consider(a.concat(b2));
+      });
+    }
+    function orders(list) {
+      if (list.length <= 1) return [list];
+      var out = [];
+      list.forEach(function (item, k) { orders(list.slice(0, k).concat(list.slice(k + 1))).forEach(function (o) { out.push([item].concat(o)); }); });
+      return out;
+    }
+    var items = ratios.map(function (r, i) { return { i: i, r: r }; }), all = items.length <= 5 ? orders(items) : [items];
+    all.forEach(function (o) {
+      var k;
+      consider(row(o, B.x, B.y, B.w, B.h));
+      consider(column(o, B.x, B.y, B.w, B.h));
+      for (k = 1; k < o.length; k++) {
+        split(o.slice(0, k), o.slice(k), false, true); split(o.slice(0, k), o.slice(k), false, false);
+        split(o.slice(0, k), o.slice(k), true, true); split(o.slice(0, k), o.slice(k), true, false);
+      }
+    });
+    return best.sort(function (a, b) { return a.i - b.i; });
+  }
+  function fullBox(r) { var w = Math.min(1920, 1080 * r), h = w / r; return { x: (1920 - w) / 2, y: (1080 - h) / 2, w: w, h: h }; }
+  function cameraRatios(t) { return CONTROLS.cameras.map(function (cam, i) { return t.ratios[i] || 16 / 9; }); }
+  function cameraMove(t, k) {
+    var tiles = cameraLayout(cameraRatios(t)), cur = tiles[t.f.i], best = t.f.i, gap = Infinity;
+    tiles.forEach(function (b) {
+      var dx = b.x + b.w / 2 - (cur.x + cur.w / 2), dy = b.y + b.h / 2 - (cur.y + cur.h / 2), d;
+      if (b.i === cur.i) return;
+      if (k === 'left' && dx >= -1 || k === 'right' && dx <= 1 || k === 'up' && dy >= -1 || k === 'down' && dy <= 1) return;
+      d = (k === 'left' || k === 'right' ? Math.abs(dx) + 2 * Math.abs(dy) : Math.abs(dy) + 2 * Math.abs(dx));
+      if (d < gap) { gap = d; best = b.i; }
+    });
+    return best;
+  }
   V.message = {
     sheet: true,
     key: function (t, k) {
@@ -913,7 +1032,7 @@
 
   function render() {
     var t = top(), sheet = !!V[t.id].sheet, art = S.c.bg === 'photo';
-    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-none f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-dark tr-light br-light at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (art ? ' source-art' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '') + (S.rapid ? ' is-rapid' : '');
+    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-none f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-dark tr-light br-light at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'inter' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (art ? ' source-art' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '') + (S.rapid ? ' is-rapid' : '');
     applyHomeFont();
     if (!sheet) renderHome(t);
     renderSheet(t, sheet);
@@ -968,7 +1087,7 @@
     var html = '', style = hs.mode === 'arrange' && S.c.controls !== 'text' ? 'both' : S.c.controls;
     var iconsOnly = style === 'icons', U = utils(), focused = null;
     utilsEl.className = 'utils quiet-utils is-' + style + (hs.zone === 'util' || hs.zone === 'ctl' ? ' is-awake' : '');
-    U.forEach(function (u, i) { html += utilBtn('util', i, 'util.' + u, icon(UTIL[u][1], '', true) + '<span class="u-label">' + UTIL[u][0] + '</span>', '', UTIL[u][0]); });
+    U.forEach(function (u, i) { var label = u === 'lights' && lightsFlash || UTIL[u][0]; html += utilBtn('util', i, 'util.' + u, icon(UTIL[u][1], '', true) + '<span class="u-label">' + label + '</span>', '', label); });
     setHTML(utilsEl, html);
     Array.prototype.forEach.call(utilsEl.querySelectorAll('.u'), function (b) {
       var z = b.getAttribute('data-z'), focus = hs.zone === z && hs.u === Number(b.getAttribute('data-i'));
@@ -1035,7 +1154,7 @@
       x = PH_LEFT + 168; placement = phFields[photoPlateIndex]._placement;
       y = placement.y + placement.height / 2 - 24;
     } else {
-      x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 932;
+      x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = DOCK_BOTTOM + 24;
     }
     appFocusName.style.left = x + 'px'; appFocusName.style.top = (y + fontShift('primary', S.c.layout === 'list' ? 40 : 36)) + 'px';
     appFocusName.className = 'app-focus-name is-on';
@@ -1046,7 +1165,7 @@
     var broad = S.geom === 'broad' && n > 5;
     if (n < 0) { w = 912; shelfW = 880; }
     else if (broad) { w = 1728; shelfW = 1696; }
-    return { x: Math.round((1920 - w) / 2), y: 908 - m.th - 32, h: m.th + 32, w: w, shelf: shelfW, vis: vis, broad: broad, empty: n < 0, tw: m.tw, th: m.th, pitch: m.pitch };
+    return { x: Math.round((1920 - w) / 2), y: DOCK_BOTTOM - m.th - 32, h: m.th + 32, w: w, shelf: shelfW, vis: vis, broad: broad, empty: n < 0, tw: m.tw, th: m.th, pitch: m.pitch };
   }
   /* Five centred: the window moves one tile when focus passes an edge. Broad: keep a
      148px glimpse of the neighbour, as the current dock does. */
@@ -1265,7 +1384,7 @@
     if (!sheet) { sheetView.innerHTML = ''; sheetKey = ''; return; }
     key = t.id + '|' + (t.mode || '') + '|' + (t.msg || '') + '|' + S.variant + '|' + S.c.bg;
     if (key !== sheetKey) {
-      sheetView.innerHTML = FRAMES[t.id](t);
+      sheetView.innerHTML = FRAMES[t.id](t); sheetView.className = 'view';
       sheetKey = key; slotEls = {};
       Array.prototype.forEach.call(sheetView.querySelectorAll('[data-slot]'), function (el) { slotEls[el.getAttribute('data-slot')] = el; });
     }
@@ -1279,7 +1398,7 @@
     appearanceEl.className = 'appearance detail-' + t.group;
     appearanceRows.className = 'appearance-rows';
     appearanceTitle.textContent = DETAIL_NAMES[t.group];
-    var at = detailLocation(t), selected = at.item, error = S.lookError, status = t.group === 'background' && S.c.source === 'art' ? '<p>' + esc(window.FrameArt.status().error || 'Uses your current uploaded Art Mode photo.') + '</p>' : '', hint;
+    var at = detailLocation(t), selected = at.item, error = S.lookError, status = '', hint;
     function command(item, inner, cls) {
       var applied = item.axis && S.c[item.axis] === item.value;
       var loading = !!(item.axis && S.pending && S.pending.target[item.axis] === item.value && S.pending.row === item.axis);
@@ -1288,7 +1407,7 @@
         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
         + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
     }
-    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'inputs' ? 'Samsung' : 'Settings' }, icon('left') + '<span>' + (t.group === 'inputs' ? 'Samsung' : 'Settings') + '</span>', 'setting-back'));
+    setHTML(appearanceBack, command({ action: 'settings.back', label: 'Settings' }, icon('left') + '<span>Settings</span>', 'setting-back'));
     setHTML(appearanceRows, detailSections(t).map(function (section) {
       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
@@ -1309,7 +1428,7 @@
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'inputs' ? 'Samsung' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : 'Open on the TV';
+    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to Settings' : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : 'Open on the TV';
     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
   }
   /* Keep the retry or membership state on the focused control. The stage-level line
@@ -1367,6 +1486,11 @@
         + '<div class="row-cue editor-before" data-slot="otherBefore" aria-hidden="true">' + icon('up') + '</div><div class="row-cue editor-after" data-slot="otherAfter" aria-hidden="true">' + icon('down') + '</div>';
     },
     settings: function () { return '<h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div><p class="settings-overview-hint"><span class="remote-key">OK</span><span>Open selected group</span></p>'; },
+    cameras: function () {
+      return '<h2 class="s-title">Cameras</h2><div class="cams" data-slot="grid">' + CONTROLS.cameras.map(function (cam, i) {
+        return '<button type="button" tabindex="-1" class="cam" data-z="cam" data-i="' + i + '" data-action="cameras.' + esc(cam.src) + '"><img alt="" data-cam="' + i + '"><span class="cam-name">' + esc(cam.name) + '</span></button>';
+      }).join('') + '</div><p class="settings-overview-hint cam-hint"><span class="remote-key">OK</span><span data-slot="hint">Full screen</span></p>';
+    },
     message: function (t) {
       var m = messageContent(t);
       return '<h2 class="msg-title">' + esc(m.title) + '</h2><p class="msg-line">' + esc(m.line) + '</p><p class="msg-note">' + esc(m.note) + '</p><div class="msg-acts" data-slot="acts"></div>';
@@ -1406,14 +1530,22 @@
       setHTML(el.head, headButtons([['undo', 'Undo', S.undo.length ? '' : 'is-idle', 'undo'], ['done', 'Done', '', 'check']], f.zone === 'head' ? f.h : -1, 'editor'));
       el.head.className = 's-head' + (f.zone === 'head' ? ' is-awake' : '');
       setHTML(el.lh, 'On Home <span class="s-count">' + S.c.home.length + ' of ' + CAP + '</span>');
-      el['break'].className = 'ed-order-break' + (H.length > editorCut() ? ' is-on' : '');
-      el['break'].style.top = (264 + editorCut() * ED_ROW) + 'px';
+      // The Home column scrolls like the other column once it is taller than the view.
+      t.homeTop = t.homeTop || 0;
+      if (f.zone === 'home') {
+        if (editorHomeY(f.i) < t.homeTop) t.homeTop = editorHomeY(f.i);
+        if (editorHomeY(f.i) + 72 > t.homeTop + ED_VIEW) t.homeTop = editorHomeY(f.i) + 72 - ED_VIEW;
+      }
+      t.homeTop = clamp(t.homeTop, 0, Math.max(0, editorHomeY(H.length - 1) + 72 - ED_VIEW));
+      el['break'].className = 'ed-order-break' + (H.length > editorCut() && editorHomeY(editorCut()) - 24 >= t.homeTop && editorHomeY(editorCut()) <= t.homeTop + ED_VIEW ? ' is-on' : '');
+      el['break'].style.top = (264 + editorCut() * ED_ROW - t.homeTop) + 'px';
 
       keyed(el.home, H.map(function (id) { return { key: id, id: id }; }), function (row, it, i) {
         var a = app(it.id), here = f.zone === 'home' && i === f.i, lifted = !!t.lifted && i === f.i;
         setContent(row, it.id, function () { return '<div class="er-name" role="button"><span class="panel-content"><span class="er-num"></span>' + smallMark(a) + '<span class="er-text">' + esc(a.name) + '</span><span class="er-move">' + icon('updown') + '</span></span></div><div class="er-rm" role="button"><span></span></div>'; });
         row.className = 'er' + (here ? ' is-active' : '') + (lifted ? ' is-lifted' : '');
-        row.style.transform = 'translate3d(' + (lifted ? 16 : 0) + 'px,' + editorHomeY(i) + 'px,0)';
+        row.style.transform = 'translate3d(' + (lifted ? 16 : 0) + 'px,' + (editorHomeY(i) - t.homeTop) + 'px,0)';
+        row.style.visibility = editorHomeY(i) >= t.homeTop && editorHomeY(i) + 72 <= t.homeTop + ED_VIEW ? 'visible' : 'hidden';
         row.querySelector('.er-num').textContent = String(i + 1);
         row.firstChild.className = 'er-name' + (here && (f.part === 'name' || lifted) ? ' is-focus' : '');
         row.lastChild.className = 'er-rm' + (here && f.part === 'remove' && !lifted ? ' is-focus' : '') + (H.length <= 1 ? ' is-limit' : '');
@@ -1422,7 +1554,7 @@
         attrs(row.lastChild, 'remove', i, 'editor.remove.' + it.id);
       });
       el.origin.className = 'ed-origin' + (t.lifted && t.lifted.from !== f.i ? ' is-on' : '');
-      if (t.lifted) el.origin.style.transform = 'translate3d(0,' + (264 + editorHomeY(t.lifted.from) + 16) + 'px,0)';
+      if (t.lifted) el.origin.style.transform = 'translate3d(0,' + (264 + editorHomeY(t.lifted.from) - t.homeTop + 16) + 'px,0)';
 
       if (O.recent.length) { entries.push({ key: 'sep-recent', sep: 'Recently removed', y: y }); y += ED_SEP; }
       O.recent.forEach(function (id) { entries.push({ key: id, id: id, y: y }); ys.push(y); y += ED_ROW; });
@@ -1460,9 +1592,24 @@
     settings: function (t, el) {
       var html = '';
       settingsRows().forEach(function (r) {
-        html += '<button type="button" tabindex="-1" class="settings-group' + (r.id === t.f.id ? ' is-focus' : '') + '" data-z="row" data-i="0" data-id="' + r.id + '" data-action="settings.' + (r.id === 'editor' ? 'editor' : 'group.' + r.id) + '"><span class="settings-group-copy"><span class="settings-group-name">' + esc(r.label) + '</span><span class="settings-group-value">' + esc(r.value) + '</span></span>' + icon('right') + '</button>';
+        html += '<button type="button" tabindex="-1" class="settings-group' + (r.id === t.f.id ? ' is-focus' : '') + '" data-z="row" data-i="0" data-id="' + r.id + '" data-action="settings.' + (r.id === 'editor' ? 'editor' : 'group.' + r.id) + '"><span class="settings-group-copy"><span class="settings-group-name">' + esc(r.label) + '</span><span class="settings-group-value">' + esc(r.value) + '</span></span>' + (r.button ? '' : icon('right')) + '</button>';
       });
       setHTML(el.list, html);
+    },
+    cameras: function (t, el) {
+      var tiles = cameraLayout(cameraRatios(t));
+      Array.prototype.forEach.call(el.grid.querySelectorAll('.cam'), function (b, i) {
+        var box = t.full ? fullBox(t.ratios[i] || 16 / 9) : tiles[i], im = b.querySelector('img');
+        if (!im.getAttribute('src')) {
+          // First paint of this view starts the stream; its first frame reports the real shape.
+          im.onload = function () { if (im.naturalWidth && im.naturalHeight && !t.ratios[i]) { t.ratios[i] = im.naturalWidth / im.naturalHeight; if (top() === t) render(); } };
+          im.src = cameraURL(CONTROLS.cameras[i]);
+        }
+        b.className = 'cam' + (i === t.f.i ? ' is-focus' : '') + (t.full && i !== t.f.i ? ' is-hidden' : '');
+        b.style.left = box.x + 'px'; b.style.top = box.y + 'px'; b.style.width = box.w + 'px'; b.style.height = box.h + 'px';
+      });
+      el.hint.textContent = t.full ? 'Back to all cameras' : 'Full screen';
+      sheetView.className = 'view' + (t.full ? ' cams-full' : '');
     },
     message: function (t, el) {
       setHTML(el.acts, messageContent(t).actions.map(function (a, i) {
@@ -1533,7 +1680,7 @@
   var frostFor = '', frostURL = '';
   function frostSheet() {
     var im = IMG.photo, src = im && im.src, mid, small;
-    if (!src || !im.naturalWidth || S.c.source !== 'art') { IMG.bg.className = 'sheet-bg'; return; }
+    if (!src || !im.naturalWidth || S.c.source !== 'art') { IMG.bg.className = 'sheet-bg'; IMG.mat.className = 'mat-img'; return; }
     if (src !== frostFor) {
       frostFor = src; frostURL = '';
       try {
@@ -1544,16 +1691,19 @@
         frostURL = small.toDataURL('image/png');
       } catch (e) { frostURL = ''; } // A tainted or failed draw keeps the plain matte.
     }
-    if (!frostURL) { IMG.bg.className = 'sheet-bg'; return; }
+    if (!frostURL) { IMG.bg.className = 'sheet-bg'; IMG.mat.className = 'mat-img'; return; }
     if (IMG.bg.getAttribute('src') !== frostURL) IMG.bg.src = frostURL;
     IMG.bg.className = 'sheet-bg is-frost';
+    // The dock's mat is the same frost, so it reads as glass rather than a solid panel.
+    if (IMG.mat.getAttribute('src') !== frostURL) IMG.mat.src = frostURL;
+    IMG.mat.className = 'mat-img is-frost';
   }
   function cleanPatch(patch) {
     var out = {}, k;
     if (!patch || typeof patch !== 'object') throw new Error('look needs an appearance patch');
     for (k in patch) if (patch.hasOwnProperty(k)) {
       if (k === 'wall') { if (!safeId(patch[k])) throw new Error('Invalid legacy wallpaper'); }
-      else if (k === 'font') { if (!FONTS[patch[k]] || patch[k] !== 'manrope' && PRIVATE_FONTS.indexOf(patch[k]) < 0) throw new Error('Unavailable font: ' + patch[k]); }
+      else if (k === 'font') { if (!FONTS[patch[k]] || patch[k] !== 'inter' && PRIVATE_FONTS.indexOf(patch[k]) < 0) throw new Error('Unavailable font: ' + patch[k]); }
       else if (!LOOK_VALUES[k] || LOOK_VALUES[k].indexOf(patch[k]) < 0) throw new Error('Invalid appearance value: ' + k);
       out[k] = patch[k];
     }
@@ -1593,7 +1743,7 @@
       if (type === 'load') S.wallError = target.wall;
       S.lookError = { type: type, reason: reason || null, patch: changes, row: opts.row || (type === 'font' ? 'font' : S.appearanceFocus), transient: !!opts.transient, wall: target.wall, font: target.font };
       if (type === 'font') log((opts.startup ? 'font fallback: ' : 'Font kept: ') + (opts.startup ? target.font : FONTS[S.c.font].name) + (opts.startup ? '' : ' (' + reason + ')'));
-      if (type === 'font' && opts.startup && target.font !== 'manrope') { setLook({ font: 'manrope' }, { transient: true }); return; }
+      if (type === 'font' && opts.startup && target.font !== 'inter') { setLook({ font: 'inter' }, { transient: true }); return; }
       render();
     }
     function complete() {
@@ -1646,18 +1796,14 @@
     clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
   }
   function focusStage() { try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
-  function after() {
-    norm(); var t = top();
-    if (t.group === 'inputs' && t.refreshInputs && !t.loading && !document.hidden) { t.refreshInputs = false; loadInputs(t); }
-    render();
-  }
-  function refreshInputsOnReturn() { var t = top(); if (t.group === 'inputs' && !t.loading) t.refreshInputs = true; }
+  function after() { norm(); render(); }
   function goScene(name) {
     FrameDevice.cancelSource();
+    if (top().id === 'cameras') stopCameras();
     S.stack = [S.stack[0]]; S.stack[0].f.zone = 'apps'; clearSession(); restoreLook();
     if (name === 'apps') openApps();
     else if (name === 'settings') openSettings();
-    else if (name === 'appearance') { openSettings(); top().f.id = 'background'; S.settingsFocus = 'background'; openAppearance('background'); }
+    else if (name === 'appearance') { openSettings(); top().f.id = 'layout'; S.settingsFocus = 'layout'; openAppearance('layout'); }
     else if (name === 'editor') { openSettings(); openEditor('settings'); }
     after();
   }
@@ -1677,7 +1823,7 @@
   }
   function activate(action) {
     var root = isSettingsDetail(top()) ? appearanceEl : sheetEl.hidden ? homeEl : sheetEl, els = root.querySelectorAll('[data-action]'), i;
-    if (action === 'settings.appearance' && top().id === 'settings') action = 'settings.group.background';
+    if (action === 'settings.appearance' && top().id === 'settings') action = 'settings.group.layout';
     for (i = 0; i < els.length; i++) if (renderedAction(els[i]) && els[i].getAttribute('data-action') === action) { pointAt(els[i]); return true; }
     return false;
   }
@@ -1746,17 +1892,18 @@
 
   document.addEventListener('keyup', function (ev) { delete heldKeys[ev.keyCode]; if (hold && hold.code === ev.keyCode) stopHold(); });
   window.addEventListener('blur', function () { heldKeys = {}; stopHold(); });
-  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); refreshArt(); });
+  window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); focusStage(); after(); updateClock(); refreshArt(); });
   document.addEventListener('visibilitychange', function () {
     heldKeys = {}; stopHold();
     if (document.hidden) {
       if (S.pending && S.pending.target.source === 'art') cancelLook();
       else window.FrameArt.cancel();
-      FrameDevice.cancelSource(); syncHomeSources(); clearTimeout(clockTimer); }
+      FrameDevice.cancelSource(); syncHomeSources(); clearTimeout(clockTimer);
+      if (top().id === 'cameras') { stopCameras(); pop(); render(); } }
     else {
       release();
       if (S.c.bg === 'photo' && !S.pending && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
-      refreshInputsOnReturn(); after(); updateClock(); focusStage(); refreshArt();
+      after(); updateClock(); focusStage(); refreshArt();
     }
   });
   window.addEventListener('resize', fit);
@@ -1768,8 +1915,8 @@
     out.art = window.FrameArt.status(); out.committed = S.c; out.shown = S.shown; out.pending = S.pending; out.view = t.id; out.selected = S.sel;
     out.focusAction = focusedAction(); out.writes = S.writes; out.failedWrites = S.failed; out.error = S.err;
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
-    out.visibleHome = visibleHome(); out.hdmi4Connected = homeSources.hdmi4;
-    out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
+    out.visibleHome = visibleHome(); out.hdmi4Connected = !!homeSources.ports[4]; out.inputPorts = homeSources.ports;
+    out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.inter && fontMetrics.inter.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
     out.rotation = { activeMs: 0, active: false };
     out.draft = t.lifted ? { id: t.lifted.id, order: t.lifted.order.slice() } : null;
     out.settingsGroup = t.id === 'appearance' ? t.group : null;

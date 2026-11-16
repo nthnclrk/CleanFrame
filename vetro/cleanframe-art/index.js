@@ -3,7 +3,7 @@
 var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto'), os = require('os'), net = require('net');
 var PREF = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/data/.pref/0f61537ef36906f51e0fa75852758b33df2df340';
 var PHOTO = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/shared/trusted/data/my_photo/';
-var KEY = 'ArtLatestFullScreenData', MAX_PREF = 65536, MAX_IMAGE = 12 * 1024 * 1024;
+var LIGHTS_TRIGGER = 'cleanframe-lights', KEY = 'ArtLatestFullScreenData', MAX_PREF = 65536, MAX_IMAGE = 12 * 1024 * 1024;
 function invalid() { throw new Error('Art unavailable'); }
 function imagePath(id, source) {
   if (typeof id !== 'string' || !/^MY_[A-Za-z0-9_]{1,64}$/.test(id) || source !== PHOTO + id + '.jpg') invalid();
@@ -226,6 +226,21 @@ function moduleFactory(ctx) {
     }
     return look;
   }
+  // Home's Lights button: fire the owner's Vetro rule, which publishes MQTT for Home Assistant.
+  // A fixed trigger only; the request body is ignored, so callers cannot choose rules or topics.
+  var lightsAt = 0;
+  function lights(res) {
+    var now = Date.now(), req2;
+    if (now - lightsAt < 1500) { res.writeHead(429); res.end(); return; }
+    lightsAt = now;
+    req2 = http.request({ host: '127.0.0.1', port: 8099, path: '/remap/run', method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 5000 }, function (r) {
+      var ok = r.statusCode === 200; r.resume();
+      res.writeHead(ok ? 204 : 502); res.end();
+    });
+    req2.on('timeout', function () { req2.abort(); });
+    req2.on('error', function () { if (!res.headersSent) { res.writeHead(502); res.end(); } });
+    req2.end(JSON.stringify({ type: 'http', value: LIGHTS_TRIGGER }));
+  }
   function handler(req, res) {
     var origin = req.headers.origin, match, closed = false, released = false;
     // Some Frame web runtimes block loopback. When bound to the TV's own
@@ -234,6 +249,8 @@ function moduleFactory(ctx) {
     if (origin && (origin.length > 256 || !/^(?:null|(?:file|widget|wgt|tizen):\/\/[^\r\n]*)$/.test(origin))) { res.writeHead(403); res.end(); return; }
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
     res.setHeader('Vary', 'Origin'); res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (req.url === '/lights' && req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Max-Age': '600' }); res.end(); return; }
+    if (req.url === '/lights' && req.method === 'POST') { req.resume(); lights(res); return; }
     if (req.method !== 'GET') { res.writeHead(405, { Allow: 'GET' }); res.end(); return; }
     if (pendingHTTP >= 8) { res.writeHead(503); res.end(); return; }
     pendingHTTP++;

@@ -59,7 +59,7 @@
     var st = lookStyle(l), el = document.getElementById('artLook'), funcs = ['artCurveR', 'artCurveG', 'artCurveB'];
     if (!el) { el = document.createElement('style'); el.id = 'artLook'; document.head.appendChild(el); }
     // The frosted sheet uses the same look, a touch darker for legible text.
-    el.textContent = '.source-art #photo,.source-art #sheetBg{filter:' + st.filter + '}.source-art #bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:' + st.tint + ';mix-blend-mode:multiply;pointer-events:none}' +
+    el.textContent = '.source-art #photo,.source-art #sheetBg,.source-art #matImg{filter:' + st.filter + '}.source-art #bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:' + st.tint + ';mix-blend-mode:multiply;pointer-events:none}' +
       '.source-art .sheet-veil{background:' + st.veil + ';mix-blend-mode:multiply}';
     funcs.forEach(function (id, i) { var f = document.getElementById(id); if (f) f.setAttribute('exponent', String(st.gamma[i])); });
   }
@@ -253,6 +253,7 @@
   window.FrameArt = { load: load, refresh: refresh, cancel: cancel, current: function () { return current; },
     status: function () { return { available: !!current, refreshing: refreshing, error: error }; },
     look: function () { return { settings: look, style: lookStyle(look) }; }, lookFor: lookStyle,
+    bridge: function () { return 'http://' + host() + ':' + port(); },
     // Bound blob lifetimes once a new atomic bundle replaces every previous image.
     retain: function (url) { retainedURL = url; urls = urls.filter(function (item) { if (item === url || current && item === current.url) return true; window.URL.revokeObjectURL(item); return false; }); }
   };

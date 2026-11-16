@@ -68,11 +68,14 @@ test('regional streaming apps stay distinct and system helpers stay hidden', () 
     { id: 'cj37Ni3qXM.HBONow', name: 'HBO Max', show: false },
     { id: '2022ePop01.SmartTV', name: 'Smart TV', show: true },
     { id: 'd0m1lV1nt2.emanual', name: 'User Guide', show: true },
+    { id: '25emanual1.emanual', name: 'User Guide', show: true },
+    { id: 'org.tizen.emanual-app', name: 'e-Manual', show: true },
     { id: 'Hidden1234.Consumer', name: 'Hidden app', show: false }
   ]);
   assert.equal(apps.length, 3);
   assert.equal(apps.find(a => a.name === 'YouTube').brand, 'youtube');
-  assert.equal(apps.find(a => a.name === 'YouTube TV').brand, '');
+  assert.equal(apps.find(a => a.name === 'YouTube TV').brand, 'youtubetv');
+  assert.ok(!apps.some(a => /emanual/i.test(a.id) || a.name === 'User Guide'));
   assert.equal(apps.find(a => a.name === 'HBO Max').brand, 'hbomax');
 });
 

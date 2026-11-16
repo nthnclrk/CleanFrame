@@ -1,7 +1,7 @@
 """Build the exact private-font overlay used by preview and local packaging.
 
 Pangram binaries remain in ignored .local/ storage. A public checkout ships
-Manrope, Geist and Newsreader. Complete local Pangram pairs are added directly
+Inter only. Complete local Pangram pairs are added directly
 to the widget ZIP; they are never copied into app/.
 """
 from pathlib import Path
@@ -12,24 +12,8 @@ from local_config import override_identity
 from private_files import check_widget, generated_path, private_path, secret_content
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_FONT_IDS = ['geist', 'newsreader']
-PRIVATE_FONTS = [
-    {
-        'id': 'montreal', 'family': 'Study Montreal', 'folder': 'neue-montreal',
-        'files': [('PPNeueMontreal-Light.ttf', 300), ('PPNeueMontreal-Regular.ttf', 400)],
-        'metrics': 'size-adjust:100.699301%;ascent-override:105.859722%;descent-override:29.791667%;line-gap-override:0%',
-    },
-    {
-        'id': 'mori', 'family': 'Study Mori', 'folder': 'mori',
-        'files': [('PPMori-Extralight.ttf', 200), ('PPMori-Regular.ttf', 400)],
-        'metrics': 'size-adjust:102.857143%;ascent-override:103.638889%;descent-override:29.166667%;line-gap-override:0%',
-    },
-    {
-        'id': 'pangram', 'family': 'Study Pangram', 'folder': 'pangram-sans',
-        'files': [('PPPangramSans-Light.ttf', 300), ('PPPangramSans-Regular.ttf', 400)],
-        'metrics': 'size-adjust:101.408451%;ascent-override:105.119444%;descent-override:29.583333%;line-gap-override:0%',
-    },
-]
+PUBLIC_FONT_IDS = []
+PRIVATE_FONTS = []
 
 
 def is_runtime_source(name):

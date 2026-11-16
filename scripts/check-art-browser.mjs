@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const jpeg = readFileSync(root + 'scripts/fixtures/art-test.jpg');
 const size = require('../vetro/cleanframe-art/index.js').jpegSize(jpeg);
 const first = createHash('sha256').update('fixture A').digest('hex'), second = createHash('sha256').update('fixture B').digest('hex');
-const seed = { look: { bg: 'dark', wall: 'misty', source: 'art', layout: 'dock', focus: 'glass', material: 'soft', font: 'manrope', apps: 'both', controls: 'both' }, mode: '15' };
+const seed = { look: { bg: 'photo', wall: 'misty', source: 'art', layout: 'dock', focus: 'glass', material: 'soft', font: 'inter', apps: 'both', controls: 'both' }, mode: '15' };
 const out = root + '.local/qa/'; mkdirSync(out, { recursive: true });
 let preview, p;
 const checks = [], pageErrors = [];
@@ -17,7 +17,7 @@ function check(name, condition) { assert.ok(condition, name); checks.push(name);
 const state = () => p.evaluate(() => ShoreQA.state());
 const ready = () => p.waitForFunction(() => ShoreQA.ready());
 const act = action => p.evaluate(action => ShoreQA.activate(action), action);
-async function group() { await p.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.background'); }); }
+async function group() { await p.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.layout'); }); }
 async function scene(name) { await p.evaluate(n => ShoreQA.scene(n), name); await ready(); }
 async function fresh(options = {}) {
   if (p) await p.close();
@@ -34,7 +34,7 @@ async function fresh(options = {}) {
   }, { seed: options.seed || seed, hidden: options.hidden });
   let heldReady;
   const whenHeld = new Promise(resolve => { heldReady = resolve; });
-  const fixture = { whenHeld, calls: [], revision: first, failed: false, corrupt: false, held: [], hold: false };
+  const fixture = { whenHeld, calls: [], revision: first, failed: false, corrupt: !!options.corrupt, held: [], hold: false };
   await p.route('http://127.0.0.1:8643/**', async route => {
     const url = new URL(route.request().url()); fixture.calls.push(url.pathname);
     if (fixture.hold && url.pathname === '/current.json') { fixture.held.push(route); heldReady(); return; }
@@ -45,20 +45,26 @@ async function fresh(options = {}) {
   });
   await p.goto(preview.baseURL + '/home/'); await ready(); return fixture;
 }
-const artImages = () => p.evaluate(() => ['photo','matImg','phFieldImg','phFieldImgAlt','utFieldImg','utFieldImgAlt'].map(id => document.getElementById(id).src));
+const artImages = () => p.evaluate(() => ['photo','phFieldImg','phFieldImgAlt','utFieldImg','utFieldImgAlt'].map(id => document.getElementById(id).src));
 try {
   preview = await openPreview({ publicFonts: true });
-  const f = await fresh(); await group();
+  const f = await fresh({ seed: { ...seed, look: { ...seed.look, bg: 'dark' } } });
+  await p.waitForFunction(revision => ShoreQA.state().shown.artRevision === revision, first);
+  check('A stored Dark background starts on Art Mode with one safe metadata/JPEG pair', f.calls.length === 2 && (await state()).committed.bg === 'photo' && (await state()).shown.bg === 'photo' && (await state()).committed.source === 'art' && (await state()).shown.artRevision === first);
+  check('Art Mode startup writes no preference', (await state()).writes === 0);
+  await group();
   await p.evaluate(() => ShoreQA.nav('down', 'down', 'down', 'right', 'left', 'up', 'down'));
-  check('Flat startup and remote navigation perform no bridge networking', f.calls.length === 0 && (await state()).committed.bg === 'dark');
-  await act('choice.bg.photo'); await ready();
-  check('Choosing Art Mode loads one safe metadata/JPEG pair', f.calls.length === 2 && (await state()).committed.source === 'art' && (await state()).shown.artRevision === first);
+  check('Visual remote navigation performs no further bridge networking', f.calls.length === 2);
+  check('Visual offers no background choice', !(await p.evaluate(() => ShoreQA.actions())).some(a => /^choice\.bg\./.test(a)));
   check('Art swaps the photo and every material as one bundle', new Set(await artImages()).size === 1 && (await artImages())[0].startsWith('blob:'));
   check('Gallery and rotation are absent', !(await state()).rotation.active && !(await p.evaluate(() => ShoreQA.actions())).some(a => /wallpaper|rotation|source/.test(a)));
-  check('Art uses neutral surfaces without adaptive photo ink', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && !document.getElementById('stage').classList.contains('has-adaptive-ink') && getComputedStyle(document.getElementById('matImg')).visibility === 'hidden'));
+  check('Art uses neutral surfaces without adaptive photo ink', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && !document.getElementById('stage').classList.contains('has-adaptive-ink') && (() => { const m = document.getElementById('matImg'); return getComputedStyle(m).visibility === 'hidden' || m.classList.contains('is-frost') && /^data:image\/png/.test(m.src); })()));
   await p.screenshot({ path: out + 'art-background-public.png' });
-  const geometry = await p.evaluate(() => { const root = document.getElementById('stage').getBoundingClientRect(), rows = document.getElementById('appearanceRows').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect(); return rows.bottom <= desc.top && rows.right <= root.right; });
-  check('Background choices fit above the remote hint', geometry);
+  const geometry = await p.evaluate(() => {
+    const root = document.getElementById('stage').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect();
+    return [...document.querySelectorAll('#appearanceRows .setting-section')].map(e => { const r = e.getBoundingClientRect(); return { id: e.className.match(/section-(\w+)/)[1], above: r.bottom <= desc.top, inside: r.right <= root.right && r.bottom <= root.bottom }; });
+  });
+  check('All five Visual rows fit above the remote hint', ['layout', 'focus', 'apps', 'controls', 'inputs'].every(id => geometry.find(g => g.id === id)?.above && geometry.find(g => g.id === id)?.inside), geometry);
   check('Art background drops gallery scrims for the calibrated Art look', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none')));
   check('Sheets sit on a frosted copy of the Art photo with the same look', await p.evaluate(async () => {
     ShoreQA.scene('settings'); await new Promise(r => setTimeout(r, 120));
@@ -84,32 +90,11 @@ try {
   check('IndexedDB last-good JPEG renders immediately after reload while offline', (await state()).shown.artRevision === first && (await state()).committed.source === 'art');
   await p.waitForFunction(() => !FrameArt.status().refreshing);
   check('Failed async refresh keeps the cached appearance', (await state()).shown.artRevision === first);
-  await group(); await act('choice.bg.light'); await ready();
-  check('Flat backgrounds retain legacy wallpaper and rotation fields without loading them', (await state()).committed.wall === 'misty' && (await state()).committed.mode === '15' && (await state()).shown.bg === 'light');
-  const cancel = await fresh(); cancel.hold = true; await group(); await act('choice.bg.photo');
-  await p.waitForFunction(() => !!ShoreQA.state().pending);
-  await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(Error('Art request was not held')), 5000); cancel.whenHeld.then(() => { clearTimeout(timeout); resolve(); }); });
-  await p.evaluate(() => ShoreQA.nav('back'));
-  for (const route of cancel.held) await route.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ revision: first, contentId: 'MY_TEST', imageUrl: '/art/' + first + '/image.jpg', ...size }) }).catch(() => {});
-  await p.waitForTimeout(100);
-  check('Back cancels an Art request and late completion cannot save or install it', (await state()).committed.bg === 'dark' && (await state()).shown.bg === 'dark' && (await state()).writes === 0);
-  const hide = await fresh(); hide.hold = true; await group(); await act('choice.bg.photo');
-  await p.waitForFunction(() => !!ShoreQA.state().pending);
-  await p.evaluate(() => __visibility(true));
-  check('Hiding cancels a pending Art choice without leaving Settings stuck', !(await state()).pending && (await state()).committed.bg === 'dark');
-  await p.evaluate(() => __visibility(false)); hide.hold = false;
-  await act('choice.bg.light'); await ready();
-  check('Another appearance choice works after a hidden Art cancellation', (await state()).committed.bg === 'light');
-  const bad = await fresh(); bad.corrupt = true; await group(); await act('choice.bg.photo');
-  await p.waitForFunction(() => !ShoreQA.state().pending);
-  check('Corrupt JPEG keeps previous source, checkmark and complete material bundle', (await state()).committed.bg === 'dark' && (await state()).shown.bg === 'dark' && (await state()).writes === 0);
-  check('Unavailable Art explains the local bridge only in the failure state', /local Art bridge/.test(await p.locator('#appearanceStatus').innerText()));
-  bad.corrupt = false; await p.evaluate(() => { __failWrites = true; }); await act('settings.retry');
-  await p.waitForFunction(() => !ShoreQA.state().pending);
-  check('Preference write failure preserves the entire previous appearance', (await state()).committed.bg === 'dark' && (await state()).shown.bg === 'dark' && (await state()).failedWrites === 1);
-  await p.evaluate(() => { __failWrites = false; }); await act('settings.retry'); await ready();
-  check('Retry applies a valid cached Art bundle once', (await state()).committed.bg === 'photo' && (await state()).writes === 1);
-  const hidden = await fresh({ seed: { ...seed, look: { ...seed.look, bg: 'photo' }, mode: 'open' }, hidden: true });
+  const bad = await fresh({ corrupt: true });
+  await p.waitForFunction(() => !ShoreQA.state().pending && !FrameArt.status().refreshing);
+  check('A corrupt JPEG at startup installs no Art bundle and writes no preference', bad.calls.includes('/art/' + first + '/image.jpg') && !(await state()).shown.artRevision && (await state()).writes === 0 && !(await artImages()).some(src => src.startsWith('blob:')));
+  check('Home stays usable with one focus when Art is unavailable', (await p.evaluate(() => ShoreQA.where())).focusCount === 1 && (await state()).committed.bg === 'photo');
+  const hidden = await fresh({ seed: { ...seed, mode: 'open' }, hidden: true });
   check('Hidden cold start performs no bridge request and keeps the saved source', hidden.calls.length === 0 && (await state()).committed.source === 'art' && (await state()).committed.wall === 'misty' && (await state()).shown.artRevision === null);
   await p.evaluate(() => __visibility(false));
   await p.waitForFunction(revision => ShoreQA.state().shown.artRevision === revision, first);
@@ -137,7 +122,7 @@ try {
   await p.screenshot({ path: out + 'home-espn-public.png' });
   const packed = await p.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
   check('No bundled wallpaper/material URLs are requested', !packed.some(url => /\/assets\/(wallpapers|materials)\//.test(url)));
-  await fresh({ seed: { ...seed, look: { ...seed.look, bg: 'photo', layout: 'list' }, home: ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'stremio', 'disneyplus', 'appletv'] } });
+  await fresh({ seed: { ...seed, look: { ...seed.look, layout: 'list' }, home: ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'stremio', 'disneyplus', 'appletv'] } });
   await p.waitForFunction(() => !!ShoreQA.state().shown.artRevision); await p.waitForTimeout(250);
   const rows = await p.evaluate(() => { const list = document.getElementById('phList').getBoundingClientRect(); return [...document.querySelectorAll('#phRows .ph-row .ph-name')].map(e => { const r = e.getBoundingClientRect(); return { top: r.top - list.top, bottom: r.bottom - list.top }; }); });
   // The list mask is opaque from 96px to 976px of its 1040px box.
