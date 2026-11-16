@@ -2,8 +2,8 @@
 
 ## Home
 
-- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
-- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
+- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with All apps or the last selected control. Left/Right moves between All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
+- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
 - OK opens the selected item. Focus alone never launches an app.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
@@ -52,11 +52,15 @@ Open the editor from Settings or All apps. On Home shows the current order on th
 
 Removing the last Home app or adding a tenth app is prevented. A failed storage write keeps the committed choices and order, with a retry message. Saved native app IDs and names survive a restart or a failed catalogue refresh.
 
-## Art Mode and Samsung screens
+## OLED protection (QA55S90F build)
 
-Art Mode sends an application control to the installed `org.tizen.art-app`, with `mode=fullscreen` and `requester=mobile`. This aims to enter native Art Mode with its current artwork, without toggling power or changing the selected artwork.
+This build targets a Samsung S90F QD-OLED, which is not a Frame. There is no Art Mode control. A fresh install uses Photo / Dock / Glass, starting on the darkest bundled photo, with rotation each time Home opens; saved and legacy preferences are kept. Its Home holds nine streaming apps (`DEFAULT_HOME` in `app/main.js`) and reads installed-app icons once when the launcher first becomes visible.
 
-This mode comes from [research on Samsung's Art app](https://github.com/TheFab21/ha-samsungtv-smart/blob/master/notes/QN55LS03FAFXZA/ART_MODE_DECOMPILED.md), on another Tizen 9 Frame model. It is an internal Samsung contract, not a documented public Art API. Its visible behaviour on this exact firmware must be confirmed on the TV.
+- Pixel shift: every minute the whole stage moves one step through a nine-position pattern of up to 3 screen pixels.
+- Idle dim: after 3 minutes with no remote key, Home fades to 82% black. After 8 minutes it fades to pure black. Any key restores it.
+- `config.xml` does not set `screen-saver`, so the TV's own screen saver and sleep timers stay active.
+
+## Samsung screens
 
 Samsung Home explicitly launches the original `com.samsung.tv.csfs` app, independently of the new Home assignment. The earlier `com.samsung.tv.coba.newhome` component did not open Smart Hub visibly and is no longer the escape target. TV settings still uses `com.samsung.tv.coba.setting`. Exact on-device destinations are recorded in docs/tv-status.md; launch callbacks alone are not visual proof. There is no blind power-key fallback.
 
@@ -80,7 +84,7 @@ The gallery contains 15 bundled wallpapers. Settings → Background → Wallpape
 
 Settings → Background → Rotation offers Fixed, Each time Home opens, Every 5 minutes, Every 15 minutes and Every hour. Each time Home opens advances once when the launcher loads; a return to the already-running launcher does not advance it. Timed rotation counts only visible Photo Home time in either List or Dock. Panels, flat backgrounds and time spent in other apps pause the cycle. Changing the photo or rotation mode starts a new interval.
 
-Launcher wallpaper is separate from native Art Mode. Runtime photos, materials and available fonts are local assets; they do not require the Mac or a network download.
+Launcher wallpaper is independent of any Samsung native screens. Runtime photos, materials and available fonts are local assets; they do not require the Mac or a network download.
 
 ## Sources
 

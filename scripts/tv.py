@@ -5,6 +5,7 @@ import ipaddress
 import json
 from pathlib import Path
 import subprocess
+import sys
 import time
 import zipfile
 from local_config import load_settings
@@ -23,7 +24,7 @@ if not host:
 ipaddress.ip_address(host)
 try:
     settings = load_settings()
-    sdb = settings['sdk_path'] / 'tools/sdb'
+    sdb = settings['sdk_path'] / ('tools/sdb.exe' if sys.platform == 'win32' else 'tools/sdb')
     if not sdb.is_file():
         raise ValueError('Local SDB tool missing. See docs/development.md.')
     app_id = settings['identity']['app_id']
