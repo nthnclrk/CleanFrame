@@ -192,8 +192,8 @@ async function library() { await scene('home'); await act('util.apps'); await cu
 async function noLiveFilters() {
   return current.evaluate(() => [...document.querySelectorAll('#stage, #stage *')].filter(e => e.getClientRects().length).map(e => {
     const s = getComputedStyle(e);
-    // The Art photo may carry a static colour curve (#artCurve: feComponentTransfer only); nothing else may reference an SVG filter.
-    const curve = document.getElementById('artCurve'), colourOnly = e.id === 'photo' && curve && curve.querySelectorAll('*').length === [...curve.querySelectorAll('feComponentTransfer, feFuncR, feFuncG, feFuncB')].length;
+    // The Art photo and its frosted sheet copy may carry a static colour curve (#artCurve: feComponentTransfer only); nothing else may reference an SVG filter.
+    const curve = document.getElementById('artCurve'), colourOnly = (e.id === 'photo' || e.id === 'sheetBg') && curve && curve.querySelectorAll('*').length === [...curve.querySelectorAll('feComponentTransfer, feFuncR, feFuncG, feFuncB')].length;
     const filter = colourOnly ? s.filter.replace(/url\("?#artCurve"?\)/, '') : s.filter;
     return { tag: e.tagName, cls: e.className, filter, backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none' };
   }).filter(s => /blur|url\(/.test(s.filter) || s.backdrop !== 'none'));

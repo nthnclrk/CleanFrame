@@ -621,6 +621,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .source-art .dock .plate.on-focus{background:linear-gradient(170deg,rgba(255,255,255,.30),rgba(255,255,255,.14) 58%,rgba(255,255,255,.18));box-shadow:inset 0 1px 0 rgba(255,255,255,.50),inset 0 0 0 1px rgba(255,255,255,.20)}
 .source-art.f-glass .ph-row.is-focus .ph-name,.source-art .ph-row.is-lifted .ph-name{text-shadow:-1px 0 #111,1px 0 #111,0 -1px #111,0 1px #111,0 2px 8px rgba(0,0,0,.65)}
 .source-art .sheet-bg{visibility:hidden}
+.source-art .sheet-bg.is-frost{visibility:visible}
 .source-art .scene{background:#182026}
 /* Keep the extra source row within the existing remote-friendly Settings frame. */
 .detail-background .setting-section+.setting-section{margin-top:24px}

@@ -29,7 +29,7 @@ Values in between are interpolated linearly. The bridge reads Art Mode's `bright
 | 5 | ×1 | ×1 | 0.86 | 0 | ×1 / ×1 / ×1 |
 | 10 | ×1 | ×1.55 | 0.78 | −0.064 | ×0.95 / ×1 / ×1 |
 
-Dimming scales the multiply tint instead of CSS `brightness`. Darkening before the gamma curve took proportionally more blue out of dark values and turned shadows olive. Brightening above 5 raises the image's own brightness, because a multiply tint cannot lighten. Art Mode's automatic ambient dimming has no readable value, so in a dark room Art Mode can look slightly darker than CleanFrame. The bridge never changes display settings. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
+Dimming scales the multiply tint instead of CSS `brightness`. Darkening before the gamma curve took proportionally more blue out of dark values and turned shadows olive. Brightening above 5 raises the image's own brightness, because a multiply tint cannot lighten. Art Mode's automatic ambient dimming has no readable value, so in a dark room Art Mode can look slightly darker than CleanFrame. The bridge never changes display settings. Sheets (Settings, Apps, the Samsung Home message and other full-screen views) sit on a frosted copy of the Art photo with the same look and a darker multiply veil. The frost is made once per photo by drawing it down to 160×90 on a canvas and letting the browser upscale it smoothly; nothing reads pixels and nothing runs on navigation. If the draw fails, sheets keep the plain matte. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
 
 ## Build and host contract
 

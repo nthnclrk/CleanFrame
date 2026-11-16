@@ -51,14 +51,16 @@
     var t = ((validLook(l) ? l.colorTemperature : 0) + 5) / 10, lv = level(validLook(l) && l.brightness !== undefined ? l.brightness : 5);
     var tint = [0, 1, 2].map(function (i) { return Math.max(0, Math.min(255, Math.round(mix(COOL.tint[i], WARM.tint[i], t) * lv.dim * lv.mul[i]))); });
     return { filter: 'brightness(' + round(mix(COOL.brightness, WARM.brightness, t) * lv.lift, 3) + ') contrast(' + round(lv.contrast, 3) + ') saturate(' + round(mix(COOL.saturate, WARM.saturate, t) + lv.saturate, 3) + ') url(#artCurve)',
-      tint: 'rgb(' + tint.join(',') + ')', gamma: [0, 1, 2].map(function (i) { return round(mix(COOL.gamma[i], WARM.gamma[i], t), 3); }) };
+      tint: 'rgb(' + tint.join(',') + ')', veil: 'rgb(' + tint.map(function (v) { return Math.round(v * 0.72); }).join(',') + ')', gamma: [0, 1, 2].map(function (i) { return round(mix(COOL.gamma[i], WARM.gamma[i], t), 3); }) };
   }
   // A static filter on the background image only: no per-frame work on remote movement.
   function applyLook(l) {
     if (typeof document.getElementById !== 'function' || !document.head) return;
     var st = lookStyle(l), el = document.getElementById('artLook'), funcs = ['artCurveR', 'artCurveG', 'artCurveB'];
     if (!el) { el = document.createElement('style'); el.id = 'artLook'; document.head.appendChild(el); }
-    el.textContent = '.source-art #photo{filter:' + st.filter + '}.source-art #bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:' + st.tint + ';mix-blend-mode:multiply;pointer-events:none}';
+    // The frosted sheet uses the same look, a touch darker for legible text.
+    el.textContent = '.source-art #photo,.source-art #sheetBg{filter:' + st.filter + '}.source-art #bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:' + st.tint + ';mix-blend-mode:multiply;pointer-events:none}' +
+      '.source-art .sheet-veil{background:' + st.veil + ';mix-blend-mode:multiply}';
     funcs.forEach(function (id, i) { var f = document.getElementById(id); if (f) f.setAttribute('exponent', String(st.gamma[i])); });
   }
   function setLook(l) {

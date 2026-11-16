@@ -45,7 +45,7 @@ async function fresh(options = {}) {
   });
   await p.goto(preview.baseURL + '/home/'); await ready(); return fixture;
 }
-const artImages = () => p.evaluate(() => ['photo','sheetBg','matImg','phFieldImg','phFieldImgAlt','utFieldImg','utFieldImgAlt'].map(id => document.getElementById(id).src));
+const artImages = () => p.evaluate(() => ['photo','matImg','phFieldImg','phFieldImgAlt','utFieldImg','utFieldImgAlt'].map(id => document.getElementById(id).src));
 try {
   preview = await openPreview({ publicFonts: true });
   const f = await fresh(); await group();
@@ -60,6 +60,13 @@ try {
   const geometry = await p.evaluate(() => { const root = document.getElementById('stage').getBoundingClientRect(), rows = document.getElementById('appearanceRows').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect(); return rows.bottom <= desc.top && rows.right <= root.right; });
   check('Background choices fit above the remote hint', geometry);
   check('Art background drops gallery scrims for the calibrated Art look', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none')));
+  check('Sheets sit on a frosted copy of the Art photo with the same look', await p.evaluate(async () => {
+    ShoreQA.scene('settings'); await new Promise(r => setTimeout(r, 120));
+    const bg = document.getElementById('sheetBg'), s = getComputedStyle(bg), veil = getComputedStyle(document.querySelector('.sheet-veil'));
+    const ok = bg.classList.contains('is-frost') && /^data:image\/png/.test(bg.src) && bg.naturalWidth === 160 && s.visibility === 'visible' && /url\(/.test(s.filter) && !/blur/.test(s.filter) && veil.mixBlendMode === 'multiply';
+    ShoreQA.scene('home'); return ok;
+  }));
+  await scene('settings'); await p.waitForTimeout(250); await p.screenshot({ path: out + 'art-settings-frost-public.png' }); await scene('home');
   check('Art look follows the calibrated brightness levels', await p.evaluate(() => { const at = b => FrameArt.lookFor({ colorTemperature: 3, brightness: b }); return at(2).tint === 'rgb(155,132,98)' && /contrast\(0\.97\) saturate\(0\.5\)/.test(at(2).filter) && at(5).tint === 'rgb(249,217,172)' && /brightness\(0\.636\) contrast\(0\.78\) saturate\(0\.42\)/.test(at(10).filter) && at(10).tint === 'rgb(237,217,172)' && JSON.stringify(FrameArt.lookFor({ colorTemperature: 3 })) === JSON.stringify(at(5)); }));
   check('Art look follows the bridge colour temperature', await p.evaluate(() => { const after = getComputedStyle(document.getElementById('bg'), '::after'), photo = getComputedStyle(document.getElementById('photo')).filter; return after.backgroundColor === 'rgb(250, 212, 160)' && after.mixBlendMode === 'multiply' && /saturate\(0\.48\)/.test(photo) && /url\(/.test(photo) && document.getElementById('artCurveB').getAttribute('exponent') === '1.19'; }));
   await p.setViewportSize({ width: 1280, height: 720 });
