@@ -21,7 +21,15 @@ Art Mode's picture processing is not documented, so the owner matched it by eye 
 | −5 (cool) | 0.41 | 0.86 | 0.50 | rgb(246,238,222) | 1 / 1.02 / 1.15 |
 | +5 (warm) | 0.41 | 0.86 | 0.48 | rgb(250,212,160) | 1 / 1.03 / 1.19 |
 
-Values in between are interpolated linearly. The bridge reads Art Mode's `brightness` and `color_temperature` read-only from the TV's own Art channel (`ws://127.0.0.1:8001/api/v2/channels/com.samsung.art-app`; no pairing token, one short connection addressed to the Art app client, read in the background so `current.json` never waits, refreshed at most every 3 s) and adds them to `current.json` as `look`. The widget keeps the last good value in `cleanframe.art.look.v1`, so the look survives an unavailable bridge; with no value it uses colour temperature 0. Art brightness is reported but not yet applied: only brightness 5 has been calibrated, and Art Mode's automatic ambient dimming has no readable value. The bridge never changes display settings. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
+Values in between are interpolated linearly. The bridge reads Art Mode's `brightness` and `color_temperature` read-only from the TV's own Art channel (`ws://127.0.0.1:8001/api/v2/channels/com.samsung.art-app`; no pairing token, one short connection addressed to the Art app client, read in the background so `current.json` never waits, refreshed at most every 3 s) and adds them to `current.json` as `look`. The widget keeps the last good value in `cleanframe.art.look.v1`, so the look survives an unavailable bridge; with no value it uses colour temperature 0. Art brightness was calibrated the same way at 2, 5 and 10 (colour temperature +3), relative to the brightness-5 look above, and is interpolated piecewise-linearly between them (extrapolated below 2, with dimming floored at 0.3):
+
+| Art brightness | dimming | image brightness | contrast | saturate | tint R/G/B |
+|---|---|---|---|---|---|
+| 2 | ×0.62 | ×1 | 0.97 | +0.016 | ×1 / ×0.98 / ×0.92 |
+| 5 | ×1 | ×1 | 0.86 | 0 | ×1 / ×1 / ×1 |
+| 10 | ×1 | ×1.55 | 0.78 | −0.064 | ×0.95 / ×1 / ×1 |
+
+Dimming scales the multiply tint instead of CSS `brightness`. Darkening before the gamma curve took proportionally more blue out of dark values and turned shadows olive. Brightening above 5 raises the image's own brightness, because a multiply tint cannot lighten. Art Mode's automatic ambient dimming has no readable value, so in a dark room Art Mode can look slightly darker than CleanFrame. The bridge never changes display settings. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
 
 ## Build and host contract
 

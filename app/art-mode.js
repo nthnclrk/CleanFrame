@@ -34,9 +34,23 @@
   }
   function mix(a, b, t) { return a + (b - a) * t; }
   function round(n, d) { var f = Math.pow(10, d); return Math.round(n * f) / f; }
+  // Art brightness 0..10, calibrated at 2, 5 and 10 (colour temperature +3) and
+  // applied relative to the brightness-5 look. Dimming scales the multiply tint so
+  // dark levels keep their colour balance; brightening raises the image itself.
+  var LEVELS = [
+    { at: 2, dim: 0.62, lift: 1, contrast: 0.97, saturate: 0.016, mul: [1, 0.98, 0.92] },
+    { at: 5, dim: 1, lift: 1, contrast: 0.86, saturate: 0, mul: [1, 1, 1] },
+    { at: 10, dim: 1, lift: 1.55, contrast: 0.78, saturate: -0.064, mul: [0.95, 1, 1] }
+  ];
+  function level(b) {
+    var lo = b <= 5 ? LEVELS[0] : LEVELS[1], hi = b <= 5 ? LEVELS[1] : LEVELS[2], t = (b - lo.at) / (hi.at - lo.at);
+    return { dim: Math.max(0.3, mix(lo.dim, hi.dim, t)), lift: mix(lo.lift, hi.lift, t), contrast: Math.min(1.1, mix(lo.contrast, hi.contrast, t)),
+      saturate: mix(lo.saturate, hi.saturate, t), mul: [0, 1, 2].map(function (i) { return mix(lo.mul[i], hi.mul[i], t); }) };
+  }
   function lookStyle(l) {
-    var t = ((validLook(l) ? l.colorTemperature : 0) + 5) / 10, tint = [0, 1, 2].map(function (i) { return Math.round(mix(COOL.tint[i], WARM.tint[i], t)); });
-    return { filter: 'brightness(' + round(mix(COOL.brightness, WARM.brightness, t), 3) + ') contrast(' + round(mix(COOL.contrast, WARM.contrast, t), 3) + ') saturate(' + round(mix(COOL.saturate, WARM.saturate, t), 3) + ') url(#artCurve)',
+    var t = ((validLook(l) ? l.colorTemperature : 0) + 5) / 10, lv = level(validLook(l) && l.brightness !== undefined ? l.brightness : 5);
+    var tint = [0, 1, 2].map(function (i) { return Math.max(0, Math.min(255, Math.round(mix(COOL.tint[i], WARM.tint[i], t) * lv.dim * lv.mul[i]))); });
+    return { filter: 'brightness(' + round(mix(COOL.brightness, WARM.brightness, t) * lv.lift, 3) + ') contrast(' + round(lv.contrast, 3) + ') saturate(' + round(mix(COOL.saturate, WARM.saturate, t) + lv.saturate, 3) + ') url(#artCurve)',
       tint: 'rgb(' + tint.join(',') + ')', gamma: [0, 1, 2].map(function (i) { return round(mix(COOL.gamma[i], WARM.gamma[i], t), 3); }) };
   }
   // A static filter on the background image only: no per-frame work on remote movement.
@@ -236,7 +250,7 @@
   function cancel() { epoch++; refreshing = false; requests.slice().forEach(function (xhr) { xhr.abort(); }); }
   window.FrameArt = { load: load, refresh: refresh, cancel: cancel, current: function () { return current; },
     status: function () { return { available: !!current, refreshing: refreshing, error: error }; },
-    look: function () { return { settings: look, style: lookStyle(look) }; },
+    look: function () { return { settings: look, style: lookStyle(look) }; }, lookFor: lookStyle,
     // Bound blob lifetimes once a new atomic bundle replaces every previous image.
     retain: function (url) { retainedURL = url; urls = urls.filter(function (item) { if (item === url || current && item === current.url) return true; window.URL.revokeObjectURL(item); return false; }); }
   };
