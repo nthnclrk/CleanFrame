@@ -8,6 +8,7 @@ const A = 'a'.repeat(64), B = 'b'.repeat(64), C = 'c'.repeat(64), META = 'cleanf
 const meta = revision => ({ revision, contentId: 'MY_TEST', imageUrl: '/art/' + revision + '/image.jpg', width: 1920, height: 1080 });
 const jpeg = new Uint8Array([255,216,0,0,0,0,0,0,0,0,255,217]);
 function harness({ files = new Map(), storage = new Map(), failMove = false, corrupt = new Set(), hangMove = false } = {}) {
+  const requests = [];
   let next = A, offline = false, held = [], hold = false, deleted = [], order = [], revoked = [], urlNo = 0, clock = 0;
   const timers = new Map();
   const dir = { fullPath: 'wgt-private/cleanframe-art',
@@ -33,7 +34,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
     set src(url) { queueMicrotask(() => { if (corrupt.has(url)) this.onerror?.(); else this.onload?.(); }); }
   }
   class XHR {
-    open(method, url) { this.url = url; }
+    open(method, url) { this.url = url; requests.push(url); }
     send() {
       const respond = () => {
         if (offline) { this.onerror(); return; }
@@ -52,7 +53,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
   };
   vm.runInNewContext(source, context);
   const api = context.window.FrameArt;
-  return { api, files, storage, order, deleted, revoked, next: value => { next = value; }, offline: value => { offline = value; }, hold: () => { hold = true; }, release: () => { hold = false; held.forEach(fn => fn()); held = []; },
+  return { api, files, storage, order, deleted, revoked, requests, next: value => { next = value; }, offline: value => { offline = value; }, hold: () => { hold = true; }, release: () => { hold = false; held.forEach(fn => fn()); held = []; },
     timers, expire: () => { for (const fn of [...timers.values()]) fn(); }, load: () => new Promise(r => api.load(r)), refresh: () => new Promise(r => api.refresh(r)) };
 }
 test('Tizen private cache promotes a completed JPEG before its pointer and survives offline restart', async () => {
@@ -90,4 +91,15 @@ test('repeated cancelled candidates keep installed blob alive and bound object U
   const h = harness({ failMove: true }); await h.load(); const a = await h.refresh(); h.api.retain(a.url);
   for (const revision of [B,C,B,C]) { h.next(revision); await h.refresh(); }
   assert.ok(!h.revoked.includes(a.url)); assert.ok(h.revoked.length >= 2);
+});
+
+test('widget can use its configured private TV address and rejects external hosts', async () => {
+  const own = harness({ storage: new Map([['cleanframe.art.host', '192.168.50.10']]) });
+  await new Promise(resolve => own.api.refresh(resolve));
+  assert.ok(own.requests.length === 2 && own.requests.every(url => url.startsWith('http://192.168.50.10:8643/')));
+  for (const host of ['example.com', '8.8.8.8', '192.168.1.999', '192.168.1.10:8099', 'http://192.168.1.10']) {
+    const h = harness({ storage: new Map([['cleanframe.art.host', host]]) });
+    await new Promise(resolve => h.api.refresh(resolve));
+    assert.ok(h.requests.every(url => url.startsWith('http://127.0.0.1:8643/')));
+  }
 });

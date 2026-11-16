@@ -2,11 +2,11 @@
 
 Settings → Background → Photo → Wallpaper source → **Art Mode** uses the current unfiltered uploaded Art Mode JPEG as CleanFrame's Home background. Gallery stays the default. Switching back to Gallery restores the selected bundled wallpaper, rotation and material preferences. This feature does not change native Art Mode's selection, launch it, install anything or alter native Home/startup assignments.
 
-This is an optional local Vetro shard plus widget integration. It needs neither Home Assistant nor an admin/session token. It never listens on the LAN. Gallery remains fully offline and needs no shard.
+This is an optional local Vetro shard plus widget integration. It needs neither Home Assistant nor an admin/session token. It defaults to loopback. TVs that block loopback can use their own interface address; connections from other LAN devices are refused. Gallery remains fully offline and needs no shard.
 
 ## Evidence and limits
 
-The owner supplied evidence from a 2024 Frame running Tizen 9: the `ArtLatestFullScreenData` preference's uploaded content ID matched live `samsungtvws art.get_current()`, and its image path pointed to the original 3840 × 2160 JPEG (about 2.55 MB). That establishes the source for that uploaded image. This implementation has only offline/synthetic and Chromium verification; it has not been imported into Vetro, installed or physically checked on a TV.
+The owner supplied evidence from a 2024 Frame running Tizen 9: the `ArtLatestFullScreenData` preference's uploaded content ID matched live `samsungtvws art.get_current()`, and its image path pointed to the original 3840 × 2160 JPEG (about 2.55 MB). That establishes the source for that uploaded image. The bridge has been imported and started in Vetro on that TV: it served an original JPEG with a matching SHA-256, accepted opaque widget origins and rejected web origins. Initial packaged-widget testing found that this TV blocks loopback with ERR_ADDRESS_UNREACHABLE; the interface-address transport below handles that separately. With private interface-address configuration, the installed widget loaded the full-resolution JPEG and saved it in its app-private cache. A request from another LAN device returned 403. Physical appearance, restart recovery and Home routing still need confirmation.
 
 The bridge accepts only `MY_` uploaded IDs, exact `.jpg` paths in the fixed `my_photo` directory, `PhotoFilter: "None"`, and an empty or `"none"` `UserMatteType`. Paid store art, slideshows, filters, matte rendering, other firmware and older Tizen versions are **not verified support**. Unsupported or corrupt selections return unavailable; CleanFrame keeps its last good image. The Art SQL shard cannot serve these files and is not used.
 
@@ -30,14 +30,14 @@ npm run pack:art
 
 - `ctx.dir`: an existing directory writable as the process UID; the shard canonicalises it and creates a private `art-cache/` child.
 - `ctx.execute(command, timeoutMs)`: root execution, returning a Promise for `{stdout, stderr, exit_code, timed_out}`. The host must enforce the timeout and its 1 MiB output limit. The shard requests 4 seconds per command and rejects excessive output/errors without exposing diagnostics.
-- `ctx.config.get/set`: private configuration. The shard reads `ctx.config.get('port')`; absent values use `8643`. Only this host-managed `config.json` is expected to survive shard upgrades. The shard does not edit it directly.
-- The host calls/awaits `start()` and `stop()`. Repeated starts coalesce. Stop closes the listener, destroys accepted sockets and invalidates pending refresh results; an already-issued root command remains subject to the host timeout. Restart waits for that refresh to settle before cleaning its cache. `status()` is safe local status; optional host `route()` returns 404, never an image or root API.
+- `ctx.config.get/set`: private configuration. The shard reads `ctx.config.get().port`; absent values use `8643`. Only this host-managed `config.json` is expected to survive shard upgrades. The shard does not edit it directly.
+- Vetro calls `start()` and `stop()` without awaiting their returned Promises; inspect `status()` and the listener after activation. Repeated starts coalesce. Stop closes the listener, destroys accepted sockets and invalidates pending refresh results; an already-issued root command remains subject to the host timeout. Restart waits for that refresh to settle before cleaning its cache. `status()` is safe local status; optional host `route()` returns 404, never an image or root API.
 
 The parent maintainer handles import/start under a separate device task, after checking the real host's loader/schema and context API against this contract. No unattended installer or admin-token HTTP route is supplied. Build preparation here does not contact Vetro or a TV.
 
 ## Loopback HTTP
 
-The shard binds **127.0.0.1 only**, default port 8643. It accepts GET only and at most eight concurrent TCP connections and eight active responses. Root preference/copy work coalesces into one refresh; successful reads have a 1.5-second reuse window.
+The shard defaults to **127.0.0.1**, port 8643. Private configuration may set `address` to the TV's own IPv4 interface address when its web runtime blocks loopback. Wildcard and nonlocal bindings are rejected. Every HTTP connection must originate from the exact bound address (including IPv4-mapped notation); other LAN clients receive 403 before any artwork response. It accepts GET only and at most eight concurrent TCP connections and eight active responses. Root preference/copy work coalesces into one refresh; successful reads have a 1.5-second reuse window.
 
 | Request | Result |
 | --- | --- |
@@ -48,7 +48,7 @@ The shard binds **127.0.0.1 only**, default port 8643. It accepts GET only and a
 | Non-GET method | 405 |
 | HTTP(S), other web, or malformed Origin | 403 |
 
-Opaque `Origin: null` and nonweb `file:`, `widget:`, `wgt:` or `tizen:` origins receive CORS permission. Requests without Origin are accepted for packaged/native clients. An ordinary HTTP browser preview cannot use the real service: browser tests substitute synthetic bridge responses with explicit CORS. No listener address, source path or arbitrary command can be selected by HTTP. There is no LAN listener, authentication/session endpoint or HA proxy.
+Opaque `Origin: null` and nonweb `file:`, `widget:`, `wgt:` or `tizen:` origins receive CORS permission. Requests without Origin are accepted for packaged/native clients. An ordinary HTTP browser preview cannot use the real service: browser tests substitute synthetic bridge responses with explicit CORS. No listener address, source path or arbitrary command can be selected by HTTP. There is no artwork access for other LAN devices, authentication/session endpoint or HA proxy.
 
 Revision is SHA-256 of safe metadata plus the copied bytes. The bridge retains at most two revision files and one bounded temporary copy (up to about 36 MiB). A previous retained URL still serves its own bytes; an evicted URL returns 404 rather than the latest image. An open response holds its own descriptor while cache eviction proceeds. Plugin restart/upgrade discards this disposable bridge cache and rebuilds from the preference; the widget cache is independent.
 
@@ -60,7 +60,7 @@ The only preference read is:
 /opt/usr/home/owner/apps_rw/org.tizen.art-app/data/.pref/0f61537ef36906f51e0fa75852758b33df2df340
 ```
 
-That filename is SHA-1 of `ArtLatestFullScreenData`. The bounded binary parser requires `uint32 LE 0x17`, the exact 23-byte key plus NUL, `uint32 LE type 1`, then JSON at that precise boundary. It never scans for a first brace. The preference is capped at 64 KiB; only allowlisted content ID and integer dimensions leave the parser. Content keys and all other preference fields are discarded and never returned through HTTP/status/errors.
+That filename is SHA-1 of `ArtLatestFullScreenData`. The bounded binary parser requires `uint32 LE 0x17`, the exact 23-byte key without a separator, `uint32 LE type 1`, then JSON with an optional final NUL at that precise boundary. It never scans for a first brace. The preference is capped at 64 KiB; only allowlisted content ID and integer dimensions leave the parser. Content keys and all other preference fields are discarded and never returned through HTTP/status/errors.
 
 The only source pattern is:
 
@@ -82,10 +82,10 @@ Browsers, or TVs without usable private filesystem access, use one atomic Indexe
 
 Startup reads and displays the last successful local image before starting a refresh. With a saved Art source but no cache, it immediately builds a neutral local placeholder and keeps the saved source. Startup/focus/visibility of visible Photo Home can refresh asynchronously, with a five-second event throttle. Hidden startup sends no request; hiding cancels active XHRs. There is no polling timer. Settings, gallery previews and remote navigation never trigger background bridge requests. A refresh finishing while Settings or another appearance operation is active can update the private cache but cannot replace the preview. The next eligible lifecycle return can install that cached/new revision as a complete atomic bundle.
 
-The widget manifest includes internet plus filesystem read/write privileges and network access only to `http://127.0.0.1:8643`. For a locally chosen alternate port, set the shard's private `port`, set localStorage `cleanframe.art.port` to the same decimal port (1024–65535), and align the local build's manifest access origin before signing. Keep that installation-specific adjustment local. Hosts other than 127.0.0.1 are not configurable.
+The widget manifest includes internet plus filesystem read/write privileges and network access only to `http://127.0.0.1:8643`. For a locally chosen alternate port, set the shard's private `port`, set localStorage `cleanframe.art.port` to the same decimal port (1024–65535), and align the local build's manifest access origin before signing. Keep that installation-specific adjustment local. For a TV that blocks loopback, privately set the shard `address` to its own interface IP, localStorage `cleanframe.art.host` to the same IP, and the personal widget manifest access origin to that address/port before signing. The widget permits only loopback or private IPv4 host values; this is installation configuration, not a discoverable LAN artwork endpoint. Do not commit the owner's address.
 
 ## Verification handoff
 
 Offline checks are `npm run check`, `npm run check:art`, `npm run check:tools`, and `CLEANFRAME_PUBLIC_FONTS=1 npm run check:browser`. The latter runs both the existing UI regression suite and Art-specific browser/cache tests. Public-font screenshots use a bundled synthetic photo under ignored `.local/qa/art-*-public.png`. No owner's photo or diagnostic dump is included. `npm run pack:art` prepares the local shard; public unsigned widget preparation uses the existing `check:public` / `export:public` flow.
 
-The parent still needs to verify the actual Vetro import/lifecycle, Node 4.4 runtime and root utilities; packaged-widget loopback/CORS/network policy; private-file persistence across app/TV restart; the image against the owner's current uploaded Art photo; Home/Art visibility events and change latency; List/Dock readability and remote feel; stopped/missing bridge fallback; and cancellation under actual TV timing. Signing/install, launch and physical observation remain with the parent/owner. Native Home/startup writes are a separate task and are not part of this feature.
+Vetro import/start, root copy utilities, packaged-widget interface-address access and app-private file creation were exercised on the owner's TV. Still verify Node 4.4 independently if targeting an older runtime; private-file persistence across app/TV restart; the image against the owner's current uploaded Art photo; Home/Art visibility events and change latency; List/Dock readability and remote feel; stopped/missing bridge fallback; and cancellation under actual TV timing. Signing/install, launch and physical observation remain with the parent/owner. Native Home/startup writes are a separate task and are not part of this feature.

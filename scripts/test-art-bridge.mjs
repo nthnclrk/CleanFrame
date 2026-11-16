@@ -17,9 +17,9 @@ const jpeg = readFileSync(new URL('../app/assets/wallpapers/misty.jpg', import.m
 const dimensions = shard.jpegSize(jpeg);
 const content = (id = 'MY_TEST', patch = {}) => ({ ContentID: id, ImagePath: PHOTO + id + '.jpg', ImageWidth: dimensions.width, ImageHeight: dimensions.height, PhotoFilter: 'None', UserMatteType: '', ...patch });
 function pref(c = content(), extra = {}) {
-  const header = Buffer.alloc(4 + KEY.length + 1 + 4);
-  header.writeUInt32LE(KEY.length); header.write(KEY, 4); header.writeUInt32LE(1, 4 + KEY.length + 1);
-  return Buffer.concat([header, Buffer.from(JSON.stringify({ Content: c, SecretKeys: 'NEVER_RETURN_THIS', ...extra }))]);
+  const header = Buffer.alloc(4 + KEY.length + 4);
+  header.writeUInt32LE(KEY.length); header.write(KEY, 4); header.writeUInt32LE(1, 4 + KEY.length);
+  return Buffer.concat([header, Buffer.from(JSON.stringify({ Content: c, SecretKeys: 'NEVER_RETURN_THIS', ...extra })), Buffer.from([0])]);
 }
 async function freePort() {
   const s = net.createServer(); await new Promise(r => s.listen(0, '127.0.0.1', r)); const port = s.address().port; await new Promise(r => s.close(r)); return port;
@@ -34,7 +34,7 @@ function get(port, path = '/current.json', origin = 'null', method = 'GET') {
 async function harness(run) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'cleanframe-art-'))), port = await freePort();
   let input = pref(), image = jpeg, hold, calls = [], afterCopy, executeError = false;
-  const bridge = shard({ dir, config: { get: () => port }, execute: async (cmd, timeout) => {
+  const bridge = shard({ dir, config: { get: () => ({ port }) }, execute: async (cmd, timeout) => {
     calls.push(cmd); assert.equal(timeout, 4000);
     if (executeError) return { stdout: 'PRIVATE OUTPUT', stderr: 'PRIVATE KEYS', exit_code: 1, timed_out: true };
     if (hold) await hold;
@@ -52,8 +52,11 @@ async function harness(run) {
 }
 test('typed preference parsing returns only allowlisted metadata', () => {
   assert.deepEqual(shard.parsePreference(pref()), { contentId: 'MY_TEST', width: dimensions.width, height: dimensions.height });
+  assert.deepEqual(shard.parsePreference(pref().subarray(0, -1)), shard.parsePreference(pref()));
+  const wrongSeparator = Buffer.concat([pref().subarray(0, 27), Buffer.from([0]), pref().subarray(27)]);
+  assert.throws(() => shard.parsePreference(wrongSeparator));
   for (const bytes of [Buffer.alloc(0), Buffer.from('{"Content":{}}'), pref().subarray(0, 30), Buffer.concat([Buffer.from('junk{'), pref()]), Buffer.alloc(65537)]) assert.throws(() => shard.parsePreference(bytes));
-  for (const [offset, value] of [[0, 24], [4, 1], [4 + KEY.length, 1], [4 + KEY.length + 1, 2]]) {
+  for (const [offset, value] of [[0, 24], [4, 1], [4 + KEY.length, 2], [4 + KEY.length + 1, 2]]) {
     const corrupt = pref(); corrupt[offset] = value; assert.throws(() => shard.parsePreference(corrupt));
   }
   for (const patch of [{ ImageWidth: '1920' }, { ImageHeight: -1 }, { ImageWidth: 1.2 }, { ImageHeight: 100000 }, { PhotoFilter: 'Warm' }, { UserMatteType: 'shadowbox' }, { ImagePath: '/etc/passwd' }]) assert.throws(() => shard.parsePreference(pref(content('MY_TEST', patch))));
@@ -115,7 +118,7 @@ test('bad image or execute failure never publishes metadata', async () => {
 });
 test('stop before listen settles its start promise and leaves the port reusable', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'cleanframe-art-'))), port = await freePort();
-  const bridge = shard({ dir, config: { get: () => port }, execute: () => Promise.reject(Error('Not expected')) });
+  const bridge = shard({ dir, config: { get: () => ({ port }) }, execute: () => Promise.reject(Error('Not expected')) });
   try {
     const starting = bridge.start().catch(e => e.message); await bridge.stop();
     assert.equal(await starting, 'Bridge stopped'); await bridge.start(); assert.equal(bridge.status().running, true);
@@ -136,7 +139,7 @@ test('invalid configured ports never open a listener', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'cleanframe-art-')));
   try {
     for (const port of ['abc', Infinity, 0, 80, 65536, 8643.5]) {
-      const bridge = shard({ dir, config: { get: () => port }, execute: () => { throw Error('Unexpected execute'); } });
+      const bridge = shard({ dir, config: { get: () => ({ port }) }, execute: () => { throw Error('Unexpected execute'); } });
       await assert.rejects(bridge.start(), /Invalid bridge port/); assert.equal(bridge.status().running, false);
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -149,4 +152,13 @@ test('ES5 shard and deterministic bounded text bundle', () => {
   const first = run(); assert.deepEqual(run(), first);
   const b = JSON.parse(first); assert.equal(b.format, 'vetro-plugin'); assert.equal(b.manifest.apiVersion, 1); assert.deepEqual(b.manifest.permissions, ['exec']);
   assert.deepEqual(Object.keys(b.files), ['index.js']); assert.equal(b.files['index.js'], source); assert.ok(first.length < 512 * 1024);
+});
+
+test('TV interface mode refuses other LAN clients and nonlocal bindings', () => {
+  assert.equal(shard.listenAddress({}), '127.0.0.1');
+  assert.equal(shard.localClient('192.168.50.10', '192.168.50.10'), true);
+  assert.equal(shard.localClient('192.168.50.10', '::ffff:192.168.50.10'), true);
+  assert.equal(shard.localClient('192.168.50.10', '192.168.50.11'), false);
+  assert.equal(shard.localClient('192.168.50.10', '127.0.0.1'), false);
+  for (const address of ['0.0.0.0', 'example.com', '198.51.100.123', '::']) assert.throws(() => shard.listenAddress({ address }), /Invalid bridge address/);
 });

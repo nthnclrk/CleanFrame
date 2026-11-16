@@ -1,10 +1,18 @@
-/* Optional loopback Art bridge. No credentials, polling, pixel reads or remote-key I/O. */
+/* Optional TV-local Art bridge. No credentials, polling, pixel reads or remote-key I/O. */
 (function () {
   'use strict';
   var MAX = 12 * 1024 * 1024, PORT_KEY = 'cleanframe.art.port', META_KEY = 'cleanframe.art.cache.v1';
   var current = null, loaded = false, readers = [], loading = false, refreshing = false, epoch = 0, requests = [];
   var copyNo = 0, currentTemp = null;
   var urls = [], retainedURL = null, error = null, fsDir = null, db = null;
+  function host() {
+    var h, parts;
+    try { h = localStorage.getItem('cleanframe.art.host') || '127.0.0.1'; } catch (e) { h = '127.0.0.1'; }
+    if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(h)) return '127.0.0.1';
+    parts = h.split('.').map(Number);
+    if (parts.some(function (n) { return n > 255; })) return '127.0.0.1';
+    return h === '127.0.0.1' || parts[0] === 10 || parts[0] === 192 && parts[1] === 168 || parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31 ? h : '127.0.0.1';
+  }
   function port() {
     var p;
     try { p = localStorage.getItem(PORT_KEY) || '8643'; } catch (e) { p = '8643'; }
@@ -159,7 +167,7 @@
   }
   function refresh(done) {
     if (refreshing || document.hidden) { done(null); return; }
-    refreshing = true; var g = epoch, base = 'http://127.0.0.1:' + port();
+    refreshing = true; var g = epoch, base = 'http://' + host() + ':' + port();
     function finish(value) {
       if (g !== epoch) return;
       refreshing = false; error = value ? null : 'Art Mode is unavailable. Your last wallpaper is kept.';

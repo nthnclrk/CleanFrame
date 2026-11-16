@@ -1,6 +1,6 @@
 /* MIT. Vetro shard; ES5 / Node 4.4. No device action occurs until start(). */
 'use strict';
-var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto');
+var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto'), os = require('os');
 var PREF = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/data/.pref/0f61537ef36906f51e0fa75852758b33df2df340';
 var PHOTO = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/shared/trusted/data/my_photo/';
 var KEY = 'ArtLatestFullScreenData', MAX_PREF = 65536, MAX_IMAGE = 12 * 1024 * 1024;
@@ -10,11 +10,12 @@ function imagePath(id, source) {
   return source;
 }
 function parsePreference(buf) {
-  var offset = 4 + KEY.length + 1, data, c;
+  var offset = 4 + KEY.length, data, c, end;
   if (!Buffer.isBuffer(buf) || buf.length < offset + 6 || buf.length > MAX_PREF || buf.readUInt32LE(0) !== KEY.length ||
-      buf.toString('utf8', 4, offset - 1) !== KEY || buf[offset - 1] !== 0 || buf.readUInt32LE(offset) !== 1) invalid();
+      buf.toString('utf8', 4, offset) !== KEY || buf.readUInt32LE(offset) !== 1) invalid();
   // Parse only the typed payload at its documented boundary, never search for a brace.
-  try { data = JSON.parse(buf.toString('utf8', offset + 4)); } catch (e) { invalid(); }
+  end = buf.length - (buf[buf.length - 1] === 0 ? 1 : 0);
+  try { data = JSON.parse(buf.toString('utf8', offset + 4, end)); } catch (e) { invalid(); }
   c = data && data.Content;
   if (!c || typeof c !== 'object' || Array.isArray(c)) invalid();
   imagePath(c.ContentID, c.ImagePath);
@@ -46,9 +47,18 @@ function jpegSize(buf) {
 }
 function quote(s) { return "'" + s.replace(/'/g, "'\\''") + "'"; }
 function unlink(file) { try { fs.unlinkSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; } }
+function localClient(address, remote) { return String(remote || '').replace(/^::ffff:/, '') === address; }
+function listenAddress(config) {
+  var address = config.address || '127.0.0.1', interfaces = os.networkInterfaces(), found = address === '127.0.0.1';
+  Object.keys(interfaces).forEach(function (name) { (interfaces[name] || []).forEach(function (info) {
+    if ((info.family === 'IPv4' || info.family === 4) && info.address === address) found = true;
+  }); });
+  if (!found || address === '0.0.0.0') throw new Error('Invalid bridge address');
+  return address;
+}
 function moduleFactory(ctx) {
   var dir = path.join(fs.realpathSync(ctx.dir), 'art-cache'), server = null, sockets = [], current = null, revisions = [], running = false;
-  var pendingHTTP = 0;
+  var pendingHTTP = 0, address = '127.0.0.1';
   var inflight = null, starting = null, rejectStart = null, generation = 0, counter = 0, lastRead = 0, lastError = false;
   function active(g) { if (!running || g !== generation) invalid(); }
   function execute(cmd) {
@@ -107,6 +117,9 @@ function moduleFactory(ctx) {
   }
   function handler(req, res) {
     var origin = req.headers.origin, match, closed = false, released = false;
+    // Some Frame web runtimes block loopback. When bound to the TV's own
+    // interface, accept only connections originating from that exact address.
+    if (!localClient(address, req.socket.remoteAddress)) { res.writeHead(403); res.end(); return; }
     if (origin && (origin.length > 256 || !/^(?:null|(?:file|widget|wgt|tizen):\/\/[^\r\n]*)$/.test(origin))) { res.writeHead(403); res.end(); return; }
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
     res.setHeader('Vary', 'Origin'); res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -136,8 +149,10 @@ function moduleFactory(ctx) {
   function start() {
     if (running) return starting || Promise.resolve();
     if (inflight) return inflight.then(start, start);
-    var configured = ctx.config.get('port'), port = Number(configured === undefined || configured === null || configured === '' ? 8643 : configured), g;
+    var config = ctx.config.get() || {}, configured = config.port;
+    var port = Number(configured === undefined || configured === null || configured === '' ? 8643 : configured), g;
     if (!isFinite(port) || port % 1 || port < 1024 || port > 65535) return Promise.reject(new Error('Invalid bridge port'));
+    try { address = listenAddress(config); } catch (e) { return Promise.reject(e); }
     try {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, 448);
       var st = fs.lstatSync(dir);
@@ -151,7 +166,7 @@ function moduleFactory(ctx) {
       server = http.createServer(handler); server.timeout = 10000; server.maxConnections = 8;
       server.on('connection', function (socket) { sockets.push(socket); socket.on('close', function () { var i = sockets.indexOf(socket); if (i >= 0) sockets.splice(i, 1); }); });
       server.once('error', function () { if (g === generation) { running = false; server = null; starting = null; rejectStart = null; } reject(new Error('Bridge listen failed')); });
-      server.listen(port, '127.0.0.1', function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; resolve(); });
+      server.listen(port, address, function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; resolve(); });
     });
     return starting;
   }
@@ -172,3 +187,5 @@ module.exports = moduleFactory;
 module.exports.parsePreference = parsePreference;
 module.exports.imagePath = imagePath;
 module.exports.jpegSize = jpegSize;
+module.exports.localClient = localClient;
+module.exports.listenAddress = listenAddress;
