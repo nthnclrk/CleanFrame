@@ -272,7 +272,10 @@
           validImage(m, url, function (ok) {
             if (g !== epoch) return;
             if (!ok) { finish(null); return; }
-            persist(m, bytes, blob, url, g, finish);
+            // Shown as soon as it decodes: the private save (up to a few seconds on the TV) finishes
+            // in the background, and only the next launch reads the saved copy.
+            persist(m, bytes, blob, url, g, function () {});
+            finish(record(m, url));
           });
         });
       });

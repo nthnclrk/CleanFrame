@@ -58,7 +58,7 @@ function harness({ files = new Map(), storage = new Map(), failMove = false, cor
 }
 test('Tizen private cache promotes a completed JPEG before its pointer and survives offline restart', async () => {
   const h = harness(); assert.equal(await h.load(), null);
-  const result = await h.refresh(); assert.equal(result.revision, A); assert.match(result.url, /^file:\/\/\/wgt-private/);
+  const result = await h.refresh(); assert.equal(result.revision, A); assert.match(result.url, /^blob:/); // Shown from memory; the save finishes behind it.
   assert.deepEqual([...h.files.get(A + '.jpg')], [...jpeg]);
   assert.ok(h.order.findIndex(v => v.startsWith('close:incoming-')) < h.order.indexOf('move:' + A + '.jpg'));
   assert.ok(h.order.indexOf('move:' + A + '.jpg') < h.order.indexOf('pointer:' + META));
@@ -80,12 +80,13 @@ test('cache cleanup bounds revisions and repairs a corrupt same-revision orphan'
   assert.ok(!h.files.has(A + '.jpg') && h.files.has(B + '.jpg') && h.files.has(C + '.jpg') && h.files.has('unrelated.txt'));
   assert.equal(h.files.size, 3);
 });
-test('cancellation ignores a late response and stuck cache promotion has a deadline', async () => {
+test('cancellation ignores a late response, and a stuck save never delays showing the photo', async () => {
   const h = harness(); await h.load(); h.hold(); let applied = false; h.api.refresh(() => { applied = true; });
   h.api.cancel(); h.release(); await new Promise(r => setImmediate(r));
   assert.equal(applied, false); assert.equal(h.storage.has(META), false); assert.equal(h.api.current(), null);
   const stuck = harness({ hangMove: true }); await stuck.load(); const pending = stuck.refresh(); await new Promise(r => setImmediate(r));
-  stuck.expire(); assert.match((await pending).url, /^blob:/); assert.equal(stuck.api.status().refreshing, false);
+  const first = await Promise.race([pending, new Promise(r => setImmediate(() => r('waiting')))]); // No timer expired.
+  assert.match(first.url, /^blob:/); assert.equal(stuck.api.status().refreshing, false); assert.equal(stuck.storage.has(META), false);
 });
 test('a save that has started finishes after hiding, and an overlapping save keeps its files', async () => {
   const big = new Uint8Array(600000); big.set([255, 216]); big.set([255, 217], big.length - 2); // Three 256 KiB steps.
