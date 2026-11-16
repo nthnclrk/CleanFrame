@@ -113,7 +113,7 @@ try {
   await fresh({ seed: {} });
   await p.waitForFunction(() => !!ShoreQA.state().shown.artRevision);
   const defaults = (await state()).dock;
-  check('Fresh defaults include ESPN and antenna Live TV without Australian services', defaults.length === 9 && defaults[0] === 'livetv' && defaults.includes('espn') && !defaults.includes('abciview') && !defaults.includes('sbs'));
+  check('Fresh defaults include ESPN, Browser, HDMI 4 and antenna Live TV without Australian services', defaults.length === 7 && defaults[0] === 'livetv' && ['espn', 'browser', 'hdmi4'].every(id => defaults.includes(id)) && !defaults.includes('abciview') && !defaults.includes('sbs'));
   await p.screenshot({ path: out + 'home-defaults-public.png' });
   await p.evaluate(() => ShoreQA.look({ layout: 'list' })); await ready();
   check('Home entries use ESPN PNG and original TV mark', await p.evaluate(() => {
@@ -121,11 +121,19 @@ try {
     return espn && tv && espn.style.webkitMaskImage.indexOf('espn.png') >= 0 && tv.style.webkitMaskImage.indexOf('livetv.svg') >= 0;
   }));
   await p.screenshot({ path: out + 'home-defaults-list-public.png' });
+  check('Home controls are Apps and Settings only', JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('#utils .u')].map(b => b.getAttribute('aria-label')))) === '["Apps","Settings"]');
+  check('Art Glass focus is a translucent frosted pane', await p.evaluate(() => { const plate = document.querySelector('.ph-plate.is-current'), bg = getComputedStyle(plate).backgroundImage; return ShoreQA.state().committed.focus === 'glass' && /rgba\(255, 255, 255, 0\.3\)/.test(bg); }));
   await p.evaluate(() => ShoreQA.nav('down','down','down','down','down','down','down'));
   await p.waitForTimeout(200);
   await p.screenshot({ path: out + 'home-espn-public.png' });
   const packed = await p.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
   check('No bundled wallpaper/material URLs are requested', !packed.some(url => /\/assets\/(wallpapers|materials)\//.test(url)));
+  await fresh({ seed: { ...seed, look: { ...seed.look, bg: 'photo', layout: 'list' }, home: ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'stremio', 'disneyplus', 'appletv'] } });
+  await p.waitForFunction(() => !!ShoreQA.state().shown.artRevision); await p.waitForTimeout(250);
+  const rows = await p.evaluate(() => { const list = document.getElementById('phList').getBoundingClientRect(); return [...document.querySelectorAll('#phRows .ph-row .ph-name')].map(e => { const r = e.getBoundingClientRect(); return { top: r.top - list.top, bottom: r.bottom - list.top }; }); });
+  // The list mask is opaque from 96px to 976px of its 1040px box.
+  check('List shows seven app names before the lower fade', rows.length === 9 && rows.slice(0, 7).every(r => r.top >= 96 && r.bottom <= 978) && rows[7].top > 976);
+  await p.screenshot({ path: out + 'home-list-seven-public.png' });
   check('Art browser run has no uncaught page errors', pageErrors.length === 0);
   console.log(checks.length + ' Art browser checks passed; public-font screenshots in .local/qa/');
 } finally { if (p) await p.close(); if (preview) await preview.close(); }

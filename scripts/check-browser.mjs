@@ -298,7 +298,7 @@ try {
         await look({ bg: 'photo', layout, controls, focus: 'glass', font: 'manrope' }); await scene('home');
         if ((await call('where')).zone === 'util') await nav('back');
         await nav(layout === 'dock' ? 'up' : 'right');
-        await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+        await nav(...Array(2).fill(layout === 'dock' ? 'left' : 'up'));
         await current.waitForTimeout(180);
         const spacing = await current.evaluate(({ layout, controls }) => {
           const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -311,9 +311,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === 2 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -419,7 +419,7 @@ try {
   await run('Real catalogue and native launch boundary', async () => {
     await page(); await library();
     const names = await current.locator('[data-action^="apps.open."] .label').allTextContents();
-    check('Consumer catalogue excludes services, self and duplicate YouTube', names.length === 13 && names.filter(n => n === 'YouTube').length === 1 && !names.includes('CleanFrame') && !names.includes('Background worker'), names);
+    check('Consumer catalogue excludes services, self and duplicate YouTube', names.length === 14 && names.includes('HDMI 4') && names.filter(n => n === 'YouTube').length === 1 && !names.includes('CleanFrame') && !names.includes('Background worker'), names);
     check('Installed names stay text, including HTML punctuation', names.includes(UNSAFE_NAME) && !(await current.evaluate(() => window.__catalogXss)));
     check('Exploration fixtures do not appear', !names.includes('Plex') && !names.includes('Jellyfin'));
     await act('apps.open.' + SPOTIFY); await current.waitForFunction(() => __tv.calls.length > 0);
@@ -428,7 +428,7 @@ try {
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => __tv.calls.length === 2);
     check('Primary app keeps verified target', (await current.evaluate(() => __tv.calls.at(-1))).id === IDS[1]);
     await current.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await act('util.art'); await current.waitForFunction(() => __tv.calls.length === 3);
+    await current.evaluate(() => FrameDevice.art(() => {})); await current.waitForFunction(() => __tv.calls.length === 3);
     const art = await current.evaluate(() => __tv.calls.at(-1));
     check('Art Mode uses app-control with fullscreen request', art.method === 'launchAppControl' && art.id === 'org.tizen.art-app' && art.control.data.some(d => d.key === 'mode' && d.value[0] === 'fullscreen'), art);
     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.home');
@@ -460,7 +460,7 @@ try {
     check('Catalogue failure leaves Home intact', same((await state()).dock, PRIMARY));
     await current.evaluate(() => { __tv.catalogFailure = false; }); await act('apps.retry');
     await current.waitForSelector('[data-action="apps.open.' + EXTRA + '"]');
-    check('Retry displays real installed names', (await current.locator('[data-action^="apps.open."]').count()) === 13);
+    check('Retry displays real installed names', (await current.locator('[data-action^="apps.open."]').count()) === 14);
   });
   await run('Native icon and failed-image fallback', async () => {
     await page({ catalog: CATALOG.map(a => a.id === EXTRA ? { ...a, iconPath: '/home/assets/icons/netflix.svg' } : a) });

@@ -2,8 +2,8 @@
 
 ## Home
 
-- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
-- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
+- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Apps or the last selected control. Left/Right moves between Apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
+- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Apps and Settings. Left or Back returns to the selected app. Seven apps fit before the list fades at both ends as it scrolls. The clock uses the same face and weight as the app names.
 - OK opens the selected item. Focus alone never launches an app.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
@@ -19,7 +19,7 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 | Background | Art Mode, Light or Dark |
 | Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
-| Focus | Type or Glass with neutral surfaces |
+| Focus | Type or Glass (default); on Art Mode, Glass is a translucent frosted pane |
 | Apps on Home | Membership and arrangement editor |
 | Samsung | Samsung Home, TV settings and Inputs |
 
@@ -52,7 +52,7 @@ Removing the last Home app or adding a tenth app is prevented. A failed storage 
 
 ## Art Mode and Samsung screens
 
-Art Mode sends an application control to the installed `org.tizen.art-app`, with `mode=fullscreen` and `requester=mobile`. This aims to enter native Art Mode with its current artwork, without toggling power or changing the selected artwork.
+Home has no Art Mode control; the remote's own Art Mode/power button covers it. The adapter's Art Mode call remains and sends an application control to the installed `org.tizen.art-app`, with `mode=fullscreen` and `requester=mobile`. This aims to enter native Art Mode with its current artwork, without toggling power or changing the selected artwork.
 
 This mode comes from [research on Samsung's Art app](https://github.com/TheFab21/ha-samsungtv-smart/blob/master/notes/QN55LS03FAFXZA/ART_MODE_DECOMPILED.md), on another Tizen 9 Frame model. It is an internal Samsung contract, not a documented public Art API. Its visible behaviour on this exact firmware must be confirmed on the TV.
 
@@ -76,7 +76,7 @@ The launcher stores appearance, Home order, recently removed apps, the last laun
 
 Home backgrounds are Art Mode, Light or Dark. The bundled gallery and generated material files have been removed to reduce widget size. Existing `photo` preferences migrate to Art Mode; Light and Dark stay unchanged. Safe legacy wallpaper IDs and rotation modes remain stored for preference compatibility, but no corresponding file is loaded and rotation has no timer or menu.
 
-Art Mode reads the last-good app-private image before asynchronously refreshing on visible Home lifecycle events. Arrow-key navigation performs no networking, and hidden startup does not poll. Back, hiding, failed loads and preference-write failures keep the previous completed appearance. If no image has ever been cached, startup uses an inline neutral background while the bridge is unavailable. Unmeasured Art photos use a fixed readable scrim and neutral surfaces; no generated gallery materials are requested. [Setup and cache details](art-mode-wallpaper.md) include physical checks still required.
+Art Mode reads the last-good app-private image before asynchronously refreshing on visible Home lifecycle events. Arrow-key navigation performs no networking, and hidden startup does not poll. Back, hiding, failed loads and preference-write failures keep the previous completed appearance. If no image has ever been cached, startup uses an inline neutral background while the bridge is unavailable. Unmeasured Art photos use outlined text, a static frosted Glass focus and neutral panels; no generated gallery materials are requested. [Setup and cache details](art-mode-wallpaper.md) include physical checks still required.
 
 ## Live TV
 
@@ -93,6 +93,6 @@ The native Home operation and startup configuration from 19 October remain separ
 
 Both layouts show the TV's local time in 12-hour format, without AM/PM or seconds. It updates at the minute boundary and on return to the launcher. No date or clock panel is shown.
 
-Art Mode photos use neutral panels and a fixed scrim without precomputed photo metadata. Navigation does not sample image pixels, run an optics engine or apply live backdrop blur. Flat backgrounds use matching light or dark panel colours. Focus feedback uses transforms and opacity; reduced motion removes animated scaling and movement while retaining opacity feedback.
+Art Mode photos keep their original brightness without full-screen scrims; Glass focus is a static translucent frosted pane with outlined text, without precomputed photo metadata. Navigation does not sample image pixels, run an optics engine or apply live backdrop blur. Flat backgrounds use matching light or dark panel colours. Focus feedback uses transforms and opacity; reduced motion removes animated scaling and movement while retaining opacity feedback.
 
 Hidden prelaunch can install a fully loaded wallpaper bundle without waiting for an animation frame. A valid loaded image remains usable if detached-image decoding rejects. A failed startup bundle retries when the launcher becomes visible; pending appearance cancellation keeps the last committed preview. Font recovery clears fallback measurements and cached markup. This readiness fallback uses a completed load and nonzero image dimensions; it does not prove a TV has painted the image, and an accepted bundle is not automatically decoded again on return. These paths have browser regression coverage; physical cold-boot behaviour still needs owner observation.

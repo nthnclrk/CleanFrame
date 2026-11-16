@@ -8,7 +8,7 @@
   var DOCK_MODES = { both: { tw: 288, th: 200, pitch: 296 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
   var ED_ROW = 80, ED_SEP = 56, ED_VIEW = 752;
-  var PH_TOP = 220, PH_PITCH = 128, PH_FULL = 5, PH_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9;
+  var PH_LEFT = 80, PH_TOP = 136, PH_LIST_TOP = 40, PH_PITCH = 128, PH_FULL = 7, PH_HEIGHT = 1040, PH_COMPACT_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9;
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   var FULL = 'Home holds nine apps. Remove one first.', LAST = 'Home needs one app';
 
@@ -23,8 +23,9 @@
     { id: 'sbs', name: 'SBS On Demand', mark: true, appId: 'OyE7OuxlUi.SBSOnDemand' },
     { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' }
   ];
-  PRIMARY_APPS.push({ id: 'espn', name: 'ESPN', mark: true, appId: 'XtU8fQk2gN.ESPN' }, { id: 'livetv', name: 'Live TV', mark: true, appId: 'org.tizen.tv-viewer', source: true });
-  var DEFAULT_HOME = ['livetv', 'stremio', 'netflix', 'disneyplus', 'youtube', 'appletv', 'primevideo', 'espn', 'applemusic'];
+  PRIMARY_APPS.push({ id: 'espn', name: 'ESPN', mark: true, appId: 'XtU8fQk2gN.ESPN' }, { id: 'livetv', name: 'Live TV', mark: true, appId: 'org.tizen.tv-viewer', source: true },
+    { id: 'browser', name: 'Browser', mark: true, appId: 'org.tizen.browser' }, { id: 'hdmi4', name: 'HDMI 4', mark: true, appId: 'org.tizen.tv-viewer', source: true, port: 4 });
+  var DEFAULT_HOME = ['livetv', 'youtube', 'netflix', 'espn', 'primevideo', 'browser', 'hdmi4'];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = {};
@@ -40,7 +41,7 @@
   var LOOK_VALUES = { source: ['art'], bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
   var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var UTIL = { apps: ['Apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
@@ -73,6 +74,7 @@
     shown: null, pending: null, lookError: null, bundleKey: null, reflow: false, fontSwitch: false
   };
   var scroll = { first: 0, off: 0, photo: 0, photoArrange: 0 };
+  var homeSources = { active: false, hdmi4: false, request: 0, stop: null };
   function pick(v, list, fallback) {
     v = String(v || '').toLowerCase();
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
@@ -87,6 +89,28 @@
   function same(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function onHome(id) { return S.c.home.indexOf(id) >= 0; }
+  function visibleHome() { return S.c.home.filter(function (id) { return id !== 'hdmi4' || homeSources.hdmi4; }); }
+  function syncHomeSources() {
+    var eligible = !document.hidden && top().id === 'home' && onHome('hdmi4'), token, events = 0, initialEvents;
+    if (!eligible) {
+      if (homeSources.active) {
+        homeSources.active = false; homeSources.request++;
+        if (homeSources.stop) homeSources.stop();
+        homeSources.stop = null;
+      }
+      return;
+    }
+    if (homeSources.active) return;
+    homeSources.active = true; token = ++homeSources.request;
+    function accept(err, inputs) {
+      if (token !== homeSources.request || !homeSources.active || document.hidden || top().id !== 'home') return;
+      var connected = !err && inputs.some(function (input) { return input.number === 4 && input.connected; });
+      if (homeSources.hdmi4 !== connected) { homeSources.hdmi4 = connected; ensureSel(); render(); }
+    }
+    homeSources.stop = FrameDevice.watchSources(function (inputs) { events++; accept(null, inputs); });
+    initialEvents = events;
+    FrameDevice.sources(function (err, inputs) { if (events === initialEvents) accept(err, inputs || []); });
+  }
   function top() { return S.stack[S.stack.length - 1]; }
   function push(e) { S.stack.push(e); return e; }
   function pop() { if (S.stack.length > 1) S.stack.pop(); }
@@ -141,7 +165,7 @@
   function fontRole(id, role, size) {
     var f = FONTS[id], serif = id === 'newsreader';
     return { family: f.family,
-      weight: role === 'display' ? f.display : role === 'clock' ? f.clock : serif ? 400 : f.ui,
+      weight: role === 'display' || role === 'clock' ? f.display : serif ? 400 : f.ui,
       opsz: serif ? role === 'display' ? 72 : role === 'clock' ? 48 : role === 'ui' && (!size || size === 28) ? 28 : 36 : 0 };
   }
   function measureFace(id, faces) {
@@ -378,14 +402,14 @@
   }
 
   function ensureSel() {
-    var h = S.c.home, i;
+    var h = visibleHome(), i;
     if (!h.length) { S.sel = null; return -1; }
     i = h.indexOf(S.sel);
     if (i < 0) { i = clamp(S.selIdx, 0, h.length - 1); S.sel = h[i]; }
     S.selIdx = i;
     return i;
   }
-  function setSel(id) { S.sel = id; S.selIdx = S.c.home.indexOf(id); }
+  function setSel(id) { S.sel = id; S.selIdx = visibleHome().indexOf(id); }
 
   /* Membership and order operations shared by B and C. A works on slots (below). */
   function homeRemove(id) {
@@ -449,7 +473,12 @@
     if (!a || busy) return;
     if (S.c.home.indexOf(id) >= 0) { c = next(S.c.home.slice(), S.c.recent.slice()); c.lastApp = id; write(c, 'Last app'); }
     S.press = id; S.lastLaunch = a.name;
-    perform(a.name, function (done) { if (a.source) FrameDevice.liveTV(function (err) { done(err && err.cancelled ? null : err); }); else FrameDevice.launchApp(a.appId, done); });
+    perform(a.name, function (done) {
+      function sourceDone(err) { done(err && err.cancelled ? null : err); }
+      if (a.port) FrameDevice.setSource(a.port, sourceDone);
+      else if (a.source) FrameDevice.liveTV(sourceDone);
+      else FrameDevice.launchApp(a.appId, done);
+    });
   }
   function refreshCatalog() {
     var request, oldFocus;
@@ -460,7 +489,7 @@
       catalog.loading = false;
       if (err) { catalog.error = err.message || 'Could not read installed apps.'; if (!catalog.loaded) ALPHA = []; render(); return; }
       oldFocus = top().id === 'apps' ? ALPHA[top().f.i] : null;
-      ALPHA = ['livetv'];
+      ALPHA = ['livetv', 'hdmi4'];
       entries.forEach(function (entry) {
         var id = PRIMARY.indexOf(entry.brand) >= 0 ? entry.brand : entry.appId, a;
         if (!safeId(id) || !safeId(entry.appId) || entry.appId === 'org.tizen.tv-viewer' || ALPHA.indexOf(id) >= 0) return;
@@ -479,15 +508,14 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings']; }
+  function utils() { return ['apps', 'settings']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
   function utilAction(u) {
-    if (u === 'art') perform('Art Mode', FrameDevice.art);
-    else if (u === 'apps') openApps();
+    if (u === 'apps') openApps();
     else openSettings();
   }
   function addAppsRoute() { openEditor('home'); }
@@ -503,7 +531,7 @@
     push(e); refreshCatalog(); return e;
   }
   function openEditor(origin) {
-    var i = ensureSel();
+    ensureSel(); var i = S.c.home.indexOf(S.sel);
     clearSession();
     refreshCatalog();
     push({ id: 'editor', origin: origin, lifted: null, top: 0, otherReturn: { id: otherList()[0] || null, index: 0, top: 0 }, f: { zone: S.c.home.length ? 'home' : 'other', i: Math.max(0, i), part: 'name', h: 1, j: 0 } });
@@ -515,7 +543,7 @@
   /* ---------- Home (browse) ---------- */
   V.home = {
     key: function (t, k) {
-      var f = t.f, h = S.c.home, U = utils(), x = axes(), i = ensureSel();
+      var f = t.f, h = visibleHome(), U = utils(), x = axes(), i = ensureSel();
       if (S.c.layout === 'list') { listHomeKey(t, k, i, U); return; }
       if (f.zone === 'util') {
         f.u = clamp(f.u, 0, U.length - 1);
@@ -536,14 +564,14 @@
     },
     point: function (t, z, i) {
       if (z === 'util') { t.f.zone = 'util'; t.f.u = i; S.lastUtil = i; }
-      else if (z === 'app') { t.f.zone = 'apps'; setSel(S.c.home[i]); }
+      else if (z === 'app') { t.f.zone = 'apps'; setSel(visibleHome()[i]); }
       else if (z === 'empty') t.f.zone = 'apps';
       else return;
       this.key(t, 'ok');
     }
   };
   function listHomeKey(t, k, i, U) {
-    var f = t.f, h = S.c.home;
+    var f = t.f, h = visibleHome();
     if (f.zone === 'util') {
       f.u = clamp(f.u, 0, U.length - 1);
       if (k === 'up' && f.u > 0) f.u--;
@@ -878,19 +906,20 @@
     renderSheet(t, sheet);
     renderAppearance(t);
     renderFocusStatus(t);
+    syncHomeSources();
   }
 
   function applyHomeFont() {
     var id = homeFont(), f = FONTS[id], primary = fontRole(id, 'primary'), ui = fontRole(id, 'ui'), metrics = fontMetrics[id];
     if (appliedFont === id && appliedFontMetrics === metrics) return;
     appliedFont = id; appliedFontMetrics = metrics;
-    var values = { 'display-family': '"' + f.family + '"', 'ui-family': '"' + ui.family + '"', 'primary-family': '"' + primary.family + '"', 'display-weight': f.display, 'ui-weight': ui.weight, 'primary-weight': primary.weight, 'clock-weight': f.clock,
+    var values = { 'display-family': '"' + f.family + '"', 'ui-family': '"' + ui.family + '"', 'primary-family': '"' + primary.family + '"', 'display-weight': f.display, 'ui-weight': ui.weight, 'primary-weight': primary.weight, 'clock-weight': f.display,
       'clock-shift': px(fontShift('clock', 48)), 'utility-shift': px(fontShift('ui', 28)), 'action-shift': px(fontShift('ui', 30)), 'heading-shift': px(fontShift('ui', 48)), 'full-name-shift': px(fontShift('primary', 30)), 'clock-digit': px(metrics ? metrics.digitCell : 0) };
     Object.keys(values).forEach(function (key) { homeEl.style.setProperty('--font-' + key, String(values[key])); });
   }
 
   function homeState(t) {
-    var h = S.c.home, hs = { mode: 'browse', zone: null, i: Math.max(0, ensureSel()), u: -1, lifted: false, from: -1, arr: null, items: h.map(function (id) { return { key: id, kind: 'app', id: id }; }) };
+    var h = visibleHome(), hs = { mode: 'browse', zone: null, i: Math.max(0, ensureSel()), u: -1, lifted: false, from: -1, arr: null, items: h.map(function (id) { return { key: id, kind: 'app', id: id }; }) };
     if (isSettingsDetail(t)) hs.zone = 'preview';
     else if (t.id === 'home') { hs.zone = t.f.zone; hs.u = t.f.u; }
     return hs;
@@ -910,9 +939,8 @@
     return h + ':' + (m < 10 ? '0' : '') + m;
   }
   function clockHtml() {
-    var text = clockText(), metrics = fontMetrics[homeFont()];
-    if (!metrics || !metrics.digitCell) return text;
-    return text.replace(/[0-9]/g, function (digit) { return '<span class="clock-digit">' + digit + '</span>'; });
+    // Proportional figures in the app-name face, so the clock reads as the same type as Home.
+    return clockText();
   }
   function renderCaption(t, hs) {
     var html = '<span class="clock">' + clockHtml() + '</span>';
@@ -949,9 +977,9 @@
     }
     r = button.getBoundingClientRect(); sr = sceneEl.getBoundingClientRect(); scale = sr.width / 1920 || 1;
     width = Math.ceil(textWidth(text, 28, 500, -.2) + 8); x = (r.left + r.width / 2 - sr.left) / scale - width / 2;
-    if (S.c.layout === 'list') x = 1730 - width;
-    utilFocusLabel.style.width = width + 'px'; utilFocusLabel.style.left = clamp(x, 112, 1808 - width) + 'px';
-    utilFocusLabel.style.top = ((S.c.layout === 'list' ? (r.top + r.height / 2 - sr.top) / scale - 19 : 140) + fontShift('ui', 28)) + 'px';
+    if (S.c.layout === 'list') x = 1770 - width;
+    utilFocusLabel.style.width = width + 'px'; utilFocusLabel.style.left = clamp(x, 80, 1848 - width) + 'px';
+    utilFocusLabel.style.top = ((S.c.layout === 'list' ? (r.top + r.height / 2 - sr.top) / scale - 19 : 108) + fontShift('ui', 28)) + 'px';
     utilFocusLabel.className = 'util-focus-label is-on';
   }
   function renderUtilityLens(button, iconsOnly) {
@@ -966,7 +994,7 @@
     if (S.c.layout === 'list') {
       label = iconsOnly ? utilFocusLabel : button.querySelector('.u-label');
       x = (label.getBoundingClientRect().left - sr.left) / scale - 24;
-      width = 1800 - x;
+      width = 1840 - x;
     } else {
       // Dock icons keep a fixed lens; the separate caption cannot overlap its neighbours.
       x = (r.left - sr.left) / scale; width = r.width / scale;
@@ -991,7 +1019,7 @@
     width = Math.min(S.c.layout === 'list' ? 1056 : 1640, Math.ceil(textWidth(app(it.id).name, S.c.layout === 'list' ? 40 : 36, 500, -.6, 'primary') + 8));
     appFocusName.style.width = width + 'px';
     if (S.c.layout === 'list') {
-      x = 280; placement = phFields[photoPlateIndex]._placement;
+      x = PH_LEFT + 168; placement = phFields[photoPlateIndex]._placement;
       y = placement.y + placement.height / 2 - 24;
     } else {
       x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 932;
@@ -1142,11 +1170,11 @@
       plateEl.className = 'ph-plate is-preparing';
       plateEl.style.width = width + 'px'; plateEl.style.height = height + 'px';
       plateEl.style.transform = 'translate3d(0,' + y + 'px,0)';
-      fieldTransform(fieldEl, 112, y, width, height);
+      fieldTransform(fieldEl, PH_LEFT, y, width, height);
       plateEl.offsetWidth; // Establish zero opacity before the incoming crossfade.
       photoPlateKey = key;
     }
-    fieldTransform(phFields[photoPlateIndex], 112, y, width, height);
+    fieldTransform(phFields[photoPlateIndex], PH_LEFT, y, width, height);
     phPlates[photoPlateIndex].className = 'ph-plate is-current' + (state ? ' ' + state : '');
   }
   function fieldTransform(el, x, y, width, height) {
@@ -1164,15 +1192,15 @@
       first = clamp(first, 0, Math.max(0, n - PH_COMPACT_VISIBLE));
       scroll.photoArrange = first;
     } else {
-      first = clamp(scroll.photo, anchor - 3, anchor - 1);
+      first = clamp(scroll.photo, anchor - (PH_FULL - 2), anchor - 1);
       first = clamp(first, 0, Math.max(0, n - PH_FULL));
       scroll.photo = first;
     }
     off = first * pitch; slot = anchor - first;
     width = items[anchor] ? listPlateWidth(items[anchor].id, compact) : 360;
     phList.className = 'ph-list' + (compact ? ' is-compact' : '');
-    phList.style.height = PH_HEIGHT + 'px';
-    phRows.style.top = (compact ? 72 : 148) + 'px';
+    phList.style.height = (compact ? PH_COMPACT_HEIGHT : PH_HEIGHT) + 'px';
+    phRows.style.top = (compact ? 72 : PH_TOP - PH_LIST_TOP) + 'px';
     keyed(phRows, items, function (row, it, i) {
       var typography = photoLabel(it.id, compact), focus = rowFocus && i === anchor, lifted = hs.lifted && i === anchor, markImage, body = '';
       setContent(row, it.id + '|' + typography.size + '|' + S.c.bg + '|' + S.c.apps + '|' + homeFont(), function () {
@@ -1202,7 +1230,7 @@
       setHTML(phAction, '<span>' + esc(label) + '</span>');
       phAction.className = 'ph-action is-on' + (hs.zone === 'act' ? ' is-focus' : '');
       phAction.style.width = aw + 'px';
-      phAction.style.transform = 'translate3d(' + (112 + width + 24) + 'px,' + (PH_COMPACT_TOP + slot * pitch + 12) + 'px,0)';
+      phAction.style.transform = 'translate3d(' + (PH_LEFT + width + 24) + 'px,' + (PH_COMPACT_TOP + slot * pitch + 12) + 'px,0)';
       attrs(phAction, 'act', anchor, 'arrange.' + (s.removed ? 'restore.' : 'remove.') + s.id);
     } else { phAction.className = 'ph-action'; phAction.removeAttribute('data-z'); phAction.removeAttribute('data-action'); }
     phEmpty.className = 'ph-empty' + (!compact && !n ? ' is-on' : '');
@@ -1291,7 +1319,7 @@
     action = target.getAttribute('data-action');
     r = target.getBoundingClientRect(); sr = stage.getBoundingClientRect(); scale = sr.width / 1920 || 1;
     x = (r.left - sr.left) / scale; y = (r.top - sr.top) / scale; w = r.width / scale;
-    if (photoFree) { x = 112 + parseFloat(phPlates[photoPlateIndex].style.width) + 24; y += (r.height / scale - 28) / 2; w = 400; }
+    if (photoFree) { x = PH_LEFT + parseFloat(phPlates[photoPlateIndex].style.width) + 24; y += (r.height / scale - 28) / 2; w = 400; }
     else if (action.indexOf('home.app.') === 0 || action.indexOf('arrange.tile.') === 0 || action.indexOf('arrange.placeholder.') === 0) y += 171;
     else if (action.indexOf('apps.order.') === 0) y += 86;
     else if (action.indexOf('apps.toggle.') === 0 || action.indexOf('apps.add.') === 0) y += 164;
@@ -1659,7 +1687,7 @@
     if (document.hidden) {
       if (S.pending && S.pending.target.source === 'art') cancelLook();
       else window.FrameArt.cancel();
-      FrameDevice.cancelSource(); clearTimeout(clockTimer); }
+      FrameDevice.cancelSource(); syncHomeSources(); clearTimeout(clockTimer); }
     else {
       release();
       if (S.c.bg === 'photo' && !S.pending && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
@@ -1675,6 +1703,7 @@
     out.art = window.FrameArt.status(); out.committed = S.c; out.shown = S.shown; out.pending = S.pending; out.view = t.id; out.selected = S.sel;
     out.focusAction = focusedAction(); out.writes = S.writes; out.failedWrites = S.failed; out.error = S.err;
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
+    out.visibleHome = visibleHome(); out.hdmi4Connected = homeSources.hdmi4;
     out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
     out.rotation = { activeMs: 0, active: false };
     out.draft = t.lifted ? { id: t.lifted.id, order: t.lifted.order.slice() } : null;
