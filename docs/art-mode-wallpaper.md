@@ -10,7 +10,18 @@ The owner supplied evidence from a 2024 Frame running Tizen 9: the `ArtLatestFul
 
 The bridge accepts only `MY_` uploaded IDs, exact `.jpg` paths in the fixed `my_photo` directory, `PhotoFilter: "None"`, and an empty or `"none"` `UserMatteType`. Paid store art, slideshows, filters, matte rendering, other firmware and older Tizen versions are **not verified support**. Unsupported or corrupt selections return unavailable; CleanFrame keeps its last good image. The Art SQL shard cannot serve these files and is not used.
 
-The result is the original photo with CleanFrame's centred cover crop, localized text contrast and neutral control surfaces without a full-screen tint. It does not recreate Art Mode's fit, matte or colour processing. On the tested Frame, the Art API exposes separate brightness and colour-temperature controls plus automatic brightness. Native colour-tone readback changes between Art Mode and the launcher, while the native backlight readout stays unchanged. These values do not establish a conversion to CSS brightness, Kelvin or normal-viewing picture settings. The bridge does not change display settings shared with other apps. Unknown photos never use a bundled wallpaper's contrast metadata or generated material URLs. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
+The result is the original photo with CleanFrame's centred cover crop and localized text contrast, shown through a calibrated Art look. It does not recreate Art Mode's fit or matte.
+
+### Calibrated Art look
+
+Art Mode's picture processing is not documented, so the owner matched it by eye and from filmed side-by-sides on a 2024 Frame with Art brightness 5. The phone's white balance shifts between clips, so only comparisons within the same clip were used. The look is a static, colour-only treatment of the background image: CSS `brightness`, `contrast` and `saturate`, an `feComponentTransfer` gamma curve (`#artCurve`), and a multiply tint on `#bg::after`. Both ends were locked:
+
+| Art colour temperature | brightness | contrast | saturate | tint | gamma R/G/B |
+|---|---|---|---|---|---|
+| −5 (cool) | 0.41 | 0.86 | 0.50 | rgb(246,238,222) | 1 / 1.02 / 1.15 |
+| +5 (warm) | 0.41 | 0.86 | 0.48 | rgb(250,212,160) | 1 / 1.03 / 1.19 |
+
+Values in between are interpolated linearly. The bridge reads Art Mode's `brightness` and `color_temperature` read-only from the TV's own Art channel (`ws://127.0.0.1:8001/api/v2/channels/com.samsung.art-app`; no pairing token, one short connection addressed to the Art app client, read in the background so `current.json` never waits, refreshed at most every 3 s) and adds them to `current.json` as `look`. The widget keeps the last good value in `cleanframe.art.look.v1`, so the look survives an unavailable bridge; with no value it uses colour temperature 0. Art brightness is reported but not yet applied: only brightness 5 has been calibrated, and Art Mode's automatic ambient dimming has no readable value. The bridge never changes display settings. There is no runtime blur, canvas pixel analysis or network activity on arrow-key navigation.
 
 ## Build and host contract
 

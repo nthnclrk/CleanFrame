@@ -601,6 +601,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 /* Unknown Art photos use fixed readable support, never bundled colour metadata.
    Texture stays the original image. There is no live blur or pixel sampling. */
 .source-art .bg>.scrim,.source-art .bg>.shade,.source-art .bg>.ph-dim,.source-art .bg>.ph-scrim,.source-art .bg>.ph-col,.source-art .bg>.ut-dim{display:none}
+.art-curve{position:absolute;left:0;top:0;width:0;height:0;overflow:hidden}
 .source-art .home{--ink:#f4f4f1;--ph-ink:#f4f4f1;color:#f4f4f1}
 .source-art .clock,.source-art .ph-name,.source-art .quiet-utils .u,.source-art .util-focus-label{text-shadow:-1px 0 #111,1px 0 #111,0 -1px #111,0 1px #111,0 2px 8px rgba(0,0,0,.65)}
 .source-art .mat{background:#182026}

@@ -33,8 +33,8 @@ function get(port, path = '/current.json', origin = 'null', method = 'GET') {
 }
 async function harness(run) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'cleanframe-art-'))), port = await freePort();
-  let input = pref(), image = jpeg, hold, calls = [], afterCopy, executeError = false;
-  const bridge = shard({ dir, config: { get: () => ({ port }) }, execute: async (cmd, timeout) => {
+  let input = pref(), image = jpeg, hold, calls = [], afterCopy, executeError = false, settingsImpl = () => Promise.reject(new Error('no Art channel'));
+  const bridge = shard({ dir, artSettings: timeout => settingsImpl(timeout), config: { get: () => ({ port }) }, execute: async (cmd, timeout) => {
     calls.push(cmd); assert.equal(timeout, 4000);
     if (executeError) return { stdout: 'PRIVATE OUTPUT', stderr: 'PRIVATE KEYS', exit_code: 1, timed_out: true };
     if (hold) await hold;
@@ -47,7 +47,7 @@ async function harness(run) {
     if (afterCopy) afterCopy();
     return { stdout: '', stderr: '', exit_code: 0, timed_out: false };
   } });
-  try { await bridge.start(); await run({ bridge, port, dir, calls, setInput: v => { input = v; }, setImage: v => { image = v; }, setHold: v => { hold = v; }, onCopy: fn => { afterCopy = fn; }, failExecute: () => { executeError = true; } }); }
+  try { await bridge.start(); await run({ bridge, port, dir, calls, setInput: v => { input = v; }, setImage: v => { image = v; }, setHold: v => { hold = v; }, onCopy: fn => { afterCopy = fn; }, failExecute: () => { executeError = true; }, setSettings: fn => { settingsImpl = fn; } }); }
   finally { await bridge.stop(); rmSync(dir, { recursive: true, force: true }); }
 }
 test('typed preference parsing returns only allowlisted metadata', () => {
@@ -62,6 +62,38 @@ test('typed preference parsing returns only allowlisted metadata', () => {
   for (const patch of [{ ImageWidth: '1920' }, { ImageHeight: -1 }, { ImageWidth: 1.2 }, { ImageHeight: 100000 }, { PhotoFilter: 'Warm' }, { UserMatteType: 'shadowbox' }, { ImagePath: '/etc/passwd' }]) assert.throws(() => shard.parsePreference(pref(content('MY_TEST', patch))));
   assert.throws(() => shard.parsePreference(pref(null)));
   assert.throws(() => shard.parsePreference(pref(content(), { Content: [] })));
+});
+test('Art picture settings keep only bounded brightness and colour temperature', () => {
+  const list = [{ item: 'brightness', value: '5', min: '0', max: '10' }, { item: 'color_temperature', value: '-3', min: '-5', max: '5' }, { item: 'motion_timer', value: '15' }];
+  assert.deepEqual(shard.parseSettings(JSON.stringify(list)), { brightness: 5, colorTemperature: -3 });
+  assert.deepEqual(shard.parseSettings([{ item: 'color_temperature', value: 4 }, { item: 'brightness', value: '99' }]), { colorTemperature: 4 });
+  for (const bad of ['not json', '{}', JSON.stringify([{ item: 'brightness', value: '2' }]), JSON.stringify([{ item: 'color_temperature', value: '6' }]), JSON.stringify([{ item: 'color_temperature', value: '1.5' }]), JSON.stringify([{ item: 'color_temperature', value: null }])]) assert.throws(() => shard.parseSettings(bad));
+  const frame = Buffer.concat([Buffer.from([129, 5]), Buffer.from('hello'), Buffer.from([129])]);
+  const parsed = shard.wsFrames(frame);
+  assert.equal(parsed.frames.length, 1); assert.equal(parsed.frames[0].data.toString(), 'hello'); assert.equal(parsed.rest.length, 1);
+  assert.throws(() => shard.wsFrames(Buffer.from([129, 127, 0, 0, 0, 0, 0, 2, 0, 0])));
+  const clients = [{ id: 'art-app-1', isHost: true, attributes: { name: null } }, { id: 'me', isHost: true, attributes: { name: 'Q2xlYW5GcmFtZQ==' } }, { id: 'phone', isHost: false, attributes: { name: null } }];
+  assert.equal(shard.artHost({ id: 'me', clients }), 'art-app-1');
+  assert.equal(shard.artHost({ id: 'me', clients: clients.slice(1) }), null);
+  assert.equal(shard.artHost({ id: 'me', clients: [{ id: 'bad id;', isHost: true }] }), null);
+});
+test('current.json never waits for Art settings, then reports the last good value', async () => {
+  await harness(async ({ port, setSettings }) => {
+    let reads = 0, release;
+    setSettings(timeout => { reads++; assert.equal(timeout, 8000); return new Promise(r => { release = () => r({ brightness: 5, colorTemperature: 3 }); }); });
+    let res = await get(port);
+    assert.equal(res.status, 200); assert.equal(JSON.parse(res.body).look, undefined);
+    release(); await new Promise(r => setTimeout(r, 20));
+    res = await get(port);
+    assert.deepEqual(JSON.parse(res.body).look, { brightness: 5, colorTemperature: 3 });
+    assert.equal(reads, 1);
+    setSettings(() => Promise.reject(new Error('channel closed')));
+    await new Promise(r => setTimeout(r, 3100));
+    await get(port); await new Promise(r => setTimeout(r, 20));
+    res = await get(port);
+    assert.equal(res.status, 200); assert.deepEqual(JSON.parse(res.body).look, { brightness: 5, colorTemperature: 3 });
+    assert.deepEqual(Object.keys(JSON.parse(res.body)).sort(), ['contentId', 'height', 'imageUrl', 'look', 'revision', 'width']);
+  });
 });
 test('uploaded ID/path allowlist rejects injection, aliases and traversal', () => {
   for (const id of ['../MY_A', 'MY_..', 'MY_A\n', 'MY_a;id', 'MY_a$(id)', "MY_a'b", 'STORE_A', 'MY_' + 'a'.repeat(65)]) assert.throws(() => shard.imagePath(id, PHOTO + id + '.jpg'));

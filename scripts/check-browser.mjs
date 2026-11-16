@@ -191,7 +191,11 @@ async function remove(id) { await act('editor.move.' + id); await nav('back', 'r
 async function library() { await scene('home'); await act('util.apps'); await current.waitForFunction(() => !ShoreQA.state().catalog.loading); }
 async function noLiveFilters() {
   return current.evaluate(() => [...document.querySelectorAll('#stage, #stage *')].filter(e => e.getClientRects().length).map(e => {
-    const s = getComputedStyle(e); return { tag: e.tagName, cls: e.className, filter: s.filter, backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none' };
+    const s = getComputedStyle(e);
+    // The Art photo may carry a static colour curve (#artCurve: feComponentTransfer only); nothing else may reference an SVG filter.
+    const curve = document.getElementById('artCurve'), colourOnly = e.id === 'photo' && curve && curve.querySelectorAll('*').length === [...curve.querySelectorAll('feComponentTransfer, feFuncR, feFuncG, feFuncB')].length;
+    const filter = colourOnly ? s.filter.replace(/url\("?#artCurve"?\)/, '') : s.filter;
+    return { tag: e.tagName, cls: e.className, filter, backdrop: s.backdropFilter || s.webkitBackdropFilter || 'none' };
   }).filter(s => /blur|url\(/.test(s.filter) || s.backdrop !== 'none'));
 }
 

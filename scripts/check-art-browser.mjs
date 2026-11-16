@@ -40,7 +40,7 @@ async function fresh(options = {}) {
     if (fixture.hold && url.pathname === '/current.json') { fixture.held.push(route); heldReady(); return; }
     if (fixture.failed) { await route.abort('failed'); return; }
     const headers = { 'Access-Control-Allow-Origin': '*' };
-    if (url.pathname === '/current.json') await route.fulfill({ headers, contentType: 'application/json', body: JSON.stringify({ revision: fixture.revision, contentId: 'MY_TEST', imageUrl: '/art/' + fixture.revision + '/image.jpg', ...size }) });
+    if (url.pathname === '/current.json') await route.fulfill({ headers, contentType: 'application/json', body: JSON.stringify({ revision: fixture.revision, contentId: 'MY_TEST', imageUrl: '/art/' + fixture.revision + '/image.jpg', ...size, look: { brightness: 5, colorTemperature: 5 } }) });
     else await route.fulfill({ headers, contentType: 'image/jpeg', body: fixture.corrupt ? Buffer.from('corrupted JPEG') : jpeg });
   });
   await p.goto(preview.baseURL + '/home/'); await ready(); return fixture;
@@ -59,7 +59,8 @@ try {
   await p.screenshot({ path: out + 'art-background-public.png' });
   const geometry = await p.evaluate(() => { const root = document.getElementById('stage').getBoundingClientRect(), rows = document.getElementById('appearanceRows').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect(); return rows.bottom <= desc.top && rows.right <= root.right; });
   check('Background choices fit above the remote hint', geometry);
-  check('Art background keeps its original brightness without gallery scrims', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none') && getComputedStyle(document.getElementById('bg'), '::after').content === 'none'));
+  check('Art background drops gallery scrims for the calibrated Art look', await p.evaluate(() => Array.prototype.every.call(document.querySelectorAll('#bg>div'), el => getComputedStyle(el).display === 'none')));
+  check('Art look follows the bridge colour temperature', await p.evaluate(() => { const after = getComputedStyle(document.getElementById('bg'), '::after'), photo = getComputedStyle(document.getElementById('photo')).filter; return after.backgroundColor === 'rgb(250, 212, 160)' && after.mixBlendMode === 'multiply' && /saturate\(0\.48\)/.test(photo) && /url\(/.test(photo) && document.getElementById('artCurveB').getAttribute('exponent') === '1.19'; }));
   await p.setViewportSize({ width: 1280, height: 720 });
   check('Art Settings retains single focus at 720p', (await p.evaluate(() => ShoreQA.where())).focusCount === 1);
   await p.screenshot({ path: out + 'art-background-720-public.png' });

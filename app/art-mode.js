@@ -1,7 +1,12 @@
 /* Optional TV-local Art bridge. No credentials, polling, pixel reads or remote-key I/O. */
 (function () {
   'use strict';
-  var MAX = 12 * 1024 * 1024, PORT_KEY = 'cleanframe.art.port', META_KEY = 'cleanframe.art.cache.v1';
+  var MAX = 12 * 1024 * 1024, PORT_KEY = 'cleanframe.art.port', META_KEY = 'cleanframe.art.cache.v1', LOOK_KEY = 'cleanframe.art.look.v1';
+  // Owner-calibrated against Art Mode on a 2024 Frame (brightness 5) by matching
+  // filmed side-by-sides. Colour temperature −5..+5 blends between the two ends.
+  var COOL = { brightness: 0.41, contrast: 0.86, saturate: 0.50, tint: [246, 238, 222], gamma: [1, 1.02, 1.15] };
+  var WARM = { brightness: 0.41, contrast: 0.86, saturate: 0.48, tint: [250, 212, 160], gamma: [1, 1.03, 1.19] };
+  var look = null;
   var current = null, loaded = false, readers = [], loading = false, refreshing = false, epoch = 0, requests = [];
   var copyNo = 0, currentTemp = null;
   var urls = [], retainedURL = null, error = null, fsDir = null, db = null;
@@ -23,6 +28,37 @@
       m.imageUrl === '/art/' + m.revision + '/image.jpg' && typeof m.width === 'number' && typeof m.height === 'number' &&
       m.width % 1 === 0 && m.height % 1 === 0 && m.width > 0 && m.height > 0 && m.width <= 16384 && m.height <= 16384 && m.width * m.height <= 64000000;
   }
+  function validLook(l) {
+    return !!l && typeof l.colorTemperature === 'number' && l.colorTemperature % 1 === 0 && l.colorTemperature >= -5 && l.colorTemperature <= 5 &&
+      (l.brightness === undefined || typeof l.brightness === 'number' && l.brightness % 1 === 0 && l.brightness >= 0 && l.brightness <= 10);
+  }
+  function mix(a, b, t) { return a + (b - a) * t; }
+  function round(n, d) { var f = Math.pow(10, d); return Math.round(n * f) / f; }
+  function lookStyle(l) {
+    var t = ((validLook(l) ? l.colorTemperature : 0) + 5) / 10, tint = [0, 1, 2].map(function (i) { return Math.round(mix(COOL.tint[i], WARM.tint[i], t)); });
+    return { filter: 'brightness(' + round(mix(COOL.brightness, WARM.brightness, t), 3) + ') contrast(' + round(mix(COOL.contrast, WARM.contrast, t), 3) + ') saturate(' + round(mix(COOL.saturate, WARM.saturate, t), 3) + ') url(#artCurve)',
+      tint: 'rgb(' + tint.join(',') + ')', gamma: [0, 1, 2].map(function (i) { return round(mix(COOL.gamma[i], WARM.gamma[i], t), 3); }) };
+  }
+  // A static filter on the background image only: no per-frame work on remote movement.
+  function applyLook(l) {
+    if (typeof document.getElementById !== 'function' || !document.head) return;
+    var st = lookStyle(l), el = document.getElementById('artLook'), funcs = ['artCurveR', 'artCurveG', 'artCurveB'];
+    if (!el) { el = document.createElement('style'); el.id = 'artLook'; document.head.appendChild(el); }
+    el.textContent = '.source-art #photo{filter:' + st.filter + '}.source-art #bg::after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;background:' + st.tint + ';mix-blend-mode:multiply;pointer-events:none}';
+    funcs.forEach(function (id, i) { var f = document.getElementById(id); if (f) f.setAttribute('exponent', String(st.gamma[i])); });
+  }
+  function setLook(l) {
+    if (!validLook(l)) return;
+    var next = { colorTemperature: l.colorTemperature }, changed;
+    if (l.brightness !== undefined) next.brightness = l.brightness;
+    changed = JSON.stringify(next) !== JSON.stringify(look); look = next;
+    if (!changed) return;
+    try { localStorage.setItem(LOOK_KEY, JSON.stringify(next)); } catch (e) { /* Memory-only. */ }
+    applyLook(look);
+  }
+  try { look = JSON.parse(localStorage.getItem(LOOK_KEY)); } catch (e) { look = null; }
+  if (!validLook(look)) look = null;
+  applyLook(look);
   function record(m, url) { return { revision: m.revision, contentId: m.contentId, imageUrl: m.imageUrl, width: m.width, height: m.height, url: url }; }
   function objectURL(blob) {
     // Keep only the installed bundle, last-good cache and one candidate.
@@ -179,6 +215,7 @@
       request(base + '/current.json', false, function (m) {
         if (g !== epoch) return;
         if (!metadata(m)) { finish(null); return; }
+        if (m.look) setLook(m.look);
         if (current && current.revision === m.revision) { finish(current); return; }
         request(base + m.imageUrl, true, function (bytes) {
           if (g !== epoch) return;
@@ -199,6 +236,7 @@
   function cancel() { epoch++; refreshing = false; requests.slice().forEach(function (xhr) { xhr.abort(); }); }
   window.FrameArt = { load: load, refresh: refresh, cancel: cancel, current: function () { return current; },
     status: function () { return { available: !!current, refreshing: refreshing, error: error }; },
+    look: function () { return { settings: look, style: lookStyle(look) }; },
     // Bound blob lifetimes once a new atomic bundle replaces every previous image.
     retain: function (url) { retainedURL = url; urls = urls.filter(function (item) { if (item === url || current && item === current.url) return true; window.URL.revokeObjectURL(item); return false; }); }
   };

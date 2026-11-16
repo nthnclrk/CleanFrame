@@ -1,6 +1,6 @@
 /* MIT. Vetro shard; ES5 / Node 4.4. No device action occurs until start(). */
 'use strict';
-var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto'), os = require('os');
+var fs = require('fs'), path = require('path'), http = require('http'), crypto = require('crypto'), os = require('os'), net = require('net');
 var PREF = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/data/.pref/0f61537ef36906f51e0fa75852758b33df2df340';
 var PHOTO = '/opt/usr/home/owner/apps_rw/org.tizen.art-app/shared/trusted/data/my_photo/';
 var KEY = 'ArtLatestFullScreenData', MAX_PREF = 65536, MAX_IMAGE = 12 * 1024 * 1024;
@@ -45,6 +45,105 @@ function jpegSize(buf) {
   }
   invalid();
 }
+function bytes(n) { return Buffer.alloc ? Buffer.alloc(n) : new Buffer(n); }
+function text(s) { return Buffer.from && Buffer.from !== Uint8Array.from ? Buffer.from(s, 'utf8') : new Buffer(s, 'utf8'); }
+// Minimal masked client text frame (RFC 6455).
+function wsFrame(s) {
+  var payload = text(s), n = payload.length, head = bytes(n < 126 ? 2 : 4), mask = crypto.randomBytes(4), body = bytes(n), i;
+  head[0] = 129;
+  if (n < 126) head[1] = 128 | n; else { head[1] = 254; head.writeUInt16BE(n, 2); }
+  for (i = 0; i < n; i++) body[i] = payload[i] ^ mask[i % 4];
+  return Buffer.concat([head, mask, body]);
+}
+function wsFrames(buf) {
+  var out = [], len, off;
+  for (;;) {
+    if (buf.length < 2) break;
+    len = buf[1] & 127; off = 2;
+    if (len === 126) { if (buf.length < 4) break; len = buf.readUInt16BE(2); off = 4; }
+    else if (len === 127) { if (buf.length < 10) break; len = buf.readUInt32BE(6); off = 10; }
+    if (len > 65536) invalid();
+    if (buf.length < off + len) break;
+    out.push({ opcode: buf[0] & 15, data: buf.slice(off, off + len) }); buf = buf.slice(off + len);
+  }
+  return { frames: out, rest: buf };
+}
+// Only the two whole-number picture values are kept from the Art API reply.
+function parseSettings(list) {
+  var look = {}, ranges = { brightness: [0, 10, 'brightness'], color_temperature: [-5, 5, 'colorTemperature'] };
+  if (typeof list === 'string') { try { list = JSON.parse(list); } catch (e) { invalid(); } }
+  if (!Array.isArray(list)) invalid();
+  list.forEach(function (item) {
+    var r = item && ranges[item.item], v;
+    if (!r) return;
+    v = Number(item.value);
+    if (typeof item.value !== 'string' && typeof item.value !== 'number' || !isFinite(v) || v % 1 || v < r[0] || v > r[1]) return;
+    look[r[2]] = v;
+  });
+  if (look.colorTemperature === undefined) invalid();
+  return look;
+}
+function artHost(data) {
+  var self = data && data.id, found = null;
+  ((data && data.clients) || []).forEach(function (c) {
+    if (!found && c && c.isHost && c.id !== self && typeof c.id === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(c.id) && !(c.attributes && c.attributes.name)) found = c.id;
+  });
+  return found;
+}
+// Read-only Art Mode picture settings from the TV's own Art channel (port 8001,
+// no pairing token). One short-lived connection; nothing is ever written.
+function artSettings(timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    var stage = 'connect', target = 'host', socket, buf = bytes(0), upgraded = false, done = false, sent = false, id = crypto.randomBytes(16).toString('hex'), timer;
+    function finish(err, value) {
+      if (done) return; done = true; clearTimeout(timer);
+      try { socket.destroy(); } catch (e) { /* closed */ }
+      if (err) reject(new Error('Art settings unavailable (' + stage + ')')); else resolve(value);
+    }
+    function send() {
+      if (sent) return; sent = true; stage = 'reply';
+      socket.write(wsFrame(JSON.stringify({ method: 'ms.channel.emit', params: { event: 'art_app_request', to: target,
+        data: JSON.stringify({ request: 'get_artmode_settings', id: id, request_id: id }) } })));
+    }
+    timer = setTimeout(function () { finish(true); }, timeoutMs || 8000);
+    socket = net.connect({ host: '127.0.0.1', port: 8001 }, function () {
+      socket.write('GET /api/v2/channels/com.samsung.art-app?name=' + text('CleanFrame').toString('base64') + ' HTTP/1.1\r\nHost: 127.0.0.1:8001\r\n' +
+        'Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ' + crypto.randomBytes(16).toString('base64') + '\r\nSec-WebSocket-Version: 13\r\n\r\n');
+    });
+    socket.on('error', function () { finish(true); });
+    socket.on('close', function () { finish(true); });
+    socket.on('data', function (chunk) {
+      var end, parsed;
+      buf = Buffer.concat([buf, chunk]);
+      if (buf.length > 262144) { finish(true); return; }
+      if (!upgraded) {
+        end = buf.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        if (!/^HTTP\/1\.1 101/.test(buf.toString('utf8', 0, end))) { finish(true); return; }
+        upgraded = true; stage = 'ready'; buf = buf.slice(end + 4);
+      }
+      try { parsed = wsFrames(buf); } catch (e) { finish(true); return; }
+      buf = parsed.rest;
+      parsed.frames.forEach(function (f) {
+        var msg, payload;
+        if (done || f.opcode !== 1) return;
+        try { msg = JSON.parse(f.data.toString('utf8')); } catch (e) { return; }
+        if (msg.event === 'ms.channel.ready') send();
+        else if (msg.event === 'ms.channel.connect') {
+          // On the TV itself this client is also flagged as a host, so address the Art app's own client.
+          target = artHost(msg.data) || 'host';
+          setTimeout(send, 400);
+        }
+        else if (msg.event === 'd2d_service_message') {
+          try { payload = JSON.parse(msg.data); } catch (e) { return; }
+          if (!payload || payload.request_id !== id && payload.id !== id) return;
+          if (payload.event !== 'get_artmode_settings') { stage = 'reply ' + String(payload.event).slice(0, 40); finish(true); return; }
+          try { finish(null, parseSettings(payload.data)); } catch (e) { finish(true); }
+        }
+      });
+    });
+  });
+}
 function quote(s) { return "'" + s.replace(/'/g, "'\\''") + "'"; }
 function unlink(file) { try { fs.unlinkSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; } }
 function localClient(address, remote) { return String(remote || '').replace(/^::ffff:/, '') === address; }
@@ -58,7 +157,7 @@ function listenAddress(config) {
 }
 function moduleFactory(ctx) {
   var dir = path.join(fs.realpathSync(ctx.dir), 'art-cache'), server = null, sockets = [], current = null, revisions = [], running = false;
-  var pendingHTTP = 0, address = '127.0.0.1';
+  var pendingHTTP = 0, address = '127.0.0.1', readSettings = ctx.artSettings || artSettings, look = null, lookAt = 0, lookRead = null, lookError = null;
   var inflight = null, starting = null, rejectStart = null, generation = 0, counter = 0, lastRead = 0, lastError = false;
   function active(g) { if (!running || g !== generation) invalid(); }
   function execute(cmd) {
@@ -115,6 +214,18 @@ function moduleFactory(ctx) {
     });
     return inflight;
   }
+  // Settings are optional and read in the background: Art Mode can take seconds to
+  // answer, so current.json never waits. It returns the last good value at once.
+  function settings() {
+    if (!lookRead && (!lookAt || Date.now() - lookAt > 3000)) {
+      var g = generation;
+      lookAt = Date.now();
+      lookRead = readSettings(8000).then(function (value) {
+        lookRead = null; if (running && g === generation) { look = value; lookAt = Date.now(); lookError = null; }
+      }, function (e) { lookRead = null; if (running && g === generation) lookError = String(e && e.message || e).slice(0, 80); });
+    }
+    return look;
+  }
   function handler(req, res) {
     var origin = req.headers.origin, match, closed = false, released = false;
     // Some Frame web runtimes block loopback. When bound to the TV's own
@@ -130,8 +241,11 @@ function moduleFactory(ctx) {
     res.once('finish', release); res.once('close', function () { closed = true; release(); });
     if (req.url === '/current.json') {
       refresh().then(function (meta) {
+        var value = settings(), body;
         if (closed) return;
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(meta));
+        body = { revision: meta.revision, contentId: meta.contentId, imageUrl: meta.imageUrl, width: meta.width, height: meta.height };
+        if (value) body.look = value;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body));
       }, function () { if (!closed) { res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end('{"error":"Art unavailable"}'); } });
       return;
     }
@@ -171,14 +285,14 @@ function moduleFactory(ctx) {
     return starting;
   }
   function stop() {
-    running = false; generation++; current = null; revisions = []; lastRead = 0;
+    running = false; generation++; current = null; revisions = []; lastRead = 0; look = null; lookAt = 0; lookRead = null;
     var old = server; server = null; starting = null;
     if (rejectStart) { rejectStart(new Error('Bridge stopped')); rejectStart = null; }
     sockets.slice().forEach(function (socket) { socket.destroy(); });
     return new Promise(function (resolve) { if (old) old.close(resolve); else resolve(); });
   }
   return { start: start, stop: stop,
-    status: function () { return { running: running, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null }; },
+    status: function () { return { running: running, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError }; },
     route: function (req, res) { res.writeHead(404); res.end(); }
   };
 }
@@ -189,3 +303,6 @@ module.exports.imagePath = imagePath;
 module.exports.jpegSize = jpegSize;
 module.exports.localClient = localClient;
 module.exports.listenAddress = listenAddress;
+module.exports.parseSettings = parseSettings;
+module.exports.wsFrames = wsFrames;
+module.exports.artHost = artHost;
