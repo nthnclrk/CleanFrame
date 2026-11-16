@@ -72,6 +72,12 @@
     try { localStorage.setItem(LOOK_KEY, JSON.stringify(next)); } catch (e) { /* Memory-only. */ }
     applyLook(look);
   }
+  // Show last session's small preview of the Art photo at once; the full image replaces it when decoded.
+  (function () {
+    var p = null, photo = typeof document.getElementById === 'function' && document.getElementById('photo');
+    try { p = localStorage.getItem('cleanframe.art.preview.v1'); } catch (e) { p = null; }
+    if (photo && p && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]{100,200000}$/.test(p) && !photo.getAttribute('src')) photo.src = p;
+  }());
   try { look = JSON.parse(localStorage.getItem(LOOK_KEY)); } catch (e) { look = null; }
   if (!validLook(look)) look = null;
   applyLook(look);

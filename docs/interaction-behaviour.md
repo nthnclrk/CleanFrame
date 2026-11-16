@@ -5,7 +5,7 @@
 - Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Apps or the last selected control. Left/Right moves between Apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
 - List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above, at whichever of Apps or Settings is level with the focused row. Up/Down moves between Apps and Settings. Left or Back returns to the selected app. With Glass focus, only one control shows focus: the list row has no plate while Apps or Settings is focused. Seven apps fit before the list fades at both ends as it scrolls. The clock uses the same face and weight as the app names.
 - Remote keys: a held arrow moves at once, repeats after 280 ms and then every 110 ms until released, sooner than the TV's own auto-repeat. Presses less than 360 ms apart switch focus without the spring or crossfade so it keeps up; the spring returns when movement pauses. Glass focus on the list is a fully rounded pill sized to the focused name, which grows 6% with a light spring; reduced motion keeps it still.
-- OK opens the selected item. Focus alone never launches an app.
+- OK opens the selected item. Focus alone never launches an app. The app shows no remote-key hints; the focused control is the cue.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
 - A panel keeps focus within its own controls. Back closes one panel at a time.
@@ -22,6 +22,7 @@ Settings has three rows: **Apps on Home** (the membership and arrangement editor
 | App display | Text, Icons or Both |
 | Home controls | Text, Icons or Both |
 | Inputs on Home | When connected (default) or Always, for HDMI entries on Home |
+| Clock | Off, Clock (default) or With weather; weather is offered only when a location is configured (`cleanframe.weather.v1`) and comes from Open-Meteo, refreshed at most every 20 minutes |
 
 Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. The preview continues to show the committed appearance while a change loads. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
 

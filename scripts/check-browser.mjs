@@ -612,7 +612,7 @@ try {
     await group('layout');
     check('Visual opens the appearance view titled Visual', (await state()).view === 'appearance' && (await current.locator('#appearanceTitle').innerText()).trim() === 'Visual');
     const titles = await current.evaluate(() => [...document.querySelectorAll('#appearanceRows .setting-label')].map(e => e.textContent.trim()));
-    check('Visual rows are Layout, Focus, App display, Home controls and Inputs on Home', same(titles, ['Layout', 'Focus', 'App display', 'Home controls', 'Inputs on Home']), titles);
+    check('Visual rows are Layout, Focus, App display, Home controls, Inputs on Home and Clock', same(titles, ['Layout', 'Focus', 'App display', 'Home controls', 'Inputs on Home', 'Clock']), titles);
     const options = await radios(), committed = (await state()).committed;
     for (const [axis, values] of Object.entries(sections)) {
       const rows = options.filter(r => r.action?.startsWith('choice.' + axis + '.'));
@@ -781,6 +781,19 @@ try {
     await current.keyboard.up('ArrowUp');
     await group('layout'); await current.waitForTimeout(250);
     check('Settings Focus preview keeps a half plate on the selected app', /on-sel/.test(await plate()), await plate());
+  });
+  await run('Clock and weather', async () => {
+    await page({}, async p => {
+      await p.addInitScript(() => localStorage.setItem('cleanframe.weather.v1', JSON.stringify({ lat: 40.4, lon: -82.48, unit: 'f' })));
+      await p.route('https://api.open-meteo.com/**', r => r.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: JSON.stringify({ current: { temperature_2m: 54.4, weather_code: 2, is_day: 1 } }) }));
+    });
+    check('The clock shows by default without weather', await current.evaluate(() => !!document.querySelector('#caption .clock') && !document.querySelector('#caption .weather')));
+    await look({ clock: 'weather' }); await current.waitForFunction(() => document.querySelector('#caption .weather'));
+    check('With weather shows the temperature and an icon beside the clock', await current.evaluate(() => /54°/.test(document.querySelector('#caption .weather').textContent) && !!document.querySelector('#caption .weather svg')));
+    await look({ clock: 'off' });
+    check('Clock Off hides the clock and weather', await current.evaluate(() => !document.querySelector('#caption .clock')));
+    await closePage(); await page();
+    check('Without a location the weather choice is not offered', await current.evaluate(() => { ShoreQA.scene('appearance'); return !document.querySelector('[data-action="choice.clock.weather"]') && !!document.querySelector('[data-action="choice.clock.off"]'); }));
   });
   await run('Lights and Cameras Home controls', async () => {
     await page();

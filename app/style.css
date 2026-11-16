@@ -173,7 +173,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .ph-row{position:absolute;left:0;top:0;width:1200px;height:128px;transition:transform var(--t) var(--ease)}
 .ph-group{position:absolute;left:0;top:0;width:100%;height:100%;opacity:.8;transform-origin:28px 64px;transition:opacity 160ms linear,transform var(--spring-t) var(--spring)}
 .ph-group .mark{position:absolute;left:28px;top:32px}
-.ph-name{position:absolute;left:128px;top:10px;max-width:992px;font-size:88px;line-height:104px;font-weight:600;letter-spacing:-1.8px;color:var(--ph-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(14,10,6,.32),0 3px 14px rgba(14,10,6,.24)}
+.ph-name{position:absolute;left:128px;top:12px;max-width:992px;font-size:84px;line-height:100px;font-weight:500;letter-spacing:-1.6px;color:var(--ph-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(14,10,6,.32),0 3px 14px rgba(14,10,6,.24)}
 .f-glass .ph-row.is-focus .ph-group{opacity:1;transform:scale(1.06)}
 .f-glass .ph-row.is-preview .ph-group{opacity:1}
 .f-glass .ph-row.is-focus .ph-name,.ph-row.is-lifted .ph-name{text-shadow:0 1px 2px rgba(14,10,6,.22)}
@@ -312,8 +312,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .settings-group>.ico{width:30px;height:30px;color:var(--mute)}
 .settings-group.is-focus{background:var(--solid);color:var(--solid-ink)}
 .settings-group.is-focus .settings-group-value,.settings-group.is-focus>.ico{color:var(--solid-mute)}
-.settings-overview-hint{position:absolute;left:140px;top:968px;display:flex;align-items:center;font-size:26px;line-height:36px;color:var(--mute)}
-.remote-key{display:inline-flex;align-items:center;justify-content:center;min-width:48px;height:34px;padding:0 10px;border:1.5px solid currentColor;border-radius:17px;font-size:21px;line-height:28px;font-weight:600;letter-spacing:0}
 .lay-note{position:absolute;left:140px;top:608px;max-width:1040px;font-size:30px;line-height:42px;font-weight:500;color:var(--mute)}
 
 /* B: two-zone Home editor */
@@ -577,7 +575,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .eo .panel-content>.eo-verb{margin-left:auto;padding-left:20px}
 .settings-group>.ico{margin-left:32px}
 .settings-group-copy>*+*{margin-top:4px}
-.settings-overview-hint>*+*{margin-left:16px}
 .er>*+*{margin-left:8px}
 .ed-order-break::after{margin-left:16px}
 .msg-acts>*+*{margin-left:12px}
@@ -634,13 +631,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .cam-name{position:absolute;left:16px;bottom:16px;padding:4px 14px;border-radius:18px;background:rgba(8,10,12,.62);font-size:26px;line-height:32px;font-weight:600;color:#f4f4f1}
 .cam.is-focus{box-shadow:0 0 0 5px rgba(255,255,255,.92),0 12px 36px rgba(0,0,0,.36)}
 .cam.is-hidden{visibility:hidden}
-.cams-full .s-title,.cams-full .cam-hint{display:none}
+.cams-full .s-title{display:none}
 .cams-full .cam{border-radius:0;box-shadow:none}
-.cam-hint{top:1000px}
 /* Full-quality camera: the TV's video layer sits behind the page, so the page goes clear. */
 html.is-avplay,html.is-avplay body,html.is-avplay .stage,html.is-avplay .sheet{background:transparent!important}
 /* !important: the frost's own visibility rule is more specific. */
 html.is-avplay .sheet-bg,html.is-avplay .sheet-veil,html.is-avplay .cams{visibility:hidden!important}
 html.is-avplay .scene{background:transparent!important}
 .avplayer{position:fixed;left:0;top:0;width:1px;height:1px;z-index:-1}
+/* Weather sits beside the clock in the same face, a step lighter. */
+.clock .weather{display:inline-flex;align-items:center;margin-left:22px;opacity:.86}
+.clock .weather .ico{width:.78em;height:.78em;stroke-width:1.7;margin-right:8px}
 

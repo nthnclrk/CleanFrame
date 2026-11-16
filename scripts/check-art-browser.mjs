@@ -58,7 +58,7 @@ try {
   check('Visual offers no background choice', !(await p.evaluate(() => ShoreQA.actions())).some(a => /^choice\.bg\./.test(a)));
   check('Art swaps the photo and every material as one bundle', new Set(await artImages()).size === 1 && (await artImages())[0].startsWith('blob:'));
   check('Gallery and rotation are absent', !(await state()).rotation.active && !(await p.evaluate(() => ShoreQA.actions())).some(a => /wallpaper|rotation|source/.test(a)));
-  check('Art uses neutral surfaces without adaptive photo ink', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && !document.getElementById('stage').classList.contains('has-adaptive-ink') && (() => { const m = document.getElementById('matImg'); return getComputedStyle(m).visibility === 'hidden' || m.classList.contains('is-frost') && /^data:image\/png/.test(m.src); })()));
+  check('Art uses neutral surfaces without adaptive photo ink', await p.evaluate(() => document.getElementById('stage').classList.contains('source-art') && !document.getElementById('stage').classList.contains('has-adaptive-ink') && (() => { const m = document.getElementById('matImg'); return getComputedStyle(m).visibility === 'hidden' || m.classList.contains('is-frost') && /^data:image\/jpeg/.test(m.src); })()));
   await p.screenshot({ path: out + 'art-background-public.png' });
   const geometry = await p.evaluate(() => {
     const root = document.getElementById('stage').getBoundingClientRect(), desc = document.getElementById('appearanceDesc').getBoundingClientRect();
@@ -69,7 +69,7 @@ try {
   check('Sheets sit on a frosted copy of the Art photo with the same look', await p.evaluate(async () => {
     ShoreQA.scene('settings'); await new Promise(r => setTimeout(r, 120));
     const bg = document.getElementById('sheetBg'), s = getComputedStyle(bg), veil = getComputedStyle(document.querySelector('.sheet-veil'));
-    const ok = bg.classList.contains('is-frost') && /^data:image\/png/.test(bg.src) && bg.naturalWidth === 160 && s.visibility === 'visible' && /url\(/.test(s.filter) && !/blur/.test(s.filter) && veil.mixBlendMode === 'multiply';
+    const ok = bg.classList.contains('is-frost') && /^data:image\/jpeg/.test(bg.src) && bg.naturalWidth === 480 && s.visibility === 'visible' && /url\(/.test(s.filter) && !/blur/.test(s.filter) && veil.mixBlendMode === 'multiply';
     ShoreQA.scene('home'); return ok;
   }));
   await scene('settings'); await p.waitForTimeout(250); await p.screenshot({ path: out + 'art-settings-frost-public.png' }); await scene('home');

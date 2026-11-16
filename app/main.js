@@ -9,7 +9,7 @@
   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
   var DOCK_BOTTOM = 964; // The dock sits low on the screen, clear of the middle.
   var ED_ROW = 80, ED_SEP = 56, ED_VIEW = 752;
-  var PH_LEFT = 80, PH_TOP = 136, PH_LIST_TOP = 40, PH_PITCH = 128, PH_FULL = 7, PH_HEIGHT = 1040, PH_COMPACT_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9, PH_PLATE_H = 106, PH_GROW = 1.06;
+  var PH_LEFT = 80, PH_TOP = 136, PH_LIST_TOP = 40, PH_PITCH = 128, PH_FULL = 7, PH_HEIGHT = 1040, PH_COMPACT_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9, PH_PLATE_H = 106, PH_GROW = 1.06, PH_NAME = 84;
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   var FULL = 'Home holds ' + CAP + ' apps. Remove one first.', LAST = 'Home needs one app';
 
@@ -35,12 +35,12 @@
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = {};
   var FONTS = {
-    inter: { name: 'Inter', family: 'Inter', display: 600, ui: 500, clock: 500 }
+    inter: { name: 'Inter', family: 'Inter', display: 500, ui: 500, clock: 500 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { source: ['art'], bg: ['photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'inter' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], inputs: ['connected', 'always'] };
+  var LOOK_VALUES = { source: ['art'], bg: ['photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'inter' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], inputs: ['connected', 'always'], clock: ['off', 'time', 'weather'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Text', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', connected: 'When connected', always: 'Always' };
+  var VALUE_NAMES = { gallery: 'Gallery', art: 'Art Mode', dark: 'Dark', light: 'Light', photo: 'Art Mode', list: 'List', dock: 'Dock', type: 'Text', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', connected: 'When connected', always: 'Always', off: 'Off', time: 'Clock', weather: 'With weather' };
   var UTIL = { lights: ['Lights', 'lights'], cameras: ['Cameras', 'cameras'], apps: ['Apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   /* Optional owner controls, configured on the TV (never in public source):
      cleanframe.controls.v1 = { lights: true, go2rtc: 'http://192.168.x.y:1984', cameras: [{ name, src, full }] }.
@@ -68,6 +68,14 @@
     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
     settings: '<path d="m9 3-.6 2.4-2 1.2L4 6l-2 3.5L3.8 11v2L2 14.5 4 18l2.4-.6 2 1.2L9 21h6l.6-2.4 2-1.2 2.4.6 2-3.5-1.8-1.5v-2L22 9.5 20 6l-2.4.6-2-1.2L15 3Z"/><circle cx="12" cy="12" r="3.2"/>',
     home: '<path d="M4 11 12 4.5l8 6.5v8a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/>',
+    'wx-clear': '<circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+    'wx-night': '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5Z"/>',
+    'wx-partly': '<path d="M8.5 6.5a3.5 3.5 0 0 1 6.2 1.8"/><path d="M7 19h10a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.4A2.8 2.8 0 0 0 7 19Z"/>',
+    'wx-cloud': '<path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 18Z"/>',
+    'wx-rain': '<path d="M7 14h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 14Z"/><path d="M9 17l-1 2.5M13 17l-1 2.5M17 17l-1 2.5"/>',
+    'wx-snow': '<path d="M7 14h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 14Z"/><path d="M9 18h.01M12 20h.01M15 18h.01"/>',
+    'wx-fog': '<path d="M4 9h16M6 13h12M4 17h16"/>',
+    'wx-storm': '<path d="M7 14h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 14Z"/><path d="m12.5 15-2 3.5h3l-2 3.5"/>',
     lights: '<path d="M9 18h6M10 21h4M8.2 14.5A6 6 0 1 1 15.8 14.5c-.8.7-1.3 1.6-1.3 2.5h-5c0-.9-.5-1.8-1.3-2.5Z"/>',
     cameras: '<rect x="3" y="6.5" width="13" height="11" rx="2.2"/><path d="m16 10.5 5-3v9l-5-3"/>',
     undo: '<path d="M9 6 5 10l4 4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H11"/>',
@@ -99,7 +107,7 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { source: c.source, bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, inputs: c.inputs }; }
+  function lookOf(c) { return { source: c.source, bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, inputs: c.inputs, clock: c.clock }; }
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
@@ -307,9 +315,10 @@
   function reducedDockLabel(id) { return S.c.apps !== 'icons' && dockLabelSize(id) === (S.c.apps === 'text' ? 34 : 32); }
   function actionWidth(text) { return clamp(Math.ceil(textWidth(text, 30, 500, -.3) + 40), 288, 400); }
   function photoLabel(id, compact) {
-    var text = app(id).name, size = compact ? 56 : 88, limit = compact ? 640 : 992, width = textWidth(text, size, 600, -1.8, 'display');
-    if (!compact && width > limit) { size = 76; width = textWidth(text, size, 600, -1.8, 'display'); }
-    return { size: size, top: (compact ? 10.66 : size === 76 ? 10.36 : 9.68) + fontShift('display', size), width: Math.min(limit, width), ellipsis: width > limit };
+    // List names: 84px medium (500); long names drop to 72px. Tops centre the text in the row.
+    var text = app(id).name, size = compact ? 56 : PH_NAME, limit = compact ? 640 : 992, width = textWidth(text, size, 500, -1.6, 'display');
+    if (!compact && width > limit) { size = 72; width = textWidth(text, size, 500, -1.6, 'display'); }
+    return { size: size, top: (compact ? 10.66 : size === 72 ? 12.4 : 11.7) + fontShift('display', size), width: Math.min(limit, width), ellipsis: width > limit };
   }
   function listPlateWidth(id, compact) {
     if (S.c.apps === 'icons') return compact ? 120 : 144;
@@ -390,7 +399,7 @@
       source: 'art',
       bg: 'photo', layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
-      focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'), inputs: pick(modern.inputs, LOOK_VALUES.inputs, 'connected'),
+      focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'), inputs: pick(modern.inputs, LOOK_VALUES.inputs, 'connected'), clock: pick(modern.clock, LOOK_VALUES.clock, 'time'),
       font: pick(modern.font, LOOK_VALUES.font, 'inter'), wall: safeId(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : 'art',
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
       mode: pick(s.mode, ['fixed', 'open', '5', '15', '60'], 'fixed')
@@ -655,26 +664,28 @@
 
   /* ---------- Installed apps ---------- */
   function appsItems() { return catalog.error ? [] : ALPHA; }
-  function appsHead() { return catalog.error ? [['retry', 'Try again', '', '']] : [['editor', 'Apps on Home', '', 'home']]; }
+  // Only a catalogue error puts a control in the header; Apps on Home lives in Settings.
+  function appsHead() { return catalog.error ? [['retry', 'Try again', '', '']] : []; }
   V.apps = {
     sheet: true,
     norm: function (t) {
       var n = appsItems().length;
       t.f.i = clamp(t.f.i, 0, Math.max(0, n - 1));
       if (!n) t.f.zone = 'head';
+      else if (t.f.zone === 'head' && !appsHead().length) t.f.zone = 'grid'; // The empty header holds no focus.
     },
     key: function (t, k) {
       var f = t.f, items = appsItems(), n = items.length, col = f.i % COLS, row = Math.floor(f.i / COLS);
       if (k === 'back') { pop(); return; }
       if (f.zone === 'head') {
         if (k === 'down' && n) f.zone = 'grid';
-        else if (k === 'ok') { if (catalog.error) refreshCatalog(); else openEditor('apps'); }
+        else if (k === 'ok' && catalog.error) refreshCatalog();
         return;
       }
       if (k === 'left' && col > 0) f.i--;
       else if (k === 'right' && col < COLS - 1 && f.i < n - 1) f.i++;
       else if (k === 'down' && row < Math.ceil(n / COLS) - 1) f.i = Math.min(f.i + COLS, n - 1);
-      else if (k === 'up') { if (row > 0) f.i -= COLS; else f.zone = 'head'; }
+      else if (k === 'up') { if (row > 0) f.i -= COLS; else if (appsHead().length) f.zone = 'head'; }
       else if (k === 'ok' && n) launch(items[f.i]);
       S.appsFocus = items[f.i] || null;
     },
@@ -824,7 +835,8 @@
       { id: 'focus', title: 'Focus', horizontal: true, items: options('focus', ['glass', 'type']) },
       { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
       { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) },
-      { id: 'inputs', title: 'Inputs on Home', horizontal: true, items: options('inputs', ['connected', 'always']) }
+      { id: 'inputs', title: 'Inputs on Home', horizontal: true, items: options('inputs', ['connected', 'always']) },
+      { id: 'clock', title: 'Clock', horizontal: true, items: options('clock', WEATHER ? ['off', 'time', 'weather'] : ['off', 'time']) }
     ];
   }
   function detailRows(t) {
@@ -1119,9 +1131,49 @@
     // Proportional figures in the app-name face, so the clock reads as the same type as Home.
     return clockText();
   }
+  /* Weather beside the clock, from Open-Meteo (no account or key). Location comes from
+     cleanframe.weather.v1 = { lat, lon, unit: 'f' | 'c' }; without it the option is not offered.
+     Fetched at most every 20 minutes while the clock shows weather; the last reading is kept. */
+  var WEATHER = (function () {
+    var w = null;
+    try { w = JSON.parse(localStorage.getItem('cleanframe.weather.v1')); } catch (e) { w = null; }
+    if (!w || typeof w.lat !== 'number' || typeof w.lon !== 'number' || Math.abs(w.lat) > 90 || Math.abs(w.lon) > 180) return null;
+    return { lat: Math.round(w.lat * 100) / 100, lon: Math.round(w.lon * 100) / 100, unit: w.unit === 'c' ? 'c' : 'f' };
+  }());
+  var weatherNow = null, weatherAt = 0, weatherBusy = false;
+  try { weatherNow = JSON.parse(localStorage.getItem('cleanframe.weather.last')); } catch (e) { weatherNow = null; }
+  function weatherKind(code) {
+    return code === 0 || code === 1 ? 'clear' : code === 2 ? 'partly' : code === 3 ? 'cloud' : code === 45 || code === 48 ? 'fog' : code >= 95 ? 'storm' : (code >= 71 && code <= 77) || code === 85 || code === 86 ? 'snow' : code >= 51 ? 'rain' : 'cloud';
+  }
+  function refreshWeather() {
+    var xhr, url;
+    if (!WEATHER || weatherBusy || S.c.clock !== 'weather' || document.hidden || Date.now() - weatherAt < 20 * 60000) return;
+    weatherBusy = true; weatherAt = Date.now();
+    url = 'https://api.open-meteo.com/v1/forecast?latitude=' + WEATHER.lat + '&longitude=' + WEATHER.lon + '&current=temperature_2m,weather_code,is_day&temperature_unit=' + (WEATHER.unit === 'c' ? 'celsius' : 'fahrenheit');
+    try {
+      xhr = new window.XMLHttpRequest(); xhr.open('GET', url, true); xhr.timeout = 8000;
+      xhr.onload = function () {
+        var c;
+        weatherBusy = false;
+        try { c = JSON.parse(xhr.responseText).current; } catch (e) { c = null; }
+        if (xhr.status !== 200 || !c || typeof c.temperature_2m !== 'number' || typeof c.weather_code !== 'number') return;
+        weatherNow = { temp: Math.round(c.temperature_2m), kind: weatherKind(c.weather_code), day: c.is_day !== 0 };
+        try { localStorage.setItem('cleanframe.weather.last', JSON.stringify(weatherNow)); } catch (e) { /* Memory only. */ }
+        render();
+      };
+      xhr.onerror = xhr.ontimeout = function () { weatherBusy = false; };
+      xhr.send();
+    } catch (e) { weatherBusy = false; }
+  }
+  function weatherHtml() {
+    refreshWeather();
+    if (!weatherNow || typeof weatherNow.temp !== 'number' || !SVG['wx-' + weatherNow.kind]) return '';
+    var kind = weatherNow.kind === 'clear' && !weatherNow.day ? 'night' : weatherNow.kind;
+    return '<span class="weather">' + icon('wx-' + kind) + '<span class="weather-temp">' + weatherNow.temp + '°</span></span>';
+  }
   function renderCaption(t, hs) {
-    var html = '<span class="clock">' + clockHtml() + '</span>';
-    if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
+    var html = S.c.clock === 'off' ? '' : '<span class="clock">' + clockHtml() + (S.c.clock === 'weather' ? weatherHtml() : '') + '</span>';
+    if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < PH_NAME || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
     setHTML(caption, html);
   }
 
@@ -1443,7 +1495,7 @@
     appearanceEl.className = 'appearance detail-' + t.group;
     appearanceRows.className = 'appearance-rows';
     appearanceTitle.textContent = DETAIL_NAMES[t.group];
-    var at = detailLocation(t), selected = at.item, error = S.lookError, status = '', hint;
+    var error = S.lookError, status = '';
     function command(item, inner, cls) {
       var applied = item.axis && S.c[item.axis] === item.value;
       var loading = !!(item.axis && S.pending && S.pending.target[item.axis] === item.value && S.pending.row === item.axis);
@@ -1473,8 +1525,7 @@
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to Settings' : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : 'Open on the TV';
-    setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
+    setHTML(appearanceDesc, ''); // No remote-key hints: the focused control is the cue.
   }
   /* Keep the retry or membership state on the focused control. The stage-level line
      shares its position without changing the control's identity or key behaviour. */
@@ -1530,11 +1581,11 @@
         + '<div class="ed-home" data-slot="home"></div><div class="ed-order-break" data-slot="break">Then scroll</div><div class="ed-other-view" data-slot="ov"><div class="ed-other" data-slot="other"></div></div><div class="ed-origin" data-slot="origin"></div>'
         + '<div class="row-cue editor-before" data-slot="otherBefore" aria-hidden="true">' + icon('up') + '</div><div class="row-cue editor-after" data-slot="otherAfter" aria-hidden="true">' + icon('down') + '</div>';
     },
-    settings: function () { return '<h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div><p class="settings-overview-hint"><span class="remote-key">OK</span><span>Open selected group</span></p>'; },
+    settings: function () { return '<h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div>'; },
     cameras: function () {
       return '<h2 class="s-title">Cameras</h2><div class="cams" data-slot="grid">' + CONTROLS.cameras.map(function (cam, i) {
         return '<button type="button" tabindex="-1" class="cam" data-z="cam" data-i="' + i + '" data-action="cameras.' + esc(cam.src) + '"><img alt="" data-cam="' + i + '"><span class="cam-name">' + esc(cam.name) + '</span></button>';
-      }).join('') + '</div><p class="settings-overview-hint cam-hint"><span class="remote-key">OK</span><span data-slot="hint">Full screen</span></p>';
+      }).join('') + '</div>';
     },
     message: function (t) {
       var m = messageContent(t);
@@ -1653,7 +1704,6 @@
         b.className = 'cam' + (i === t.f.i ? ' is-focus' : '') + (t.full && i !== t.f.i ? ' is-hidden' : '');
         b.style.left = box.x + 'px'; b.style.top = box.y + 'px'; b.style.width = box.w + 'px'; b.style.height = box.h + 'px';
       });
-      el.hint.textContent = t.full ? 'Back to all cameras' : 'Full screen';
       sheetView.className = 'view' + (t.full ? ' cams-full' : '');
     },
     message: function (t, el) {
@@ -1722,18 +1772,32 @@
   /* Sheets (Settings, Apps, Leave, ...) sit on a frosted copy of the Art photo so
      they feel like the same place. The frost is made once per photo by drawing it
      down to 160x90; the browser's smooth upscale does the blur. No live filter. */
-  var frostFor = '', frostURL = '';
+  /* Made once per photo, never on navigation:
+     - frost: a 480x270 copy with a real Gaussian blur (canvas filter), so its upscale is smooth;
+       where canvas filters are missing, a halving-then-doubling ladder approximates the blur.
+     - preview: a small unblurred JPEG kept in localStorage so the next launch shows the photo
+       at once instead of the stage colour while the 4K image decodes. */
+  var frostFor = '', frostURL = '', PREVIEW_KEY = 'cleanframe.art.preview.v1';
+  function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function frostSheet() {
-    var im = IMG.photo, src = im && im.src, mid, small;
+    var im = IMG.photo, src = im && im.src, base, out, ctx, w, h, step, next;
     if (!src || !im.naturalWidth || S.c.source !== 'art') { IMG.bg.className = 'sheet-bg'; IMG.mat.className = 'mat-img'; return; }
-    if (src !== frostFor) {
+    if (src !== frostFor && src.indexOf('data:') !== 0) {
       frostFor = src; frostURL = '';
       try {
-        mid = document.createElement('canvas'); mid.width = 480; mid.height = 270;
-        mid.getContext('2d').drawImage(im, 0, 0, 480, 270);
-        small = document.createElement('canvas'); small.width = 160; small.height = 90;
-        small.getContext('2d').drawImage(mid, 0, 0, 160, 90);
-        frostURL = small.toDataURL('image/png');
+        base = canvas(480, 270); base.getContext('2d').drawImage(im, 0, 0, 480, 270);
+        try { localStorage.setItem(PREVIEW_KEY, base.toDataURL('image/jpeg', 0.72)); } catch (e) { /* Preview is optional. */ }
+        out = canvas(480, 270); ctx = out.getContext('2d');
+        if ('filter' in ctx) {
+          // Overscan so the blur does not pull dark edges in from outside the photo.
+          ctx.filter = 'blur(14px)'; ctx.drawImage(base, -36, -20, 552, 310); ctx.filter = 'none';
+        } else {
+          step = base; w = 480; h = 270;
+          while (w > 60) { next = canvas(w / 2, h / 2); next.getContext('2d').drawImage(step, 0, 0, w / 2, h / 2); step = next; w /= 2; h /= 2; }
+          while (w < 480) { next = canvas(w * 2, h * 2); next.getContext('2d').drawImage(step, 0, 0, w * 2, h * 2); step = next; w *= 2; h *= 2; }
+          ctx.drawImage(step, 0, 0);
+        }
+        frostURL = out.toDataURL('image/jpeg', 0.9);
       } catch (e) { frostURL = ''; } // A tainted or failed draw keeps the plain matte.
     }
     if (!frostURL) { IMG.bg.className = 'sheet-bg'; IMG.mat.className = 'mat-img'; return; }
