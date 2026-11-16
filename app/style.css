@@ -3,6 +3,8 @@
   --ink:#f4f4f1;
   --ease:cubic-bezier(.2,.7,.2,1);
   --t:180ms;
+  --spring:cubic-bezier(.3,1.32,.5,1);
+  --spring-t:300ms;
   --plate:linear-gradient(170deg,rgba(255,255,255,.30),rgba(255,255,255,.16) 58%,rgba(255,255,255,.22));
   --plate-edge:inset 0 1px 0 rgba(255,255,255,.34);
   --lift:linear-gradient(170deg,rgba(255,255,255,.44),rgba(255,255,255,.27) 58%,rgba(255,255,255,.34));
@@ -169,10 +171,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .ph-list{position:absolute;z-index:2;left:80px;top:40px;width:1200px;height:1040px;overflow:hidden;pointer-events:auto;-webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,0.0000) 0px,rgba(0,0,0,0.0156) 12px,rgba(0,0,0,0.0625) 24px,rgba(0,0,0,0.1406) 36px,rgba(0,0,0,0.2500) 48px,rgba(0,0,0,0.3906) 60px,rgba(0,0,0,0.5625) 72px,rgba(0,0,0,0.7656) 84px,rgba(0,0,0,1.0000) 96px,#000 976px,rgba(0,0,0,0.7656) 984px,rgba(0,0,0,0.5625) 992px,rgba(0,0,0,0.3906) 1000px,rgba(0,0,0,0.2500) 1008px,rgba(0,0,0,0.1406) 1016px,rgba(0,0,0,0.0625) 1024px,rgba(0,0,0,0.0156) 1032px,rgba(0,0,0,0.0000) 1040px);mask-image:linear-gradient(to bottom,rgba(0,0,0,0.0000) 0px,rgba(0,0,0,0.0156) 12px,rgba(0,0,0,0.0625) 24px,rgba(0,0,0,0.1406) 36px,rgba(0,0,0,0.2500) 48px,rgba(0,0,0,0.3906) 60px,rgba(0,0,0,0.5625) 72px,rgba(0,0,0,0.7656) 84px,rgba(0,0,0,1.0000) 96px,#000 976px,rgba(0,0,0,0.7656) 984px,rgba(0,0,0,0.5625) 992px,rgba(0,0,0,0.3906) 1000px,rgba(0,0,0,0.2500) 1008px,rgba(0,0,0,0.1406) 1016px,rgba(0,0,0,0.0625) 1024px,rgba(0,0,0,0.0156) 1032px,rgba(0,0,0,0.0000) 1040px)}
 .ph-rows{position:absolute;left:0;top:0;width:1200px;transition:transform var(--t) var(--ease);will-change:transform}
 .ph-row{position:absolute;left:0;top:0;width:1200px;height:128px;transition:transform var(--t) var(--ease)}
-.ph-group{position:absolute;left:0;top:0;width:100%;height:100%;opacity:.8;transform-origin:28px 64px;transition:opacity 160ms linear,transform var(--t) var(--ease)}
+.ph-group{position:absolute;left:0;top:0;width:100%;height:100%;opacity:.8;transform-origin:28px 64px;transition:opacity 160ms linear,transform var(--spring-t) var(--spring)}
 .ph-group .mark{position:absolute;left:28px;top:32px}
 .ph-name{position:absolute;left:128px;top:10px;max-width:992px;font-size:88px;line-height:104px;font-weight:600;letter-spacing:-1.8px;color:var(--ph-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(14,10,6,.32),0 3px 14px rgba(14,10,6,.24)}
-.f-glass .ph-row.is-focus .ph-group,.f-glass .ph-row.is-sel .ph-group{opacity:1}
+.f-glass .ph-row.is-focus .ph-group{opacity:1;transform:scale(1.06)}
+.f-glass .ph-row.is-preview .ph-group{opacity:1}
 .f-glass .ph-row.is-focus .ph-name,.ph-row.is-lifted .ph-name{text-shadow:0 1px 2px rgba(14,10,6,.22)}
 .f-type .ph-group{opacity:.62}
 .f-type .ph-row.is-focus .ph-group{opacity:1;transform:scale(1.05)}
@@ -184,8 +187,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .bg-photo.f-type .ph-row.is-sel .ph-group{opacity:.92}
 .bg-photo.f-type .ph-row.is-focus .ph-group,.bg-photo.f-type .ph-row.is-lifted .ph-group{opacity:1}
 .bg-photo.f-type .ph-row.k-ph .ph-group{opacity:.5}
-.ph-plate{position:absolute;z-index:1;left:80px;top:0;width:360px;height:134px;border-radius:38px;overflow:hidden;opacity:0;transition:opacity 160ms linear;transform:translateZ(0)}
-.ph-plate.on-focus,.ph-plate.on-lift{opacity:1}
+.ph-plate{position:absolute;z-index:1;left:80px;top:0;width:360px;height:106px;border-radius:53px;overflow:hidden;opacity:0;transform:translateZ(0) scale(.94);transform-origin:0 50%;transition:opacity 160ms linear,transform var(--spring-t) var(--spring)}
+.ph-plate.on-focus,.ph-plate.on-lift{opacity:1;transform:translateZ(0) scale(1)}
 .ph-plate.on-sel{opacity:.5}
 .ph-plate.is-outgoing{opacity:0}
 .ph-plate.is-preparing{opacity:0!important;transition:none!important}
@@ -396,8 +399,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .f-type .quiet-utils .u.is-focus .u-content{transform:scale(1.05)}
 .f-type .util-focus-label.is-on{transform:scale(1.05);transform-origin:50% 50%}
 .f-type.l-list .util-focus-label.is-on{transform-origin:100% 50%}
-.ut-lens{left:0;top:0;height:60px;border-radius:30px;pointer-events:none;-webkit-clip-path:inset(0 round 30px);clip-path:inset(0 round 30px)}
+.ut-lens{left:0;top:0;transform-origin:50% 50%;height:60px;border-radius:30px;pointer-events:none;-webkit-clip-path:inset(0 round 30px);clip-path:inset(0 round 30px)}
 .l-list .ut-lens .scrim{display:none}
+.l-list .ut-lens{transform-origin:100% 50%}
 .l-list .quiet-utils.is-both .u-label{max-width:330px}
 .l-list .quiet-utils.is-both .u .ico{width:36px;height:36px}
 .l-list .quiet-utils.is-both .u[data-action="util.settings"] .ico{width:34px;height:34px}
@@ -501,6 +505,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .settings-status .setting-error{max-width:840px;color:var(--warn)}
 .setting-choice.setting-retry{width:auto;min-height:60px;margin-top:16px;padding:10px 24px;font-size:28px;line-height:36px;border-radius:16px}
 .setting-choice:focus-visible,.settings-group:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.is-rapid .ph-plate{transform:translateZ(0) scale(1);transition:none}
+.is-rapid .ph-group{transition:opacity 90ms linear,transform 110ms var(--ease)}
 @media(prefers-reduced-motion:reduce){.panel-content,.ph-group,.tile-content,.u-content,.util-focus-label,.quiet-utils .u .ico{transform:none!important}.tile-content{transition:opacity 120ms linear!important}}
 
 .at-appearance .plate.on-sel,.at-wallpaper .plate.on-sel{opacity:.5;background:var(--plate);box-shadow:var(--plate-edge)}
@@ -513,7 +519,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .s-head .btn>span,.s-head .btn>.ico{position:relative;z-index:1}
 .f-type .s-head .btn.is-focus,.f-type .header-utils .u.is-focus{transform:scale(1.05)}
 .f-glass .s-head .btn.is-focus::before,.f-glass .header-utils .u.is-focus::before{content:"";position:absolute;left:0;right:0;top:2px;height:60px;border-radius:30px;background:var(--plate);box-shadow:var(--plate-edge);pointer-events:none}
-@media(prefers-reduced-motion:reduce){.s-head .btn,.header-utils .u,.m-tint .mat-img,.m-tint .mat-scrim{transform:none!important}.ut-lens{transition:opacity 120ms linear!important}}
+@media(prefers-reduced-motion:reduce){.s-head .btn,.header-utils .u,.m-tint .mat-img,.m-tint .mat-scrim{transform:none!important}.ut-lens{transition:opacity 120ms linear!important}.ph-plate{transform:translateZ(0)!important}}
 
 /* Saved display choices alter content, not app identity or editing state. */
 .stage.is-reflow *{transition:none!important;animation:none!important}

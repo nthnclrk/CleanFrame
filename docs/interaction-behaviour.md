@@ -3,7 +3,8 @@
 ## Home
 
 - Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Apps or the last selected control. Left/Right moves between Apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
-- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Apps and Settings. Left or Back returns to the selected app. Seven apps fit before the list fades at both ends as it scrolls. The clock uses the same face and weight as the app names.
+- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above, at whichever of Apps or Settings is level with the focused row. Up/Down moves between Apps and Settings. Left or Back returns to the selected app. With Glass focus, only one control shows focus: the list row has no plate while Apps or Settings is focused. Seven apps fit before the list fades at both ends as it scrolls. The clock uses the same face and weight as the app names.
+- Remote keys: a held arrow moves at once, repeats after 280 ms and then every 110 ms until released, sooner than the TV's own auto-repeat. Presses less than 360 ms apart switch focus without the spring or crossfade so it keeps up; the spring returns when movement pauses. Glass focus on the list is a fully rounded pill sized to the focused name, which grows 6% with a light spring; reduced motion keeps it still.
 - OK opens the selected item. Focus alone never launches an app.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
