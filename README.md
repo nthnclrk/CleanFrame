@@ -29,12 +29,12 @@ The public preview uses the included Manrope, Geist and Newsreader fonts.
 
 - Choose a List or Dock layout, with icons, names or both.
 - Use a photograph, light or dark background, with a simple 12-hour clock.
-- Adjust typography, focus and glass materials through the same Settings interface.
+- Adjust typography, layout and Type/Glass focus through the same Settings interface.
 - Choose and reorder Home apps; discover installed apps on the TV.
-- Select from fifteen wallpapers and save your preferences locally.
+- Use the current uploaded Art Mode photo, Light or Dark, and save preferences locally.
 - Open Settings → Samsung → Inputs to choose a discovered HDMI source.
 
-The glass and blur are rendered ahead of time. The TV loads the finished images and uses transforms and opacity for focus feedback.
+Art photos use a fixed readable scrim and neutral surfaces. The TV uses transforms and opacity for focus feedback, without live blur or pixel analysis.
 
 ## Use a coding agent
 
@@ -105,3 +105,7 @@ CleanFrame's original code and documentation use the [MIT licence](LICENSE). Fon
 The [release review](docs/public-release.md) records the publication checks. Third-party assets retain the terms listed in their notices. CleanFrame is an independent project with no Samsung or streaming-service affiliation.
 
 [TV Detox](https://github.com/Ansub/tv-detox) is a useful example of making an agent-assisted TV project approachable. Its Android setup is a different implementation; the prompts and instructions here are written for CleanFrame and Tizen.
+
+### Art Mode backgrounds and Home defaults (personal fork)
+
+The local Vetro bridge caches the current unfiltered uploaded Art Mode photo for Home. This fork removes bundled wallpapers/materials and offers Art Mode, Light and Dark backgrounds. Fresh Home defaults include ESPN with a white PNG mark and antenna/cable Live TV with a TV symbol; ABC iview and SBS are no longer defaults. The installed app icon is a simple Home symbol. Saved Home lists remain intact. See [setup, cache behaviour and physical verification still needed](docs/art-mode-wallpaper.md); this integration has not yet been installed or visually verified on a TV. It does not change native Art Mode or Home/startup settings.

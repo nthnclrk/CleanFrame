@@ -8,7 +8,7 @@ Choose the scope before starting: a browser contribution, an independently signe
 
 Use the browser-only prompt in the README. Read `AGENTS.md`, then the development and interaction docs. `npm run check` and `check:device` are offline source/synthetic-adapter checks. Run the public-font preview so the result is reproducible on a clean clone. Finish with source validation, relevant browser checks, a screenshot for visual changes and a clear statement of what needs physical TV observation.
 
-The current app uses List and Dock, fifteen wallpapers and separate appearance settings. `app/main.js` handles interaction; `app/device.js` owns device calls. The existing storage migration keeps older installations usable.
+This personal fork uses List and Dock, Art Mode/Light/Dark backgrounds and separate appearance settings. The bundled gallery has been removed. `app/main.js` handles interaction; `app/device.js` owns device calls. The existing storage migration keeps older installations usable.
 
 ## Install your own copy
 

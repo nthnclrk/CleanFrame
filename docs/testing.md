@@ -10,7 +10,7 @@ npx playwright install chromium
 npm run check:browser
 ```
 
-`check` runs ES5 runtime lint, validates package identity/version and bundled resources, then tests the production device adapter with a synthetic API/clock. `check:device` is the synthetic adapter test included in this command, despite its name. Neither command contacts a TV. `check:browser` uses a fresh Playwright Chromium profile and its own loopback preview. It checks List and Dock navigation, single focus, Home controls, grouped Settings, explicit OK application, applied checkmarks, pending-load cancellation, retries, persistence, all fifteen wallpaper bundles, available fonts, 720p scaling, migrations, the Home editor and honest browser-only launch errors. Reports and screenshots are in ignored `.local/qa/`. A failed assertion exits with a nonzero status.
+`check` runs ES5 runtime lint, validates package identity/version and bundled resources, then tests the production device adapter with a synthetic API/clock. `check:device` is the synthetic adapter test included in this command, despite its name. Neither command contacts a TV. `check:browser` uses a fresh Playwright Chromium profile and its own loopback preview. It checks List and Dock navigation, single focus, Home controls, grouped Settings, explicit OK application, applied checkmarks, pending-load cancellation, retries, persistence, Art Mode cache recovery, new defaults and Live TV, available fonts, 720p scaling, migrations, the Home editor and honest browser-only launch errors. Reports and screenshots are in ignored `.local/qa/`. A failed assertion exits with a nonzero status.
 
 For public-source validation, set `CLEANFRAME_PUBLIC_FONTS=1` when running `check:browser`; the preview helper then excludes the local proprietary overlay. Run `npm run check:public` for the bounded source/history checks and `npm run export:public` for a widget that always excludes private fonts. The GitHub Actions workflow uses this public path. Browser/package checks do not clear third-party asset rights or validate TV behaviour.
 
@@ -27,7 +27,7 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/.local/playwright" npx playwright install chromiu
 PLAYWRIGHT_BROWSERS_PATH="$PWD/.local/playwright" npm run check:browser
 ```
 
-For manual review, use `npm run dev` and open `/home/`. Use the arrow keys, Enter and Escape. Check the changed flow in List and Dock, on Photo, Light and Dark backgrounds. Check a single app and all nine apps when changing app layout. In Settings, browse without applying, apply with OK, return with both Back routes, and cancel a pending resource load. Check editor placement/undo, wallpaper rotation pausing during panels/background time, and restored focus on return when those flows change. Browser preferences are separate from TV preferences.
+For manual review, use `npm run dev` and open `/home/`. Use the arrow keys, Enter and Escape. Check the changed flow in List and Dock, on Art Mode, Light and Dark backgrounds. Check a single app and all nine apps when changing app layout. In Settings, browse without applying, apply with OK, return with both Back routes, and cancel a pending resource load. Check editor placement/undo, Art Mode refresh cancellation and restored focus on return when those flows change. Browser preferences are separate from TV preferences.
 
 `CLEANFRAME_PUBLIC_FONTS=1 npm run check:performance` runs the existing 4× CPU-throttled Chromium regression screen. Compare navigation work, frame stalls, retained DOM/heap and live-filter checks before and after rendering changes. This is not a physical-TV benchmark.
 
@@ -42,7 +42,11 @@ Run these only under a task that includes TV testing. Announce any installation 
 1. Move in both directions through each layout and Settings; check focus, response and readable labels from the sofa.
 2. Launch Netflix/YouTube, press Home to return, and check the selected app. Treat streaming apps' own Back handling separately.
 3. Check Art Mode, Other apps, TV settings and Settings → Samsung → Samsung Home; verify the actual visible destinations.
-4. Check saved appearance/app order/wallpaper after relaunch. Check timed rotation pauses while a panel is open or the app is hidden.
+4. Check saved appearance and app order after relaunch. Verify the last-good Art photo appears offline, visible Home refreshes it, and Settings/hidden states preserve the committed appearance. Check Live TV reaches antenna/cable channels and ESPN opens the installed app.
 5. Test normal power-on after a streaming app and the usual Art Mode routine only when that work is included. Preserve the native Home recovery baseline and restore it before any uninstall/identity change.
 
 The current pending results are listed at the top of `tv-status.md`. Browser CPU throttling is a development comparison, not a TV performance measurement.
+
+## Art Mode wallpaper sync
+
+`npm run check:art` tests the typed binary parser, strict uploaded-path allowlist, corrupt/oversized images, HTTP/CORS contract, revision eviction, copy/selection and stop/start races, deterministic text packing, ES5 shard grammar, and synthetic Tizen private-cache promotion/failure/cancellation. No root command is executed and no TV is contacted. `npm run check:browser` also runs `scripts/check-art-browser.mjs` with synthetic loopback responses: Art Mode choice, neutral materials, last-good IndexedDB reload, corruption, write failure/Retry, Back cancellation, hidden boot and visible Home refresh. Screenshots are ignored `.local/qa/art-*-public.png` and `home-defaults*-public.png`; test Art responses use a tiny synthetic JPEG outside the widget. The real shard denies HTTP(S) browser Origins, so these browser fixtures do not establish packaged-widget CORS or TV compatibility. See the physical [handoff checklist](art-mode-wallpaper.md#verification-handoff).

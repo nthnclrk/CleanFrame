@@ -5,3 +5,5 @@
 These are desktop Chromium screenshots, not TV captures or proof of Chromium 85 compositing. They show readable labels and the rounded utility focus in the candidate UI. The wallpaper and icon sources/licences remain in the existing asset records and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
 The `inputs-*-720.png` frames show Settings → Samsung → Inputs at 1280 × 720 using public fonts and three synthetic source records. They document browser layout, not a physical TV input or CEC result.
+
+`home-defaults-public.png` and `home-espn-public.png` show this personal fork’s Live TV and ESPN Home entries at 1920 × 1080, captured on 15 November 2026 with bundled public fonts. The background is the generated two-colour test JPEG, not owner artwork. They document Chromium layout only; tuner selection, native launches, installed icon appearance and Art Mode sync still need physical verification.

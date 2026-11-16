@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run check:tools
+      - run: npm run check:art
       - run: npm run check:public
       - run: npx playwright install --with-deps chromium
       - run: npm run check:browser

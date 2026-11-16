@@ -5,7 +5,7 @@ import { openPreview, root } from './browser.mjs';
 
 const output = root + '.local/qa/performance/';
 mkdirSync(output, { recursive: true });
-const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/assets/wallpapers/catalog.js', 'app/assets/adaptive-ink.js'];
+const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/art-mode.js'];
 function hashes() {
   return Object.fromEntries(sourceFiles.map(file => {
     try { return [file, createHash('sha256').update(readFileSync(root + file)).digest('hex')]; }
@@ -13,7 +13,7 @@ function hashes() {
   }));
 }
 const report = {
-  scope: 'Production /home/ in local Playwright Chromium, 1920×1080, CPU throttled 4×. Mocked public app inventory only. No TV contact or TV timing claim.',
+  scope: 'Production /home/ in local Playwright Chromium, 1920×1080, CPU throttled 4×. Synthetic app inventory and loopback Art responses. No TV contact or TV timing claim.',
   sourceBefore: hashes(), checks: [], warnings: [], failures: [], scenarios: [], errors: [],
   budgets: { keyP95Ms: 50, keyMaximumMs: 120, frameMaximumMs: 250, appearanceMaximumMs: 4000 },
   notes: [
@@ -97,6 +97,13 @@ try {
     } };
     localStorage.setItem('cleanframe.home.v1', JSON.stringify({ dock: ['stremio', 'netflix', 'disneyplus', 'youtube', 'appletv', 'primevideo', 'abciview', 'sbs', 'applemusic'], wallpaper: 'misty', mode: 'fixed', theme: 'shore', lastApp: 'netflix' }));
   });
+  const art = readFileSync(root + 'scripts/fixtures/art-test.jpg');
+  await page.route('http://127.0.0.1:8643/**', route => {
+    const headers = { 'Access-Control-Allow-Origin': '*' };
+    return route.fulfill(route.request().url().endsWith('/current.json')
+      ? { headers, contentType: 'application/json', body: JSON.stringify({ revision: 'a'.repeat(64), contentId: 'MY_TEST', imageUrl: '/art/' + 'a'.repeat(64) + '/image.jpg', width: 64, height: 36 }) }
+      : { headers, contentType: 'image/jpeg', body: art });
+  });
   cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -116,7 +123,7 @@ try {
   await scene('settings');
   await sample('Settings navigation', ['down', 'down', 'up', 'up']);
   await scene('apps');
-  check('Performance inventory includes 23 real-adapter rows', (await call('state')).catalog.ids.length === 23);
+  check('Performance inventory includes 24 real-adapter rows including Live TV', (await call('state')).catalog.ids.length === 24);
   await sample('All Apps grid navigation', ['down', 'down', 'right', 'up', 'up', 'left']);
   await scene('editor');
   await sample('Apps on Home navigation', ['down', 'down', 'down', 'up', 'up', 'up']);
@@ -131,15 +138,15 @@ try {
   await call('nav', 'right');
   await sample('Newsreader Home controls', ['up', 'up', 'down', 'down']);
 
-  const walls = await page.evaluate(() => CleanFrameWallpapers.map(w => w.id));
+  const backgrounds = ['photo', 'light', 'dark'];
   const loadTimes = [];
   await scene('home');
-  for (const wall of walls) {
-    const t = Date.now(); await call('look', { wall, bg: 'photo' }); await ready();
-    loadTimes.push({ wall, ms: Date.now() - t });
+  for (const bg of backgrounds) {
+    const t = Date.now(); await call('look', { bg }); await ready();
+    loadTimes.push({ bg, ms: Date.now() - t });
   }
   report.appearanceLoads = loadTimes;
-  check('All photo bundles load within bounded browser budget', loadTimes.every(r => r.ms < report.budgets.appearanceMaximumMs), loadTimes);
+  check('All backgrounds apply within bounded browser budget', loadTimes.every(r => r.ms < report.budgets.appearanceMaximumMs), loadTimes);
   await page.waitForLoadState('networkidle');
   const beforeSame = await memory();
   const sameWall = (await call('state')).wallpaper;
@@ -148,36 +155,16 @@ try {
   const afterSame = await memory();
   check('Selecting current photo reuses bundle', beforeSame.images.resources === afterSame.images.resources && beforeSame.images.elements === afterSame.images.elements, { before: beforeSame.images, after: afterSame.images });
   // Prime the small cycle before comparing retained objects.
-  const cycle = walls.slice(0, 3);
-  for (const wall of cycle) { await call('look', { wall }); await ready(); }
+  const cycle = backgrounds;
+  for (const bg of cycle) { await call('look', { bg }); await ready(); }
   await page.waitForTimeout(300);
   report.memoryBefore = await memory();
-  for (let repeat = 0; repeat < 4; repeat++) for (const wall of cycle) { await call('look', { wall }); await ready(); }
+  for (let repeat = 0; repeat < 4; repeat++) for (const bg of cycle) { await call('look', { bg }); await ready(); }
   await page.waitForTimeout(300);
   report.memoryAfter = await memory();
   const a = report.memoryAfter, b = report.memoryBefore;
   check('Photo cycles retain bounded DOM/image count', a.dom.nodes - b.dom.nodes < 40 && a.images.elements <= b.images.elements + 2, { before: b.dom, after: a.dom, imagesBefore: b.images.elements, imagesAfter: a.images.elements });
   check('Post-GC JS heap has no multi-megabyte growth over photo cycles', a.heapBytes - b.heapBytes < 2 * 1024 * 1024, { before: b.heapBytes, after: a.heapBytes, growth: a.heapBytes - b.heapBytes });
-
-  await scene('appearance');
-  // Background's current-photo swatch belongs to Settings, not selector preloading.
-  await page.waitForLoadState('networkidle');
-  const beforeGallery = await page.evaluate(() => performance.getEntriesByType('resource').length);
-  await call('activate', 'background.wallpaper');
-  await page.waitForFunction(() => ShoreQA.where().view === 'wallpaper');
-  const beforePreview = (await call('state')).shown.wall;
-  await call('nav', 'down');
-  await page.waitForFunction(previous => !ShoreQA.state().pending && ShoreQA.state().shown.wall !== previous, beforePreview);
-  await page.waitForLoadState('networkidle');
-  report.gallery = await page.evaluate(start => ({
-    thumbnailsFetched: [...new Set(performance.getEntriesByType('resource').filter(r => /-thumb\./.test(r.name)).map(r => r.name))].length,
-    images: document.images.length, nodes: document.querySelectorAll('*').length,
-    newPhotoResources: performance.getEntriesByType('resource').slice(start).filter(r => /\/(wallpapers|materials)\//.test(r.name)).map(r => r.name),
-    shown: ShoreQA.state().shown.wall
-  }), beforeGallery);
-  // Small catalogue thumbnails are allowed; full photo/material bundles load on demand.
-  check('Photo selector has bounded thumbnails and only the requested full preview bundle', report.gallery.images <= report.memoryAfter.images.elements + walls.length + 2 && report.gallery.newPhotoResources.filter(url => !/-thumb\.jpg$/.test(url)).every(url => url.includes('/' + report.gallery.shown + '.') || url.includes('/' + report.gallery.shown + '-')), report.gallery);
-  await call('nav', 'back'); await ready(); await scene('home');
 
   report.layers = layers.filter(l => l.drawsContent).map(l => ({ width: l.width, height: l.height, paintCount: l.paintCount }));
   report.liveFilters = await page.evaluate(() => [...document.querySelectorAll('#stage, #stage *')].filter(e => e.getClientRects().length).map(e => {

@@ -17,7 +17,7 @@ for tag in ['content', 'icon']:
     node = manifest.find('w:' + tag, ns)
     assert node is not None and (app / node.get('src', '')).is_file(), 'Missing ' + tag + ' file'
 assert all((app / name).is_file() for name in ['main.js', 'style.css'])
-for reference in ['assets/wallpapers/catalog.js', 'assets/adaptive-ink.js', 'assets/font-catalog.js']:
+for reference in ['assets/font-catalog.js']:
     assert (app / reference).is_file(), 'Missing runtime catalogue: ' + reference
 for filename in ['index.html']:
     source = (app / filename).read_text()
@@ -35,15 +35,9 @@ for css in app.rglob('*.css'):
     for reference in re.findall(r'url\([\"\']?([^\)\"\']+)', source):
         if ':' not in reference:
             assert (css.parent / reference.split('?')[0]).is_file(), 'Missing CSS resource: ' + reference
-# These resource names are constructed at runtime, so HTML/CSS reference checks cannot find them.
-walls = json.loads((app / 'assets/wallpapers/SOURCES.json').read_text())
-for wall in walls:
-    for field in ['src', 'thumb']:
-        assert (app / wall[field]).is_file(), 'Missing wallpaper: ' + wall[field]
-    wall_id = wall['id']
-    for suffix in ['study-soft', 'field-blur', 'field-frost', 'field-clear']:
-        assert (app / ('assets/materials/' + wall_id + '-' + suffix + '.jpg')).is_file(), 'Missing registered material: ' + wall_id + '/' + suffix
-    assert (app / ('assets/wallpapers/' + wall_id + '-panel.jpg')).is_file(), 'Missing panel backdrop: ' + wall_id
-for icon in ['stremio', 'netflix', 'disneyplus', 'youtube', 'appletv', 'primevideo', 'abciview', 'sbs', 'applemusic', 'art', 'apps', 'settings']:
+assert not (app / 'assets/wallpapers').exists(), 'The personal fork must not package a bundled photo gallery'
+assert not (app / 'assets/materials').exists(), 'Art photos use neutral surfaces'
+assert (app / 'assets/icons/espn.png').is_file(), 'Missing white ESPN mark'
+for icon in ['stremio', 'netflix', 'disneyplus', 'youtube', 'appletv', 'primevideo', 'abciview', 'sbs', 'applemusic', 'art', 'apps', 'settings', 'livetv', 'home']:
     assert (app / ('assets/icons/' + icon + '.svg')).is_file(), 'Missing icon: ' + icon
 print('Widget identity, version and bundled resources are valid.')

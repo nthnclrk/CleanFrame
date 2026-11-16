@@ -10,7 +10,7 @@ Paid Pangram fonts, signing keys, account tokens, local device addresses, recove
 
 ## Asset review
 
-Each of the fifteen wallpaper pages was checked for author and Unsplash licence on 20 October 2026; see [asset sources](asset-sources.md). ABC and SBS icons now use documented MIT Custom Brand Icons sources. Font and icon licence texts are retained. Original code uses MIT; third-party assets keep their own terms in [third-party notices](../THIRD_PARTY_NOTICES.md).
+The fifteen wallpaper pages were checked for author and Unsplash licence on 20 October 2026; their provenance remains historical in [asset sources](asset-sources.md). This personal fork no longer ships those photos or their derived materials. ABC and SBS icons use documented MIT Custom Brand Icons sources. The white ESPN PNG derives from the documented public-domain text logo; trademark rights remain with ESPN. Font and icon licence texts are retained. Original code uses MIT; third-party assets keep their own terms in [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 ## Validation
 
