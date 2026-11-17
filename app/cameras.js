@@ -18,6 +18,7 @@
   var TICK = 10000;          // Every 10 s: retry missing stills and recheck Offline tiles.
   var REFRESH_TICKS = 6;     // Every 60 s: reconnect every stream behind a fresh snapshot.
   var RETRY = 10000;         // A stream that errors reconnects after 10 s.
+  var FULL_START = 20000;    // A full-screen stream that has not moved by then is given up; the MJPEG stays.
 
   // A camera's shape, as "3:4" or a number; 0 when unknown.
   function ratioValue(v) {
@@ -38,7 +39,7 @@
     // Per tile, for the current visit: the snapshot in flight, when it started, whether the
     // stream is held closed for it, the stream's retry timer, and what the tile shows.
     var tiles = [], tick = 0, ticks = 0;
-    var full = { token: 0, settle: 0 }, webapisTried = false;
+    var full = { token: 0, settle: 0, watch: 0 }, webapisTried = false;
 
     function streamURL(cam) { return host.go2rtc + '/api/stream.mjpeg?src=' + encodeURIComponent(cam.src) + '&t=' + Date.now(); }
     function stillURL(cam) { return host.go2rtc + '/api/frame.jpeg?src=' + encodeURIComponent(cam.src) + '&t=' + Date.now(); }
@@ -155,8 +156,9 @@
 
     /* Full screen plays the camera's full-quality stream through the TV's own player (AVPlay, a
        hardware video layer behind the page) as go2rtc HLS: repackaged, not re-encoded. It needs
-       the avplay, network.public and tv.audio privileges and a Partner-signed package. The MJPEG
-       frame shows until the video runs, and stays if the TV cannot play the stream. */
+       the avplay, network.public and tv.audio privileges and a Partner-signed package. The live
+       MJPEG stays on screen until the video is actually moving (the player can report PLAYING for
+       ~10 s before its first frame advances), and stays if the TV cannot play the stream. */
     function avplay() { return window.webapis && window.webapis.avplay; }
     function loadWebapis(done) {
       if (avplay() || !window.tizen || webapisTried) { done(); return; }
@@ -173,7 +175,7 @@
       else if (!on && was && !leaving && showing()) host.render();
     }
     function stopFull(leaving) {
-      full.token++; clearTimeout(full.settle);
+      full.token++; clearTimeout(full.settle); clearInterval(full.watch);
       if (avplay()) { try { avplay().stop(); } catch (e) { /* Not playing. */ } try { avplay().close(); } catch (e) { /* Not open. */ } }
       setPlayer(false, leaving);
     }
@@ -191,9 +193,19 @@
           p.setListener({ onerror: function () { if (token === full.token) stopFull(); }, onstreamcompleted: function () { if (token === full.token) stopFull(); } });
           p.setDisplayRect(0, 0, 1920, 1080);
           p.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+          // A 1 s start buffer: on the Frame the default sometimes waited ~11 s before playing.
+          try { p.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 1); } catch (e) { /* Older players. */ }
           p.prepareAsync(function () {
             if (token !== full.token) return;
-            p.play(); setPlayer(true);
+            p.play();
+            var since = Date.now();
+            full.watch = setInterval(function () {
+              var moving = false;
+              if (token !== full.token) { clearInterval(full.watch); return; }
+              try { moving = p.getCurrentTime() > 0; } catch (e) { moving = false; }
+              if (moving) { clearInterval(full.watch); setPlayer(true); }
+              else if (Date.now() - since > FULL_START) stopFull(); // Never started: the MJPEG stays.
+            }, 150);
           }, function () { if (token === full.token) stopFull(); });
         } catch (e) { stopFull(); }
       });

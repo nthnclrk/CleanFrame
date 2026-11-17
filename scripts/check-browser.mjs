@@ -826,9 +826,13 @@ try {
     check('Camera tiles keep each stream\'s shape and all stay a usable size', tiles.every(t => Math.abs(t.ratio - t.natural) < .02 && t.inside && t.area > 200000), tiles);
     await current.evaluate(() => {
       const log = window.__avplay = [];
-      window.webapis = { avplay: { open: u => log.push('open ' + u), setListener() {}, setDisplayRect() {}, setDisplayMethod() {}, prepareAsync: ok => setTimeout(ok, 10), play: () => log.push('play'), stop: () => log.push('stop'), close: () => log.push('close'), getState: () => 'PLAYING' } };
+      window.webapis = { avplay: { open: u => log.push('open ' + u), setListener() {}, setDisplayRect() {}, setDisplayMethod() {}, prepareAsync: ok => setTimeout(ok, 10), play: () => log.push('play'), stop: () => log.push('stop'), close: () => log.push('close'), getState: () => 'PLAYING', getCurrentTime: () => window.__ct ?? 100 } };
     });
+    await current.evaluate(() => { window.__ct = 0; }); // Playing, but the first frame has not advanced yet.
     await nav('ok'); check('OK shows one camera full screen', await current.evaluate(() => document.querySelectorAll('.cam.is-hidden').length === 2));
+    await current.waitForFunction(() => window.__avplay.includes('play')); await current.waitForTimeout(600);
+    check('Until the TV player\'s video moves, the live MJPEG stays on screen', await current.evaluate(() => !document.documentElement.classList.contains('is-avplay') && !!document.querySelector('.cam.is-focus .cam-live[src]')));
+    await current.evaluate(() => { window.__ct = 120; });
     await current.waitForFunction(() => document.documentElement.classList.contains('is-avplay'));
     check('The MJPEG tiles are released while the TV player shows the camera', await current.evaluate(() => document.querySelectorAll('.cam .cam-live[src]').length === 0));
     check('Full screen plays the full-quality go2rtc HLS stream with every layer above the video clear', await current.evaluate(() => {
@@ -939,7 +943,7 @@ try {
     // The TV player starting while every tile waits on its snapshot: Back must bring every stream back.
     await current.evaluate(() => {
       window.__avplay = []; window.__mark = window.__snaps.length;
-      window.webapis = { avplay: { open: u => __avplay.push('open ' + u), setListener() {}, setDisplayRect() {}, setDisplayMethod() {}, prepareAsync: ok => setTimeout(ok, 10), play: () => __avplay.push('play'), stop: () => __avplay.push('stop'), close: () => __avplay.push('close'), getState: () => 'PLAYING' } };
+      window.webapis = { avplay: { open: u => __avplay.push('open ' + u), setListener() {}, setDisplayRect() {}, setDisplayMethod() {}, prepareAsync: ok => setTimeout(ok, 10), play: () => __avplay.push('play'), stop: () => __avplay.push('stop'), close: () => __avplay.push('close'), getState: () => 'PLAYING', getCurrentTime: () => window.__ct ?? 100 } };
     });
     await act('util.cameras');
     await current.waitForFunction(() => window.__snaps.slice(window.__mark).filter(i => /frame\.jpeg/.test(i.src)).length === 3);
