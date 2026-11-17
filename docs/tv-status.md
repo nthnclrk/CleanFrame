@@ -38,6 +38,8 @@ The 0.6.1 installation and launch responses are command evidence. Current render
 
 Browser and package checks establish source behaviour and archive contents. CPU-throttled Chromium timings are development comparisons; they are not TV benchmarks. Current browser checks are described in [testing](testing.md).
 
+The USB photo source is verified in the browser preview against a synthetic Tizen filesystem: drive enumeration, the `CleanFrame` folder with its `Photos` and drive-root fallbacks, extension filtering and ordering, rotation, drive removal and reinsertion. Pending on this TV: the real `removable_*` labels and mount paths, the largest JPEGs the USB port will serve quickly, the visual cost of the live surface blur, and the remote feel of the new Photo source rows.
+
 ## Native Home and recovery
 
 Native Home/startup was configured separately on 19 October. A guarded one-shot helper ran as the SDK user. Original typed values were saved privately before apply; exact-value restore/readback and reapply passed. The latest recorded readback assigns CleanFrame to Home, startup and boot-backup, with Home autostart enabled. The first-screen type still names Samsung Home.

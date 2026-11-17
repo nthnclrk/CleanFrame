@@ -21,6 +21,8 @@
     'd0m1lV1nt2.emanual', '2022ePop01.SmartTV',
     'ZODRT12q2l.WebAccountExtension', 'ByJlgt0XeD.CastSettingsApp', 'tv6pbVMQFF.PrivacyChoices'];
   var SELF = 'nClrkHome1.FrameHome';
+  // Drive convention: a CleanFrame folder of pictures at the root of the USB storage.
+  var PHOTO_DIR = 'CleanFrame', PHOTO_ALT_DIR = 'Photos', PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp'], PHOTO_LIMIT = 240;
   function api() { return window.tizen && window.tizen.application; }
   function selfId() {
     try { return api().getCurrentApplication().appInfo.id || SELF; }
@@ -115,6 +117,84 @@
       api().launchAppControl(control, 'org.tizen.art-app', function () { finish(null); }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
+  function photoExt(name) {
+    var dot = name.lastIndexOf('.'), ext = dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+    return PHOTO_EXT.indexOf(ext) >= 0 ? ext : '';
+  }
+  function photoNames(files) {
+    var names = [];
+    (files || []).forEach(function (item) {
+      var name = typeof item === 'string' ? item : item && typeof item.name === 'string' ? item.name : '';
+      if (name && photoExt(name) && names.indexOf(name) < 0) names.push(name);
+    });
+    names.sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase(), undefined, { numeric: true, sensitivity: 'base' }); });
+    return names;
+  }
+  function fsApi() { return window.tizen && window.tizen.filesystem; }
+  function mountedDrives(list) {
+    var labels = [];
+    (list || []).forEach(function (unit) {
+      if (!unit || typeof unit.label !== 'string' || !unit.label) return;
+      if (unit.type && unit.type !== 'EXTERNAL') return;
+      if (unit.state && unit.state !== 'MOUNTED') return;
+      if (labels.indexOf(unit.label) < 0) labels.push(unit.label);
+    });
+    labels.sort();
+    return labels;
+  }
+  function photoUri(fs, path) {
+    var uri = path;
+    try { uri = fs.toURI(path) || path; } catch (err) { /* A raw path is a usable image source. */ }
+    return String(uri);
+  }
+  function usbFailure(err) {
+    return { message: 'The USB drive could not be read.', detail: err && (err.message || err.name) || 'Try again, or use a drive formatted with JPEG, PNG, WebP or BMP pictures.' };
+  }
+  function readFolder(fs, path, done) {
+    var finished = false;
+    function finish(err, names) { if (finished) return; finished = true; done(err, names); }
+    try {
+      fs.listDirectory(path, function (files) { finish(null, files); },
+        function (err) { finish(err || { message: 'The folder could not be read.' }); },
+        { includeExtensions: PHOTO_EXT });
+    } catch (err) { finish(err); }
+  }
+  /* Read the picture folder from the first mounted external drive, chosen in a stable label order. */
+  function usbPhotos(done) {
+    var fs = fsApi();
+    if (!fs || typeof fs.listStorages !== 'function' || typeof fs.listDirectory !== 'function') { unavailable(done); return; }
+    var finish = bounded(done, 12000);
+    function readFolders(drive, folders, at) {
+      var folder = folders[at];
+      if (folder === undefined) { finish(null, { drive: drive, folder: '', photos: [] }); return; }
+      readFolder(fs, drive + '/' + folder, function (err, files) {
+        var names = photoNames(files);
+        if (!names.length) { readFolders(drive, folders, at + 1); return; }
+        finish(null, { drive: drive, folder: folder,
+          photos: names.slice(0, PHOTO_LIMIT).map(function (name) { return { name: name, uri: photoUri(fs, drive + '/' + folder + '/' + name) }; }) });
+      });
+    }
+    try {
+      fs.listStorages(function (units) {
+        var drives = mountedDrives(units);
+        if (!drives.length) { finish(null, { drive: '', folder: '', photos: [] }); return; }
+        readFolders(drives[0], [PHOTO_DIR, PHOTO_ALT_DIR, ''], 0);
+      }, function (err) { finish(usbFailure(err)); });
+    } catch (err) { finish(usbFailure(err)); }
+  }
+  /* Watch for USB insertion/removal so a slideshow can pick a drive up without a restart. */
+  function watchStorage(done) {
+    var fs = fsApi();
+    if (!fs || typeof fs.addStorageStateChangeListener !== 'function' || typeof fs.removeStorageStateChangeListener !== 'function') return function () {};
+    var watchId = null, alive = true;
+    try { watchId = fs.addStorageStateChangeListener(function (unit) { if (alive && done) done(unit && unit.label ? unit.label : ''); }); }
+    catch (err) { return function () {}; }
+    return function () {
+      if (!alive) return;
+      alive = false;
+      try { if (watchId !== null && watchId !== undefined) fs.removeStorageStateChangeListener(watchId); } catch (err) { /* The watch is dropped with the app. */ }
+    };
+  }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
   function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
   function apps(done) {
@@ -139,5 +219,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource, usbPhotos: usbPhotos, watchStorage: watchStorage, PHOTO_LIMIT: PHOTO_LIMIT };
 }());

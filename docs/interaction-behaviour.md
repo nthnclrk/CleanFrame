@@ -16,7 +16,7 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 
 | Group | Choices |
 | --- | --- |
-| Background | Photo, Light, Dark; Wallpaper and Rotation when Photo is active |
+| Background | Photo, Light, Dark; Photo source, Wallpaper and Rotation when Photo is active |
 | Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
 | Focus | Type or Glass; Soft, Frost or Clear tint material |
@@ -26,6 +26,8 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
 Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. Wallpaper has its own temporary photo preview, described below. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
 
 Material applies to a photographic Dock, or Glass focus on a photographic List. Inactive material choices remain visible with an explanation and are skipped during navigation. Their stored value is retained. Wallpaper and rotation are also inactive on flat backgrounds.
+
+Photo source offers the built-in Gallery and a USB drive. USB takes the first mounted external drive and its `CleanFrame` folder, falling back to a `Photos` folder and then the drive root, and accepts JPEG, PNG, WebP and BMP files, sorted by name. The Rotation interval applies to whichever source is active, and its timed changes pause while a panel is open. The row reports what was read, such as “24 photos from CleanFrame/ on removable_sda1”. Removing the drive keeps the USB choice, shows the selected Gallery wallpaper and reports the missing drive; reinserting it, or returning to the launcher, restores the slideshow without a restart. Entering Background re-reads the drive, and a source detail offers an explicit Try again.
 
 A font or photo change applies only after its resources are ready and storage succeeds. A load or storage failure keeps the previous appearance and checkmark, with a Try again action. Back cancels a pending change, leaves the group and keeps completed changes. Late load callbacks cannot apply a cancelled choice. There is no Save button. Returning to a group restores its last choice focus; returning to Settings restores its category focus. Rotation is nested within Background, and Back returns to its Rotation row.
 

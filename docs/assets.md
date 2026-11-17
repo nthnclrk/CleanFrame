@@ -37,4 +37,6 @@ The retained generator covers all fifteen filenames and writes `.local/materials
 
 For another photo, add its source/credit to `SOURCES.json`, prepare its background and thumbnail, add the gallery entry in `catalog.js`, generate the four registered materials and panel backdrop, then measure and review its foreground metadata. Keep the crop identical across all assets. Run source and browser checks before packaging.
 
+USB pictures need none of these assets: the app draws the photo itself and blurs the sheet and material surfaces once per change with `filter`. That live blur is a per-slide cost, not a per-navigation cost, and is the only live filter in the running app.
+
 Source pages and licence observations are recorded in [asset sources](asset-sources.md).
