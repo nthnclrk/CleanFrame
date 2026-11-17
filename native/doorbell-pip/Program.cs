@@ -1,6 +1,8 @@
 // CleanFrame doorbell picture-in-picture for a rooted Samsung Tizen TV.
 // A small EFL notification window that sits above whatever is playing, shows a camera's
 // newest frame from an MJPEG stream a few times a second, and exits after a fixed time or when asked.
+// go2rtc takes several seconds to start an MJPEG transcode but about one to return a single
+// snapshot, so until the stream's first frame arrives the window shows go2rtc snapshots.
 // The window setup follows Vetro's launcher (MIT, Copyright (c) 2026 Vetro contributors).
 //
 // Any remote key closes it while it shows.
@@ -71,6 +73,7 @@ namespace CleanFramePip
         private static int _frames, _failures;
         private static byte[] _latest;               // Newest complete JPEG from the reader thread.
         private static int _latestId, _shownId;
+        private static bool _live;                   // The stream has delivered a frame: snapshots stop.
         private static readonly object Gate = new object();
 
         // Reads the multipart MJPEG stream on a background thread and keeps only the newest frame.
@@ -97,7 +100,7 @@ namespace CleanFramePip
                                 {
                                     var jpeg = new byte[i + 1 - start];
                                     Buffer.BlockCopy(buf, start, jpeg, 0, jpeg.Length);
-                                    lock (Gate) { _latest = jpeg; _latestId++; }
+                                    lock (Gate) { _latest = jpeg; _latestId++; if (!_live) Log("live"); _live = true; }
                                     start = -1;
                                     Buffer.BlockCopy(buf, i + 1, buf, 0, len - i - 1); len -= i + 1; i = 0;
                                 }
@@ -111,6 +114,33 @@ namespace CleanFramePip
             }
         }
 
+        // go2rtc's snapshot for the same stream, or null for a stream that is not go2rtc MJPEG.
+        private static string SnapshotUrl(string url)
+        {
+            int at = url.IndexOf("/api/stream.mjpeg?", StringComparison.Ordinal);
+            return at < 0 ? null : url.Substring(0, at) + "/api/frame.jpeg?" + url.Substring(at + 18);
+        }
+
+        // Fetches snapshots back to back until the stream's first frame, so the window appears
+        // about a second after launch and keeps changing while the transcode starts.
+        private static void Snapshots(object state)
+        {
+            string url = (string)state;
+            while (DateTime.UtcNow < _until)
+            {
+                lock (Gate) { if (_live) return; }
+                try
+                {
+                    byte[] jpeg;
+                    using (var limit = new CancellationTokenSource(8000))   // A stalled snapshot never blocks the next.
+                        jpeg = _http.GetByteArrayAsync(url + "&t=" + DateTime.UtcNow.Ticks, limit.Token).GetAwaiter().GetResult();
+                    if (jpeg.Length > 4 && jpeg[0] == 0xFF && jpeg[1] == 0xD8)
+                        lock (Gate) { if (_live) return; if (_latestId == 0) Log("snapshot"); _latest = jpeg; _latestId++; }
+                }
+                catch (Exception e) { Log("snapshot failed: " + e.GetType().Name); Thread.Sleep(500); }
+            }
+        }
+
         private static string Arg(string[] a, string name, string fallback)
         {
             for (int i = 0; i < a.Length - 1; i++) if (a[i] == name) return a[i + 1];
@@ -120,7 +150,7 @@ namespace CleanFramePip
         {
             int v; return int.TryParse(Arg(a, name, ""), out v) && v >= min && v <= max ? v : fallback;
         }
-        private static void Log(string s) { try { if (_log != null) File.AppendAllText(_log, DateTime.Now.ToString("HH:mm:ss ") + s + "\n"); } catch (Exception) { } }
+        private static void Log(string s) { try { if (_log != null) File.AppendAllText(_log, DateTime.Now.ToString("HH:mm:ss.fff ") + s + "\n"); } catch (Exception) { } }
 
         // Same rules as Vetro's launcher: the compositor socket lives under XDG_RUNTIME_DIR.
         private static void SetupEnvironment()
@@ -177,7 +207,10 @@ namespace CleanFramePip
             _log = Arg(args, "--log", null);
             _until = DateTime.UtcNow.AddSeconds(seconds);
             _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+            Log("start");
             new Thread(Reader) { IsBackground = true, Name = "mjpeg" }.Start();
+            string snap = SnapshotUrl(_url);
+            if (snap != null) new Thread(Snapshots) { IsBackground = true, Name = "snapshot" }.Start(snap);
 
             SetupEnvironment();
             Efl.elm_init(0, IntPtr.Zero);

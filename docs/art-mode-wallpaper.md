@@ -42,7 +42,7 @@ npm run pack:art
 `dist/cleanframe-art.vplugin` is ignored output. The packer is deterministic and includes only the checked-in `index.js` and manifest, plus the doorbell picture-in-picture build as `pip.b64.json` when `npm run build:pip` has produced one ([`native/doorbell-pip`](../native/doorbell-pip/README.md)); never configuration, a cache or artwork. Its text JSON is:
 
 ```json
-{"format":"vetro-plugin","version":1,"manifest":{"id":"cleanframe-art","name":"CleanFrame Art bridge","version":"1.5.1","apiVersion":1,"permissions":["exec"],"entry":"index.js"},"files":{"index.js":"<source text>"}}
+{"format":"vetro-plugin","version":1,"manifest":{"id":"cleanframe-art","name":"CleanFrame Art bridge","version":"1.5.2","apiVersion":1,"permissions":["exec"],"entry":"index.js"},"files":{"index.js":"<source text>"}}
 ```
 
 `manifest.json` is not a `files` entry. The packer enforces the 20-file / 512 KiB envelope; this shard uses one file, or two with the doorbell picture-in-picture build. The module is ES5, run by Vetro's Node 12 on the TV, and exports `module.exports(ctx)` returning `{start, stop, status, route}`. It requires this Vetro API version 1 contract:
