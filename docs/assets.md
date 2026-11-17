@@ -4,7 +4,7 @@ The app includes all runtime JPEGs, thumbnails, registered material fields, publ
 
 ## Current List and Dock materials
 
-The 0.6 runtime uses fifteen photographs. Each has a background, a thumbnail, a small panel backdrop and four full-stage material JPEGs. The runtime never generates blur or reads photo pixels. Generate selected materials with:
+The 0.6 runtime uses fifteen photographs. Each has a background, a thumbnail, a small panel backdrop and four full-stage material JPEGs. The runtime never reads photo pixels or applies a CSS blur; the only runtime softening is the once-per-slide canvas surface for USB pictures described below. Generate selected materials with:
 
 ```sh
 node scripts/build-materials.mjs summit,goldcoast,sydney,amber,mint,alpine
@@ -37,6 +37,6 @@ The retained generator covers all fifteen filenames and writes `.local/materials
 
 For another photo, add its source/credit to `SOURCES.json`, prepare its background and thumbnail, add the gallery entry in `catalog.js`, generate the four registered materials and panel backdrop, then measure and review its foreground metadata. Keep the crop identical across all assets. Run source and browser checks before packaging.
 
-USB pictures need none of these assets: the app draws the photo itself and blurs the sheet and material surfaces once per change with `filter`. That live blur is a per-slide cost, not a per-navigation cost, and is the only live filter in the running app.
+USB pictures need none of these assets. When a USB slide loads, `softSurface` in `main.js` cover-crops the photo into a 96 × 54 canvas, averages it with a few offset draws, and each sheet, material and focus-field surface is a copy of that canvas that the browser upscales smoothly. The cost is paid once per slide; navigation only moves those canvases, and no `filter` is applied. Pixels are never read back, so `file://` pictures need no CORS. One recipe serves every material, and USB slides take the gallery's strongest stock scrims (light tone, mist utilities, clock mist) because their contrast is unknown.
 
 Source pages and licence observations are recorded in [asset sources](asset-sources.md).

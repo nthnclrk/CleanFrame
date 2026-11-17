@@ -234,8 +234,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .at-appearance .sheet,.at-wallpaper .sheet{z-index:1}
 .bg-photo.m-tint .sheet{--plate:rgba(14,12,10,.42);--lift:rgba(14,12,10,.62);--plate-edge:none}
 .sheet-bg{position:absolute;left:0;top:0;width:1920px;height:1080px;max-width:none;object-fit:cover}
-/* USB pictures have no pre-rendered surfaces: the photo blurs live, once per slideshow change. */
-.sheet-bg.is-live-blur,.mat-img.is-live-blur,.ph-field-img.is-live-blur{transform:scale(1.06);-webkit-filter:blur(28px) saturate(.94);filter:blur(28px) saturate(.94)}
 .sheet-veil{position:absolute;left:0;top:0;width:1920px;height:1080px;background:rgba(8,12,14,.42)}
 .view{position:absolute;left:0;top:0;width:1920px;height:1080px}
 .s-title{position:absolute;left:140px;top:72px;font-size:56px;line-height:64px;font-weight:500;letter-spacing:-1.6px;white-space:nowrap}

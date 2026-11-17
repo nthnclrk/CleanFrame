@@ -8,7 +8,7 @@ const source = readFileSync(new URL('../app/device.js', import.meta.url), 'utf8'
 function harness({ supported = true, throwSource = false, storages, folders, storageFailure, holdStorage = false, throwList, noFilesystem = false } = {}) {
   let now = 0, next = 0;
   const timers = new Map(), requests = [], launches = [], sourceRequests = [], changes = [], dirs = [], storageRequests = [], listeners = [];
-  let current = { type: 'HDMI', number: 2 }, watchId = 0, removed = [];
+  let current = { type: 'HDMI', number: 2 };
   const application = {
     getCurrentApplication: () => ({ appInfo: { id: 'Owner12345.Home' } }),
     getAppsInfo: (ok, fail) => requests.push({ ok, fail }),
@@ -23,16 +23,15 @@ function harness({ supported = true, throwSource = false, storages, folders, sto
   if (!noFilesystem) {
     window.tizen.filesystem = {
       listStorages: (ok, fail) => { storageRequests.push({ ok, fail }); if (!storageFailure && !holdStorage) ok((storages || []).map(unit => ({ ...unit }))); },
-      listDirectory: (path, ok, fail, filter) => {
-        dirs.push({ path, filter });
+      listDirectory: (path, ok, fail) => {
+        dirs.push({ path });
         if (throwList) throw Error('Synthetic directory failure');
         const entries = folders && folders[path];
         if (!entries) fail({ name: 'NotFoundError', message: 'No ' + path });
-        else ok(entries.map(name => ({ name })));
+        else ok(entries.slice());
       },
       toURI: path => 'file:///opt/media/USBDriveA1/' + path,
-      addStorageStateChangeListener: cb => { listeners.push(cb); return ++watchId; },
-      removeStorageStateChangeListener: id => { removed.push(id); }
+      addStorageStateChangeListener: cb => { listeners.push(cb); return listeners.length; }
     };
   }
   vm.runInNewContext(source, {
@@ -44,7 +43,7 @@ function harness({ supported = true, throwSource = false, storages, folders, sto
     now += ms;
     for (const [id, timer] of timers) if (timer.at <= now) { timers.delete(id); timer.callback(); }
   }
-  return { device: window.FrameDevice, requests, launches, sourceRequests, changes, dirs, storageRequests, listeners, removed, advance, setCurrent: value => { current = value; } };
+  return { device: window.FrameDevice, requests, launches, sourceRequests, changes, dirs, storageRequests, listeners, advance, setCurrent: value => { current = value; } };
 }
 
 test('a 500-app catalogue can arrive after the old eight-second deadline', () => {
@@ -185,7 +184,7 @@ const json = value => JSON.stringify(JSON.parse(JSON.stringify(value)));
 
 test('USB pictures come from the CleanFrame folder in a stable, filtered order', () => {
   const h = harness({ storages: MOUNTED, folders: {
-    'removable_sda1/CleanFrame': ['IMG_02.jpg', 'IMG_10.JPG', 'notes.txt', 'IMG_01.jpeg', 'shot.webp', 'frame.BMP', 'IMG_02.jpg']
+    'removable_sda1/CleanFrame': ['IMG_02.jpg', 'IMG_10.JPG', 'notes.txt', 'IMG_01.jpeg', 'shot.webp', 'frame.BMP', '.jpg']
   } }), results = [];
   h.device.usbPhotos((error, value) => results.push({ error, value }));
   assert.equal(results.length, 1);
@@ -196,10 +195,9 @@ test('USB pictures come from the CleanFrame folder in a stable, filtered order',
   assert.deepEqual(scan.photos.map(p => p.name), ['frame.BMP', 'IMG_01.jpeg', 'IMG_02.jpg', 'IMG_10.JPG', 'shot.webp']);
   assert.equal(scan.photos[1].uri, 'file:///opt/media/USBDriveA1/removable_sda1/CleanFrame/IMG_01.jpeg');
   assert.equal(h.dirs[0].path, 'removable_sda1/CleanFrame');
-  assert.deepEqual(JSON.parse(json(h.dirs[0].filter)), { includeExtensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp'] });
 });
 
-test('a missing CleanFrame folder falls back to Photos and then the drive root', () => {
+test('a missing CleanFrame folder falls back to Photos, the drive root and then the next drive', () => {
   const photos = harness({ storages: MOUNTED, folders: { 'removable_sda1/Photos': ['b.jpg', 'a.jpg'] } }), results = [];
   photos.device.usbPhotos((error, value) => results.push({ error, value }));
   assert.deepEqual(JSON.parse(json(results[0].value.photos)).map(p => p.name), ['a.jpg', 'b.jpg']);
@@ -210,6 +208,14 @@ test('a missing CleanFrame folder falls back to Photos and then the drive root',
   assert.equal(results[1].value.folder, '');
   assert.deepEqual(JSON.parse(json(results[1].value.photos)).map(p => p.name), ['beach.jpg']);
   assert.deepEqual(root.dirs.map(d => d.path), ['removable_sda1/CleanFrame', 'removable_sda1/Photos', 'removable_sda1/']);
+  assert.equal(results[1].value.photos[0].uri, 'file:///opt/media/USBDriveA1/removable_sda1/beach.jpg');
+  const second = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['notes.txt'], 'removable_sdb2/CleanFrame': ['z.png'] } });
+  second.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(results[2].value.drive, 'removable_sdb2');
+  assert.deepEqual(JSON.parse(json(results[2].value.photos)).map(p => p.name), ['z.png']);
+  const empty = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['notes.txt'] } });
+  empty.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(json(results[3].value), json({ drive: 'removable_sda1', folder: '', photos: [] }), 'a drive without pictures is named');
 });
 
 test('only mounted external storage counts and no drive is an empty slideshow, not an error', () => {
@@ -249,26 +255,23 @@ test('a denied API and a silent TV each give one honest error', () => {
   assert.equal(late.length, 1);
 });
 
-test('an unreadable folder falls through to the drive root and resolves once', () => {
+test('an unreadable folder falls through every candidate and resolves once', () => {
   const h = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['a.jpg'] }, throwList: true }), results = [];
   h.device.usbPhotos((error, value) => results.push({ error, value }));
   assert.equal(results.length, 1);
   assert.equal(results[0].error, null);
   assert.equal(results[0].value.photos.length, 0);
-  assert.equal(h.dirs.length, 3);
+  assert.equal(h.dirs.length, 6);
 });
 
-test('a storage listener reports drive changes and unsubscribes exactly once', () => {
-  const h = harness({ storages: MOUNTED }), seen = [];
-  const stop = h.device.watchStorage(label => seen.push(label));
+test('a storage listener reports drive changes and is optional', () => {
+  const h = harness({ storages: MOUNTED });
+  let seen = 0;
+  h.device.watchStorage(() => { seen++; });
   assert.equal(h.listeners.length, 1);
   h.listeners[0]({ label: 'removable_sdc3', state: 'MOUNTED' });
   h.listeners[0](null);
-  assert.deepEqual(seen, ['removable_sdc3', '']);
-  stop(); stop();
-  assert.deepEqual(h.removed, [1]);
+  assert.equal(seen, 2);
   const preview = harness({ noFilesystem: true });
-  const stopPreview = preview.device.watchStorage(() => {});
-  stopPreview();
-  assert.equal(preview.listeners.length, 0);
+  assert.doesNotThrow(() => preview.device.watchStorage(() => {}));
 });

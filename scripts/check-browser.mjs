@@ -108,7 +108,7 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
       }
     }
   };
-  __tv.usb = { units: (usb && usb.units) || [], initial: (usb && usb.units) || [], folders: (usb && usb.folders) || {}, map: (usb && usb.map) || {}, listener: null, removals: 0 };
+  __tv.usb = { units: (usb && usb.units) || [], initial: (usb && usb.units) || [], folders: (usb && usb.folders) || {}, map: (usb && usb.map) || {}, listener: null };
   __tv.setUsb = units => { __tv.usb.units = units.map(unit => ({ ...unit })); };
   __tv.restoreUsb = () => { __tv.usb.units = __tv.usb.initial.map(unit => ({ ...unit })); };
   __tv.fireStorage = label => { if (__tv.usb.listener) __tv.usb.listener({ label, state: 'MOUNTED' }); };
@@ -116,11 +116,10 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
     listStorages(ok, fail) { setTimeout(() => ok(__tv.usb.units.map(unit => ({ ...unit }))), 0); },
     listDirectory(path, ok, fail) {
       const names = __tv.usb.folders[path];
-      setTimeout(() => names ? ok(names.map(name => ({ name }))) : fail({ name: 'NotFoundError', message: 'No ' + path }), 0);
+      setTimeout(() => names ? ok(names.slice()) : fail({ name: 'NotFoundError', message: 'No ' + path }), 0);
     },
     toURI(path) { return 'assets/wallpapers/' + (__tv.usb.map[path.split('/').pop()] || 'misty') + '.jpg'; },
-    addStorageStateChangeListener(cb) { __tv.usb.listener = cb; return 7; },
-    removeStorageStateChangeListener() { __tv.usb.listener = null; __tv.usb.removals++; }
+    addStorageStateChangeListener(cb) { __tv.usb.listener = cb; return 7; }
   };
   if (!inputUnavailable) {    __tv.inputRequests = []; __tv.sourceFailure = false; __tv.currentInput = 2;
     __tv.videoSources = { connected: [{ type: 'HDMI', number: 2 }], disconnected: [{ type: 'HDMI', number: 1 }, { type: 'HDMI', number: 3 }] };
@@ -1094,57 +1093,99 @@ try {
     const clock = await current.locator('#caption .clock').textContent();
     check('Live 12-hour clock has no AM/PM', /^\s*\d{1,2}:\d{2}\s*$/.test(clock), clock);
   });
+  const USB = { units: USB_UNITS, folders: USB_PHOTOS, map: USB_MAP };
+  const photoSrc = () => current.locator('#photo').getAttribute('src');
+  const usbSettled = async () => { await current.waitForFunction(() => ShoreQA.state().usb.loaded && !ShoreQA.state().usb.scanning); await ready(); };
+  const usbSeed = look => baseline({ look: { bg: 'photo', layout: 'dock', focus: 'glass', src: 'usb', usbAt: 0, wall: walls[0].id, ...look } });
   await run('USB photo slideshow', async () => {
-    await page({ minuteMs: 120, usb: { units: USB_UNITS, folders: USB_PHOTOS, map: USB_MAP } });
+    await page({ minuteMs: 120, usb: USB });
     await group('background');
     check('Background offers the photo source', (await current.locator('.section-src .setting-name').innerText()) === 'Gallery',
       await current.locator('.section-src').innerText());
     await act('background.source'); await current.waitForFunction(() => ShoreQA.state().settingsGroup === 'source');
-    check('Source detail offers Gallery and USB drive', same((await radios()).map(r => r.action), ['source.gallery', 'source.usb']), await radios());
-    await act('source.usb'); await ready();
+    check('Source detail offers Gallery and USB drive', same((await radios()).map(r => r.action), ['choice.src.gallery', 'choice.src.usb']), await radios());
+    await choice('src', 'usb'); await usbSettled();
     const s = await state();
     check('USB source reads the CleanFrame folder', s.usb.count === 3 && s.usb.drive === 'removable_sda1' && s.usb.folder === 'CleanFrame' && same(s.usb.names, USB_ORDER), s.usb);
     check('USB source shows the first picture', s.usb.slide === 'usb:0' && s.shown.wall === 'usb:0' && s.usb.at === 0, { usb: s.usb, shown: s.shown });
-    check('USB source is saved', s.photoSrc === 'usb' && (await stored()).photoSrc === 'usb' && s.usb.summary.includes('3 photos from CleanFrame/'), s.usb);
-    check('USB picture replaces the stage photo', (await current.locator('#photo').getAttribute('src')).includes(USB_SLIDE(USB_ORDER[0])),
-      await current.locator('#photo').getAttribute('src'));
-    const blurred = await current.evaluate(() => ['sheetBg', 'matImg', 'phFieldImg', 'utFieldImg']
-      .every(id => document.getElementById(id).classList.contains('is-live-blur')));
-    check('USB surfaces blur the picture live', blurred === true, blurred);
-    const surfaces = await current.evaluate(() => ({ sheet: document.getElementById('sheetBg').currentSrc, mat: document.getElementById('matImg').currentSrc }));
-    check('USB surfaces use the same picture', surfaces.sheet.includes(USB_SLIDE(USB_ORDER[0])) && surfaces.mat.includes(USB_SLIDE(USB_ORDER[0])), surfaces);
+    check('USB source is saved', s.src === 'usb' && (await stored()).look.src === 'usb' && s.usb.summary.includes('3 photos from CleanFrame/'), s.usb);
+    check('USB picture replaces the stage photo', (await photoSrc()).includes(USB_SLIDE(USB_ORDER[0])), await photoSrc());
+    const surfaces = await current.evaluate(() => ['sheetBg', 'matImg', 'phFieldImg', 'utFieldImg'].map(id => {
+      const el = document.getElementById(id), style = getComputedStyle(el);
+      return { tag: el.tagName, src: el.getAttribute('data-src'), filter: style.filter, width: el.offsetWidth, hidden: el.offsetParent === null };
+    }));
+    check('USB surfaces are pre-softened canvases of the same picture', surfaces.every(x => x.tag === 'CANVAS' && x.src.includes(USB_SLIDE(USB_ORDER[0])) && (x.hidden || x.width === 1920)), surfaces);
+    check('USB surfaces use no live CSS filter', surfaces.every(x => x.filter === 'none'), surfaces);
+    await scene('home'); await current.screenshot({ path: out + 'usb-dock-1920.png' });
+    await scene('settings'); await current.screenshot({ path: out + 'usb-settings-1920.png' });
     await group('background');
     check('Background reports the drive contents', /3 photos from CleanFrame\//.test(await current.locator('.section-src .setting-description').innerText()),
       await current.locator('.section-src').innerText());
+    await act('background.wallpaper');
+    await current.waitForFunction(() => ShoreQA.state().view === 'wallpaper');
+    await nav('down'); await wallpaperSettled(walls[1].id);
+    check('Wallpaper picker previews gallery photos while USB is the source', (await photoSrc()).includes(walls[1].id + '.jpg'), await photoSrc());
+    await nav('back'); await ready();
+    check('Leaving the picker restores the USB picture', (await state()).shown.wall === 'usb:0' && (await photoSrc()).includes(USB_SLIDE(USB_ORDER[0])), await photoSrc());
+    await group('background');
     await act('background.rotation'); await act('rotation.5'); await scene('home');
     const first = (await state()).usb.at;
     await current.waitForFunction(at => ShoreQA.state().usb.at !== at, first, { timeout: 4000 });
+    await ready();
     const rot = await state();
     check('Timed rotation steps through USB pictures', rot.usb.slide === 'usb:' + ((first + 1) % 3) && rot.usbAt === rot.usb.at, rot.usb);
-    check('Rotation saves the USB index', (await stored()).usbAt === rot.usbAt, await stored());
+    check('Rotation saves the USB index', (await stored()).look.usbAt === rot.usbAt, await stored());
     const galleryWall = rot.wallpaper;
     await current.evaluate(() => { __tv.setUsb([]); __tv.fireStorage('removable_sda1'); });
     await current.waitForFunction(() => !ShoreQA.state().usb.scanning && ShoreQA.state().usb.count === 0 && ShoreQA.state().shown.wall === ShoreQA.state().wallpaper);
     const gone = await state();
-    check('A removed drive falls back to the gallery photo', gone.shown.wall === gone.wallpaper && gone.wallpaper === galleryWall && gone.photoSrc === 'usb',
-      { shown: gone.shown, wallpaper: gone.wallpaper, photoSrc: gone.photoSrc });
-    check('A removed drive explains itself', gone.usb.summary.includes('No USB drive with a CleanFrame folder'), gone.usb);
+    check('A removed drive falls back to the gallery photo', gone.shown.wall === gone.wallpaper && gone.wallpaper === galleryWall && gone.src === 'usb',
+      { shown: gone.shown, wallpaper: gone.wallpaper, src: gone.src });
+    check('A removed drive explains itself', gone.usb.summary.includes('No USB drive was found'), gone.usb);
+    check('A removed drive keeps the slideshow position', gone.usbAt === rot.usbAt && (await stored()).look.usbAt === rot.usbAt, { usbAt: gone.usbAt, rot: rot.usbAt });
     await current.evaluate(() => { __tv.restoreUsb(); __tv.fireStorage('removable_sdb1'); });
     await current.waitForFunction(() => { const s = ShoreQA.state(); return !s.usb.scanning && s.usb.count === 3 && s.shown.wall === s.usb.slide; });
     const restored = await state();
-    check('Reinserting the drive restores the slideshow', restored.usb.slide === 'usb:' + restored.usb.at && restored.shown.wall === restored.usb.slide, restored.usb);
+    check('Reinserting the drive restores the slideshow at its position', restored.usb.at === rot.usb.at && restored.shown.wall === restored.usb.slide, restored.usb);
     await current.reload(); await ready();
     const reloaded = await state();
     check('Reload reads the drive and keeps the index', reloaded.usb.count === 3 && reloaded.usb.slide === 'usb:' + reloaded.usb.at && reloaded.usb.at === rot.usbAt, reloaded.usb);
-    check('Reload shows the saved USB picture', (await current.locator('#photo').getAttribute('src')).includes(USB_SLIDE(USB_ORDER[reloaded.usb.at])),
-      await current.locator('#photo').getAttribute('src'));
+    check('Reload shows the saved USB picture', (await photoSrc()).includes(USB_SLIDE(USB_ORDER[reloaded.usb.at])), await photoSrc());
     await closePage();
     await page({ mock: false });
     await group('background');
     await act('background.source'); await current.waitForFunction(() => ShoreQA.state().settingsGroup === 'source');
-    await act('source.usb'); await ready();
+    await choice('src', 'usb'); await usbSettled();
     check('Browser preview reports the USB boundary honestly', (await state()).usb.summary.includes('Open CleanFrame on the TV'), (await state()).usb);
-    check('Browser preview keeps the gallery photo', (await state()).photoSrc === 'usb' && (await state()).shown.wall === (await state()).wallpaper, await state());
+    check('Browser preview keeps the gallery photo', (await state()).src === 'usb' && (await state()).shown.wall === (await state()).wallpaper, await state());
+  });
+  await run('USB slideshow edge cases', async () => {
+    // List + Type uses no material, which once skipped the image reload for a USB advance.
+    await page({ minuteMs: 120, usb: USB, seed: usbSeed({ layout: 'list', focus: 'type' }) });
+    await ready();
+    const sources = [await photoSrc()];
+    check('Start-up shows the USB picture without a gallery photo first', (await state()).shown.wall === 'usb:0' && sources[0].includes(USB_SLIDE(USB_ORDER[0])), sources);
+    await look({ usbAt: 1 });
+    sources.push(await photoSrc());
+    check('List + Type swaps the stage to the next USB picture', (await state()).shown.wall === 'usb:1' && sources[1].includes(USB_SLIDE(USB_ORDER[1])), sources);
+    await current.evaluate(() => { __tv.setUsb([]); __tv.fireStorage('removable_sda1'); });
+    await current.waitForFunction(() => !ShoreQA.state().usb.scanning && ShoreQA.state().usb.count === 0);
+    await ready();
+    check('List + Type falls back to the gallery photo when the drive is pulled', (await photoSrc()).includes(walls[0].id + '.jpg'), await photoSrc());
+    await closePage();
+    await page({ usb: USB, seed: { ...usbSeed({ usbAt: 2 }), mode: 'open' } });
+    await ready();
+    check('Each time Home opens advances and wraps the USB slideshow', (await state()).usb.at === 0 && (await state()).shown.wall === 'usb:0' && (await stored()).look.usbAt === 3,
+      { usb: (await state()).usb, stored: (await stored()).look });
+    await closePage();
+    const broken = { ...USB, map: { ...USB_MAP, [USB_ORDER[1]]: 'missing-usb' } };
+    await page({ minuteMs: 120, usb: broken, seed: { ...usbSeed({ layout: 'list', focus: 'type' }), mode: '5' } }, () => current.__expectedFailures.push('missing-usb'));
+    await ready();
+    await current.waitForFunction(() => ShoreQA.state().usb.at === 2, null, { timeout: 6000 });
+    await ready();
+    check('An unreadable USB picture is skipped by rotation', (await state()).shown.wall === 'usb:2' && (await photoSrc()).includes(USB_SLIDE(USB_ORDER[2])) &&
+      !report.pageErrors.some(e => e.section === section),
+      { usb: (await state()).usb, shown: (await state()).shown });
   });
   await run('Open rotation and browser fallback', async () => {
     await page({ seed: baseline({ mode: 'open' }) }); check('Open mode advances at cold start', (await state()).wallpaper === walls[1].id);
