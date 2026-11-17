@@ -1104,9 +1104,12 @@ try {
       await current.locator('.section-src').innerText());
     await act('background.source'); await current.waitForFunction(() => ShoreQA.state().settingsGroup === 'source');
     check('Source detail offers Gallery and USB drive', same((await radios()).map(r => r.action), ['choice.src.gallery', 'choice.src.usb']), await radios());
+    const help = await current.locator('.section-src .setting-reason').innerText();
+    check('Source detail explains how to prepare the drive', /folder named CleanFrame/.test(help) && /Only that folder is read/.test(help), help);
+    await current.screenshot({ path: out + 'usb-source-1920.png' });
     await choice('src', 'usb'); await usbSettled();
     const s = await state();
-    check('USB source reads the CleanFrame folder', s.usb.count === 3 && s.usb.drive === 'removable_sda1' && s.usb.folder === 'CleanFrame' && same(s.usb.names, USB_ORDER), s.usb);
+    check('USB source reads the CleanFrame folder', s.usb.count === 3 && s.usb.drive === 'removable_sda1' && same(s.usb.names, USB_ORDER), s.usb);
     check('USB source shows the first picture', s.usb.slide === 'usb:0' && s.shown.wall === 'usb:0' && s.usb.at === 0, { usb: s.usb, shown: s.shown });
     check('USB source is saved', s.src === 'usb' && (await stored()).look.src === 'usb' && s.usb.summary.includes('3 photos from CleanFrame/'), s.usb);
     check('USB picture replaces the stage photo', (await photoSrc()).includes(USB_SLIDE(USB_ORDER[0])), await photoSrc());

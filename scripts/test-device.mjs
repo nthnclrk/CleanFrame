@@ -191,31 +191,21 @@ test('USB pictures come from the CleanFrame folder in a stable, filtered order',
   assert.equal(results[0].error, null);
   const scan = JSON.parse(json(results[0].value));
   assert.equal(scan.drive, 'removable_sda1');
-  assert.equal(scan.folder, 'CleanFrame');
   assert.deepEqual(scan.photos.map(p => p.name), ['frame.BMP', 'IMG_01.jpeg', 'IMG_02.jpg', 'IMG_10.JPG', 'shot.webp']);
   assert.equal(scan.photos[1].uri, 'file:///opt/media/USBDriveA1/removable_sda1/CleanFrame/IMG_01.jpeg');
   assert.equal(h.dirs[0].path, 'removable_sda1/CleanFrame');
 });
 
-test('a missing CleanFrame folder falls back to Photos, the drive root and then the next drive', () => {
-  const photos = harness({ storages: MOUNTED, folders: { 'removable_sda1/Photos': ['b.jpg', 'a.jpg'] } }), results = [];
-  photos.device.usbPhotos((error, value) => results.push({ error, value }));
-  assert.deepEqual(JSON.parse(json(results[0].value.photos)).map(p => p.name), ['a.jpg', 'b.jpg']);
-  assert.equal(results[0].value.folder, 'Photos');
-  assert.deepEqual(photos.dirs.map(d => d.path), ['removable_sda1/CleanFrame', 'removable_sda1/Photos']);
-  const root = harness({ storages: MOUNTED, folders: { 'removable_sda1/': ['beach.jpg'] } });
-  root.device.usbPhotos((error, value) => results.push({ error, value }));
-  assert.equal(results[1].value.folder, '');
-  assert.deepEqual(JSON.parse(json(results[1].value.photos)).map(p => p.name), ['beach.jpg']);
-  assert.deepEqual(root.dirs.map(d => d.path), ['removable_sda1/CleanFrame', 'removable_sda1/Photos', 'removable_sda1/']);
-  assert.equal(results[1].value.photos[0].uri, 'file:///opt/media/USBDriveA1/removable_sda1/beach.jpg');
+test('only the CleanFrame folder is read, on each mounted drive in turn', () => {
+  const results = [];
+  const elsewhere = harness({ storages: MOUNTED, folders: { 'removable_sda1/Photos': ['a.jpg'], 'removable_sda1/': ['b.jpg'] } });
+  elsewhere.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(json(results[0].value), json({ drive: 'removable_sda1', photos: [] }), 'pictures outside CleanFrame are ignored');
+  assert.deepEqual(elsewhere.dirs.map(d => d.path), ['removable_sda1/CleanFrame', 'removable_sdb2/CleanFrame']);
   const second = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['notes.txt'], 'removable_sdb2/CleanFrame': ['z.png'] } });
   second.device.usbPhotos((error, value) => results.push({ error, value }));
-  assert.equal(results[2].value.drive, 'removable_sdb2');
-  assert.deepEqual(JSON.parse(json(results[2].value.photos)).map(p => p.name), ['z.png']);
-  const empty = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['notes.txt'] } });
-  empty.device.usbPhotos((error, value) => results.push({ error, value }));
-  assert.equal(json(results[3].value), json({ drive: 'removable_sda1', folder: '', photos: [] }), 'a drive without pictures is named');
+  assert.equal(results[1].value.drive, 'removable_sdb2');
+  assert.deepEqual(JSON.parse(json(results[1].value.photos)), [{ name: 'z.png', uri: 'file:///opt/media/USBDriveA1/removable_sdb2/CleanFrame/z.png' }]);
 });
 
 test('only mounted external storage counts and no drive is an empty slideshow, not an error', () => {
@@ -225,7 +215,7 @@ test('only mounted external storage counts and no drive is an empty slideshow, n
     h.device.usbPhotos((error, value) => results.push({ error, value }));
     assert.equal(results.length, 1);
     assert.equal(results[0].error, null);
-    assert.equal(json(results[0].value), json({ drive: '', folder: '', photos: [] }));
+    assert.equal(json(results[0].value), json({ drive: '', photos: [] }));
     assert.equal(h.storageRequests.length, 1);
     assert.equal(h.dirs.length, 0);
   }
@@ -255,13 +245,13 @@ test('a denied API and a silent TV each give one honest error', () => {
   assert.equal(late.length, 1);
 });
 
-test('an unreadable folder falls through every candidate and resolves once', () => {
+test('an unreadable folder moves on to the next drive and resolves once', () => {
   const h = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['a.jpg'] }, throwList: true }), results = [];
   h.device.usbPhotos((error, value) => results.push({ error, value }));
   assert.equal(results.length, 1);
   assert.equal(results[0].error, null);
   assert.equal(results[0].value.photos.length, 0);
-  assert.equal(h.dirs.length, 6);
+  assert.equal(h.dirs.length, 2);
 });
 
 test('a storage listener reports drive changes and is optional', () => {

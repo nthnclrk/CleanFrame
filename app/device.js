@@ -22,7 +22,7 @@
     'ZODRT12q2l.WebAccountExtension', 'ByJlgt0XeD.CastSettingsApp', 'tv6pbVMQFF.PrivacyChoices'];
   var SELF = 'nClrkHome1.FrameHome';
   // Drive convention: a CleanFrame folder of pictures at the root of the USB storage.
-  var PHOTO_DIR = 'CleanFrame', PHOTO_ALT_DIR = 'Photos', PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp'], PHOTO_LIMIT = 240;
+  var PHOTO_DIR = 'CleanFrame', PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp'], PHOTO_LIMIT = 240;
   function api() { return window.tizen && window.tizen.application; }
   function selfId() {
     try { return api().getCurrentApplication().appInfo.id || SELF; }
@@ -147,25 +147,24 @@
     try { fs.listDirectory(path, finish, function () { finish([]); }); } catch (err) { finish([]); }
   }
   /*
-   * Read pictures from the first mounted external drive, in stable label order, that has any:
-   * its CleanFrame folder, then Photos, then the drive root. A drive without pictures reports its label.
+   * Read the CleanFrame folder of the first mounted external drive, in stable label order, that has
+   * pictures there. Nothing else on a drive is read. Without pictures, the first drive's label is reported.
    */
   function usbPhotos(done) {
     var fs = fsApi();
     if (!fs || typeof fs.listStorages !== 'function' || typeof fs.listDirectory !== 'function') { unavailable(done); return; }
-    var finish = bounded(done, 12000), folders = [PHOTO_DIR, PHOTO_ALT_DIR, ''];
-    function read(drives, d, f) {
-      if (d >= drives.length) { finish(null, { drive: drives[0] || '', folder: '', photos: [] }); return; }
-      if (f >= folders.length) { read(drives, d + 1, 0); return; }
-      var base = drives[d] + '/' + folders[f];
-      readFolder(fs, base, function (names) {
-        if (!names.length) { read(drives, d, f + 1); return; }
-        finish(null, { drive: drives[d], folder: folders[f],
-          photos: names.slice(0, PHOTO_LIMIT).map(function (name) { return { name: name, uri: photoUri(fs, base + (folders[f] ? '/' : '') + name) }; }) });
+    var finish = bounded(done, 12000);
+    function read(drives, d) {
+      if (d >= drives.length) { finish(null, { drive: drives[0] || '', photos: [] }); return; }
+      var base = drives[d] + '/' + PHOTO_DIR + '/';
+      readFolder(fs, base.slice(0, -1), function (names) {
+        if (!names.length) { read(drives, d + 1); return; }
+        finish(null, { drive: drives[d],
+          photos: names.slice(0, PHOTO_LIMIT).map(function (name) { return { name: name, uri: photoUri(fs, base + name) }; }) });
       });
     }
     try {
-      fs.listStorages(function (units) { read(mountedDrives(units), 0, 0); },
+      fs.listStorages(function (units) { read(mountedDrives(units), 0); },
         function (err) { finish({ message: 'The USB drive could not be read.', detail: err && (err.message || err.name) || '' }); });
     } catch (err) { finish({ message: 'The USB drive could not be read.', detail: err && err.message || '' }); }
   }
@@ -199,5 +198,5 @@
       }, function (err) { finish(failure(err)); });
     } catch (err) { finish(failure(err)); }
   }
-  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource, usbPhotos: usbPhotos, watchStorage: watchStorage, PHOTO_DIR: PHOTO_DIR };
+  window.FrameDevice = { launch: launch, launchApp: launchApp, art: art, home: home, settings: settings, apps: apps, sources: sources, setSource: setSource, cancelSource: cancelSource, usbPhotos: usbPhotos, watchStorage: watchStorage, PHOTO_DIR: PHOTO_DIR, PHOTO_LIMIT: PHOTO_LIMIT };
 }());

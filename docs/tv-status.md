@@ -38,7 +38,7 @@ The 0.6.1 installation and launch responses are command evidence. Current render
 
 Browser and package checks establish source behaviour and archive contents. CPU-throttled Chromium timings are development comparisons; they are not TV benchmarks. Current browser checks are described in [testing](testing.md).
 
-The USB photo source is verified in the browser preview against a synthetic Tizen filesystem: drive enumeration, the `CleanFrame` folder with its `Photos` and drive-root fallbacks, extension filtering and ordering, rotation, drive removal and reinsertion. Pending on this TV: whether `filesystem.read` alone reaches removable storage or `http://tizen.org/privilege/externalstorage` is also required, the real `removable_*` labels and mount paths and whether `listDirectory` returns plain names, the decode memory and load time of large phone JPEGs within the 8-second image deadline, the look of the canvas-softened surfaces, and the remote feel of the new Photo source rows.
+The USB photo source is verified in the browser preview against a synthetic Tizen filesystem: drive enumeration, reading only each drive's `CleanFrame` folder, extension filtering and ordering, rotation, drive removal and reinsertion. Pending on this TV: whether `filesystem.read` alone reaches removable storage or `http://tizen.org/privilege/externalstorage` is also required, the real `removable_*` labels and mount paths and whether `listDirectory` returns plain names, the decode memory and load time of large phone JPEGs within the 8-second image deadline, the look of the canvas-softened surfaces, and the remote feel of the new Photo source rows.
 
 ## Native Home and recovery
 

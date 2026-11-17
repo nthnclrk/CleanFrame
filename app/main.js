@@ -77,7 +77,7 @@
     undo: [], removedAt: {}, note: null, err: null,
     writes: 0, failed: 0, log: [], logN: 0, lastLaunch: null, press: null,
     wallShown: null, wallPending: null, wallError: null,
-    usb: { scanning: false, loaded: false, error: null, drive: '', folder: '', photos: [] }, usbScanToken: 0, bundleSlide: null,
+    usb: { scanning: false, loaded: false, error: null, drive: '', photos: [] }, usbScanToken: 0, bundleSlide: null,
     shown: null, pending: null, lookError: null, bundleKey: null, previewBundle: null, reflow: false, fontSwitch: false
   };
   var scroll = { first: 0, off: 0, photo: 0, photoArrange: 0 };
@@ -111,9 +111,9 @@
   }
   function usbSummary() {
     if (S.usb.scanning) return 'Reading the USB drive\u2026';
-    if (usbReady()) return S.usb.photos.length + (S.usb.photos.length === 1 ? ' photo' : ' photos') + ' from ' + (S.usb.folder ? S.usb.folder + '/' : 'the drive root') + ' on ' + S.usb.drive;
+    if (usbReady()) return S.usb.photos.length + (S.usb.photos.length === 1 ? ' photo' : ' photos') + ' from ' + FrameDevice.PHOTO_DIR + '/ on ' + S.usb.drive;
     if (S.usb.error) return S.usb.error;
-    if (S.usb.drive) return 'No pictures were found on ' + S.usb.drive;
+    if (S.usb.drive) return 'No pictures were found in ' + FrameDevice.PHOTO_DIR + '/ on ' + S.usb.drive;
     return 'No USB drive was found';
   }
   function advanceSlide() {
@@ -890,10 +890,19 @@
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
   }
-  function sourceReason(flat) {
-    if (flat) return 'Choose Photo to choose a source and rotation.';
-    if (S.c.src === 'usb') return usbSummary();
-    return 'The fifteen built-in photographs, with a Wallpaper and Rotation choice below.';
+  /* Each source says what it shows; the USB choice reports what was read once it is the active source. */
+  function sourceItems(flat) {
+    return LOOK_VALUES.src.map(function (value) {
+      var item = choice('src', value);
+      item.description = item.value === 'gallery' ? 'The fifteen built-in photographs'
+        : S.c.src === 'usb' && !flat ? usbSummary() : 'Your own pictures from a USB drive';
+      return item;
+    });
+  }
+  function sourceHelp(flat) {
+    if (flat) return 'Choose Photo in Background to choose a photo source.';
+    return 'Create a folder named ' + FrameDevice.PHOTO_DIR + ' at the top of a USB drive, add JPEG, PNG, WebP or BMP pictures and insert the drive. Only that folder is read, up to '
+      + FrameDevice.PHOTO_LIMIT + ' pictures in name order.';
   }
   function detailSections(t) {
     var flat = S.c.bg !== 'photo', inactive = !materialApplies();
@@ -904,11 +913,11 @@
       reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
     if (t.group === 'background') return [
       { id: 'bg', title: 'Background type', items: options('bg', ['photo', 'light', 'dark']) },
-      { id: 'src', title: 'Photo source', items: [{ action: 'background.source', label: VALUE_NAMES[S.c.src], description: S.c.src === 'usb' ? usbSummary() : '', disabled: flat }] },
+      { id: 'src', title: 'Photo source', items: [{ action: 'background.source', label: VALUE_NAMES[S.c.src], description: S.c.src === 'usb' ? usbSummary() : 'Or show your own pictures from a USB drive', disabled: flat }] },
       { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: flat }] },
       { id: 'rotation', title: 'Rotation', items: [{ action: 'background.rotation', label: mode().name, disabled: flat }], reason: flat ? 'Choose Photo to use wallpaper and rotation.' : '' }
     ];
-    if (t.group === 'source') return [{ id: 'src', title: 'Photo source', items: options('src', LOOK_VALUES.src), reason: sourceReason(flat) }].concat(
+    if (t.group === 'source') return [{ id: 'src', title: 'Photo source', items: sourceItems(flat), reason: sourceHelp(flat) }].concat(
       S.c.src === 'usb' ? [{ id: 'retry', title: '', items: [{ action: 'source.retry', label: S.usb.scanning ? 'Reading\u2026' : 'Try again', disabled: S.usb.scanning }] }] : []);
     if (t.group === 'layout') return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
@@ -969,7 +978,7 @@
       if (token !== S.usbScanToken) return;
       result = err ? {} : result;
       S.usb = { scanning: false, loaded: true, error: err ? err.message || 'The USB drive could not be read.' : null,
-        drive: result.drive || '', folder: result.folder || '', photos: (result.photos || []).map(usbSlide) };
+        drive: result.drive || '', photos: (result.photos || []).map(usbSlide) };
       reconcileLook();
     });
   }
@@ -2007,7 +2016,7 @@
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
     out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
     out.rotation = { activeMs: activeMs + (activeSince ? Date.now() - activeSince : 0), active: !!activeSince };
-    out.usb = { scanning: S.usb.scanning, loaded: S.usb.loaded, error: S.usb.error, drive: S.usb.drive, folder: S.usb.folder,
+    out.usb = { scanning: S.usb.scanning, loaded: S.usb.loaded, error: S.usb.error, drive: S.usb.drive,
       count: S.usb.photos.length, names: S.usb.photos.map(function (s) { return s.name; }), at: usbReady() ? usbIndex(S.c) : 0,
       slide: slideOf(S.c).id, summary: usbSummary() };
     out.draft = t.lifted ? { id: t.lifted.id, order: t.lifted.order.slice() } : null;
