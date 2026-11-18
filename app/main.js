@@ -22,7 +22,8 @@
     { id: 'primevideo', name: 'Prime Video', mark: true, appId: 'org.tizen.primevideo' },
     { id: 'abciview', name: 'ABC iview', mark: true, appId: 'mWK87Xghap.ABCiview' },
     { id: 'sbs', name: 'SBS On Demand', mark: true, appId: 'OyE7OuxlUi.SBSOnDemand' },
-    { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' }
+    { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' },
+    { id: 'ps5', name: 'Gaming', port: 2 }
   ];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
   var WALLS = window.CleanFrameWallpapers || [{ id: 'misty', name: 'Misty coast', tone: 'light', ut: { tr: 'mist', br: 'mist' }, frostVeil: .20 }];
@@ -66,6 +67,7 @@
     down: '<path d="m5 8.5 7 7 7-7"/>',
     updown: '<path d="m7.5 9.5 4.5-4.5 4.5 4.5M7.5 14.5l4.5 4.5 4.5-4.5"/>',
     tv: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7"/>',
+    gamepad: '<path d="M7.5 6.5h9a5.5 5.5 0 0 1 5.3 7l-1 3.4a2.6 2.6 0 0 1-4.7.6l-1.2-1.9a2.4 2.4 0 0 0-2-1.1h-2.8a2.4 2.4 0 0 0-2 1.1l-1.2 1.9a2.6 2.6 0 0 1-4.7-.6l-1-3.4A5.5 5.5 0 0 1 7.5 6.5Z"/><path d="M6.8 10.5v3.2M5.2 12.1h3.2"/><circle cx="15.8" cy="10.9" r="1.15"/><circle cx="17.9" cy="13" r="1.15"/>',
     warn: '<path d="M12 4 2.8 19.5h18.4Z"/><path d="M12 10v4.5M12 17.3v.1"/>'
   };
 
@@ -139,6 +141,7 @@
   }
   function appMark(a, w, h, size) {
     if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
+    if (typeof a.port === 'number') return '<span class="mark game-mark" style="width:' + w + 'px;height:' + h + 'px">' + icon('gamepad') + '</span>';
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
     return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
       + (a.icon ? '<img alt="" data-native-icon="true" src="' + esc(a.icon) + '">' : '') + '</span>';
@@ -339,6 +342,7 @@
       if (app(id)) h.push(id);
     });
     if (!h.length) h = PRIMARY.slice();
+    if (!s.gm && h.indexOf('ps5') < 0 && h.length < CAP) h.push('ps5');
     (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
@@ -346,7 +350,7 @@
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
-      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
+      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed'), gm: true
     };
   }
   function serialise(c) {
@@ -371,7 +375,7 @@
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
-  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; return c; }
+  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.gm = S.c.gm; return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
@@ -461,7 +465,10 @@
     if (!a || busy) return;
     if (S.c.home.indexOf(id) >= 0) { c = next(S.c.home.slice(), S.c.recent.slice()); c.lastApp = id; write(c, 'Last app'); }
     S.press = id; S.lastLaunch = a.name;
-    perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
+    perform(a.name, function (done) {
+      if (typeof a.port === 'number') FrameDevice.setSource(a.port, done);
+      else FrameDevice.launchApp(a.appId, done);
+    });
   }
   function refreshCatalog() {
     var request, oldFocus;
@@ -1063,7 +1070,8 @@
   }
 
   function homeState(t) {
-    var h = S.c.home, hs = { mode: 'browse', zone: null, i: Math.max(0, ensureSel()), u: -1, lifted: false, from: -1, arr: null, items: h.map(function (id) { return { key: id, kind: 'app', id: id }; }) };
+    var h = S.c.home, items = h.map(function (id) { return { key: id, kind: 'app', id: id }; });
+    var hs = { mode: 'browse', zone: null, i: Math.max(0, ensureSel()), u: -1, lifted: false, from: -1, arr: null, items: items };
     if (isSettingsDetail(t)) hs.zone = 'preview';
     else if (t.id === 'home') { hs.zone = t.f.zone; hs.u = t.f.u; }
     return hs;
