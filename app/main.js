@@ -22,13 +22,8 @@
     { id: 'primevideo', name: 'Prime Video', mark: true, appId: 'org.tizen.primevideo' },
     { id: 'abciview', name: 'ABC iview', mark: true, appId: 'mWK87Xghap.ABCiview' },
     { id: 'sbs', name: 'SBS On Demand', mark: true, appId: 'OyE7OuxlUi.SBSOnDemand' },
-    { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' }
-  ];
-  var GAMES = [
-    { id: 'ps5', name: 'PS5', initials: 'PS', port: 2 },
-    { id: 'ps4', name: 'PS4', initials: 'PS', port: 2 },
-    { id: 'xbox', name: 'Xbox', initials: 'XB', port: 2 },
-    { id: 'switch', name: 'Switch', initials: 'SW', port: 2 }
+    { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' },
+    { id: 'ps5', name: 'PS5', port: 2 }
   ];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
   var WALLS = window.CleanFrameWallpapers || [{ id: 'misty', name: 'Misty coast', tone: 'light', ut: { tr: 'mist', br: 'mist' }, frostVeil: .20 }];
@@ -345,6 +340,7 @@
       if (app(id)) h.push(id);
     });
     if (!h.length) h = PRIMARY.slice();
+    if (!s.gm && h.indexOf('ps5') < 0 && h.length < CAP) h.push('ps5');
     (Array.isArray(s.recent) ? s.recent : []).forEach(function (id) { if (safeId(id) && app(id) && h.indexOf(id) < 0 && recent.indexOf(id) < 0 && recent.length < 5) recent.push(id); });
     return {
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
@@ -352,8 +348,7 @@
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
-      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed'),
-      games: (Array.isArray(s.games) ? s.games : []).filter(function (id) { return GAMES.some(function (g) { return g.id === id; }); })
+      mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed'), gm: true
     };
   }
   function serialise(c) {
@@ -362,7 +357,6 @@
     out.version = 2; out.look = lookOf(c); out.dock = c.home.slice(); out.wallpaper = c.wall;
     out.theme = c.layout === 'list' ? 'list' : 'shore';
     out.appRecords = [];
-    out.games = c.games || [];
     c.home.concat(c.recent).forEach(function (key) {
       var a = app(key);
       if (a && PRIMARY.indexOf(key) < 0 && !out.appRecords.some(function (r) { return r.id === key; })) out.appRecords.push({ id: a.id, appId: a.appId, name: a.name, brand: a.brand || '', icon: a.icon || '' });
@@ -379,7 +373,7 @@
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
-  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.games = (S.c.games || []).slice(); return c; }
+  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.gm = S.c.gm; return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
@@ -469,15 +463,9 @@
     if (!a || busy) return;
     if (S.c.home.indexOf(id) >= 0) { c = next(S.c.home.slice(), S.c.recent.slice()); c.lastApp = id; write(c, 'Last app'); }
     S.press = id; S.lastLaunch = a.name;
-    perform(a.name, function (done) { FrameDevice.launchApp(a.appId, done); });
-  }
-  function launchGame(g) {
-    var c = next(S.c.home.slice(), S.c.recent.slice());
-    c.games = pushRecent(c.games, g.id);
-    if (!write(c, 'Gaming: start ' + g.name)) { S.err = 'Gaming: could not save config'; render(); syncRotation(); return; }
-    FrameDevice.setSource('HDMI ' + g.port, function (err) {
-      S.sel = g.id; render(); syncRotation();
-      if (err) message('Gaming start', err.message || 'The TV changed the input but could not confirm.');
+    perform(a.name, function (done) {
+      if (typeof a.port === 'number') FrameDevice.setSource(a.port, done);
+      else FrameDevice.launchApp(a.appId, done);
     });
   }
   function refreshCatalog() {
@@ -572,14 +560,6 @@
     point: function (t, z, i) {
       if (z === 'util') { t.f.zone = 'util'; t.f.u = i; S.lastUtil = i; }
       else if (z === 'app') { t.f.zone = 'apps'; setSel(S.c.home[i]); }
-      else if (z === 'game') {
-        var gIdx = i - S.c.home.length;
-        if (gIdx >= 0 && gIdx < S.c.games.length) {
-          var gid = S.c.games[gIdx], g = GAMES.find(function (x) { return x.id === gid; });
-          if (g) launchGame(g);
-        }
-        return;
-      }
       else if (z === 'empty') t.f.zone = 'apps';
       else return;
       this.key(t, 'ok');
@@ -1089,10 +1069,6 @@
 
   function homeState(t) {
     var h = S.c.home, items = h.map(function (id) { return { key: id, kind: 'app', id: id }; });
-    S.c.games.forEach(function (id) {
-      var g = GAMES.find(function (g) { return g.id === id; });
-      if (g) items.push({ key: id, kind: 'game', id: id, name: g.name, port: g.port });
-    });
     var hs = { mode: 'browse', zone: null, i: Math.max(0, ensureSel()), u: -1, lifted: false, from: -1, arr: null, items: items };
     if (isSettingsDetail(t)) hs.zone = 'preview';
     else if (t.id === 'home') { hs.zone = t.f.zone; hs.u = t.f.u; }
@@ -1228,15 +1204,9 @@
     if (!S.reflow) { scroll.first = first; scroll.off = first; }
     return first * g.pitch;
   }
-  function gameMark(id, w, h, size) {
-    return '<span class="mark monogram" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(GAMES.find(function (g) { return g.id === id; }).initials) + '</span></span>';
-  }
   function dockTileHtml(it, full) {
     var a, body;
     if (it.kind === 'add') return '<span class="add">' + icon('plus') + '</span><span class="label">' + (full ? 'Home is full' : 'Add app') + '</span>';
-    if (it.kind === 'game') {
-      return '<span class="tile-content">' + gameMark(it.id, 120, 84, 58) + '<span class="label" style="font-size:40px;top:128px"><span class="label-ink">' + esc(it.name) + '</span></span></span>';
-    }
     a = app(it.id);
     body = S.c.apps === 'text' ? '' : appMark(a, S.c.apps === 'icons' ? 136 : 120, S.c.apps === 'icons' ? 88 : 72, S.c.apps === 'icons' ? 72 : 58);
     return body + (S.c.apps === 'icons' ? '' : '<span class="label" style="font-size:' + dockLabelSize(a.id) + 'px;top:' + ((S.c.apps === 'text' ? 28 : 128) + fontShift('primary', dockLabelSize(a.id))) + 'px"><span class="label-ink">' + esc(a.name) + '</span></span>') + '<span class="nudge nudge-l">' + icon('left') + '</span><span class="nudge nudge-r">' + icon('right') + '</span>';
@@ -1290,7 +1260,6 @@
       el.setAttribute('role', 'button');
       if (a) el.setAttribute('aria-label', a.name);
       if (hs.mode === 'arrange') attrs(el, 'tile', i, 'arrange.' + (it.kind === 'add' ? 'add' : (it.kind === 'ph' ? 'placeholder.' : 'tile.') + it.id));
-      else if (it.kind === 'game') attrs(el, 'game', i, 'home.game.' + it.id);
       else attrs(el, 'app', i, 'home.app.' + it.id);
     });
     track.style.transform = 'translate3d(' + (-off) + 'px,0,0)';
