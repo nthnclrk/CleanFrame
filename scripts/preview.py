@@ -58,9 +58,10 @@ class Preview(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=4795)
+    parser.add_argument('--host', default='127.0.0.1', help='Bind host (default: 127.0.0.1)')
     parser.add_argument('--public-fonts', action='store_true', help='Use only the fonts distributed with the source')
     args = parser.parse_args()
-    server = PreviewServer(('127.0.0.1', args.port), Preview)
+    server = PreviewServer((args.host, args.port), Preview)
     server.include_private_fonts = not args.public_fonts
     print('CleanFrame preview: http://127.0.0.1:' + str(server.server_port) + '/home/', flush=True)
     server.serve_forever()
