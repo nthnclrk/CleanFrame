@@ -370,10 +370,7 @@
     return out;
   }
   function initialise() {
-    var saved = load(), initial;
-    S.c = clean(saved);
-    initial = next(S.c.home.slice(), S.c.recent.slice());
-    initial.games = S.c.games || [];
+    var saved = load(), initial; S.c = clean(saved); initial = next(S.c.home.slice(), S.c.recent.slice());
     S.stack = [{ id: 'home', f: { zone: 'apps', u: 0 } }];
     S.sel = S.c.lastApp; S.selIdx = S.c.home.indexOf(S.sel);
     if (saved && initial.mode === 'open') initial.wall = WALLS[(wallIndex(initial.wall) + 1) % WALLS.length].id;
@@ -382,7 +379,7 @@
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
-  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; return c; }
+  function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; c.games = (S.c.games || []).slice(); return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
@@ -476,7 +473,7 @@
   }
   function launchGame(g) {
     var c = next(S.c.home.slice(), S.c.recent.slice());
-    c.games = pushRecent(c.games || [], g.id);
+    c.games = pushRecent(c.games, g.id);
     if (!write(c, 'Gaming: start ' + g.name)) { S.err = 'Gaming: could not save config'; render(); syncRotation(); return; }
     FrameDevice.setSource('HDMI ' + g.port, function (err) {
       S.sel = g.id; render(); syncRotation();
