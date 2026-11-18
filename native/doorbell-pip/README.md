@@ -6,6 +6,7 @@ other apps, so this uses an EFL notification-level window, as Vetro's launcher d
 from Vetro, MIT, Copyright (c) 2026 Vetro contributors).
 
 - Reads a go2rtc MJPEG stream on a background thread and shows the newest frame a few times a second.
+- **Home mode** (`--home <app id>`): claims the remote's Home key exclusively, so Samsung's Home never opens before the launcher, and opens the app on every press (through `aul`, with no child process: .NET and EFL would both try to reap it). A failed launch opens Samsung's Home instead. The bridge runs it as `cleanframe-home` when its config has `home.app`; exiting gives the key back.
 - go2rtc takes several seconds (5–8 s measured for the doorbell) to start an MJPEG transcode, but about 1 s to return a snapshot. So until the stream's first frame, the window shows go2rtc snapshots (`/api/frame.jpeg` for the same `src`), fetched back to back. The window appears with the first snapshot, never as an empty box. `pip.log` timestamps `start`, `snapshot`, `first frame` and `live` to the millisecond.
 - Appears only once it has a picture, in the top-right corner, inside a rounded frosted rim
   (`res/frame.png`, `res/mask.png`, made by `scripts/build-pip-art.mjs`).

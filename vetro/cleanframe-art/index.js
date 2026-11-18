@@ -371,11 +371,12 @@ function moduleFactory(ctx) {
   // exists, and the shard itself removes it before each ring, so root deletes nothing there.
   // Before starting it stops both a systemd-run overlay and a fallback setsid one (pkill, when
   // present), and keeps the previous run's log as pip.log.1.
-  var PIP_ROOT = '/run/cleanframe-pip';
-  function ringCommand(c, d, hashes) {
-    var root = ctx.pipRoot || PIP_ROOT, stop = path.join(d, 'stop'), names = Object.keys(hashes).sort(), log = path.join(root, 'pip.log');
-    var run = '/usr/bin/env HOME=/home/owner XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /usr/bin/dotnet ' + quote(path.join(root, PIP_DLL)) +
-      ' --url ' + quote(c.stream) + ' --seconds ' + c.seconds + ' --stop ' + quote(stop) + ' --log ' + quote(log);
+  var PIP_ROOT = '/run/cleanframe-pip', HOME_ROOT = '/run/cleanframe-home';
+  // Stops the unit (and a fallback setsid run from the same root), copies and verifies the
+  // unpacked files into root's folder, then starts the program there with its own arguments.
+  function rootRun(unit, root, d, hashes, args, systemd) {
+    var names = Object.keys(hashes).sort(), log = path.join(root, unit.replace('cleanframe-', '') + '.log');
+    var run = '/usr/bin/env HOME=/home/owner XDG_RUNTIME_DIR=/run WAYLAND_DISPLAY=wayland-0 /usr/bin/dotnet ' + quote(path.join(root, PIP_DLL)) + ' ' + args + ' --log ' + quote(log);
     var copy = 'test ! -L ' + quote(root) + '; mkdir -p ' + quote(path.join(root, 'res')) + '; test ! -L ' + quote(path.join(root, 'res')) +
       '; chmod 700 ' + quote(root) + ' ' + quote(path.join(root, 'res')) + '; rm -f ' + names.map(function (name) { return quote(path.join(root, name)); }).join(' ') +
       '; if test -f ' + quote(log) + '; then mv -f ' + quote(log) + ' ' + quote(log + '.1') + '; fi; ' + names.map(function (name) {
@@ -385,12 +386,41 @@ function moduleFactory(ctx) {
       var file = quote(path.join(root, name));
       return 'test -f ' + file + '; test "$(cfsum ' + file + ')" = ' + hashes[name];
     }).join('; ');
-    // A ring while it is showing restarts the timer with a fresh window.
     return 'set -e; umask 077; cfsum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else openssl dgst -sha256 -r "$1"; fi | cut -c1-64; }; ' +
-      'systemctl stop cleanframe-pip >/dev/null 2>&1 || true; ' +
-      'if command -v pkill >/dev/null 2>&1; then pkill -f ' + quote(pkillPattern(path.join(root, PIP_DLL))) + ' >/dev/null 2>&1 || true; fi; ' +
-      copy + '; ' + verify + '; ' +
-      'systemd-run --unit=cleanframe-pip --collect -p KillSignal=SIGKILL ' + run + ' >/dev/null 2>&1 || (setsid nohup ' + run + ' </dev/null >/dev/null 2>&1 &)';
+      stopRun(unit, root) + '; ' + copy + '; ' + verify + '; ' +
+      'systemd-run --unit=' + unit + ' --collect ' + systemd + ' ' + run + ' >/dev/null 2>&1 || (setsid nohup ' + run + ' </dev/null >/dev/null 2>&1 &)';
+  }
+  function stopRun(unit, root) {
+    return 'systemctl stop ' + unit + ' >/dev/null 2>&1 || true; ' +
+      'if command -v pkill >/dev/null 2>&1; then pkill -f ' + quote(pkillPattern(path.join(root, PIP_DLL))) + ' >/dev/null 2>&1 || true; fi';
+  }
+  // A ring while it is showing restarts the timer with a fresh window.
+  function ringCommand(c, d, hashes) {
+    return rootRun('cleanframe-pip', ctx.pipRoot || PIP_ROOT, d, hashes,
+      '--url ' + quote(c.stream) + ' --seconds ' + c.seconds + ' --stop ' + quote(path.join(d, 'stop')), '-p KillSignal=SIGKILL');
+  }
+  /* ---------- Home key ----------
+     With private config home.app set, the same program runs in Home mode from its own root
+     folder: it claims the remote's Home key, so Samsung's Home never flashes up, and opens the
+     app. systemd restarts it if it dies; stopping the bridge stops it and Samsung gets the key back. */
+  var homeState = { running: false, error: null };
+  function homeConfig() {
+    var app = ((ctx.config.get() || {}).home || {}).app;
+    return typeof app === 'string' && /^[A-Za-z0-9]{10}\.[A-Za-z0-9_-]{1,64}$/.test(app) ? app : null;
+  }
+  function homeStart() {
+    var app = homeConfig(), g = generation;
+    homeState.running = false; homeState.error = null;
+    if (!app) return Promise.resolve(false);
+    if (!pipHashes) { homeState.error = 'Home helper not installed'; return Promise.resolve(false); }
+    return execute(rootRun('cleanframe-home', ctx.homeRoot || HOME_ROOT, pipDir(), pipHashes, '--home ' + quote(app), '-p Restart=always -p RestartSec=2 -p KillSignal=SIGKILL'))
+      .then(function () { if (g === generation) homeState.running = true; return true; },
+        function () { if (g === generation) homeState.error = 'Home helper start failed'; return false; });
+  }
+  function homeStop() {
+    var was = homeState.running || !!homeConfig();
+    homeState.running = false;
+    return was ? execute(stopRun('cleanframe-home', ctx.homeRoot || HOME_ROOT)).catch(function () { /* Best effort. */ }) : Promise.resolve();
   }
   function ring() {
     var c = pipConfig(), d = pipDir(), now = Date.now(), hashes = pipHashes;
@@ -526,23 +556,23 @@ function moduleFactory(ctx) {
       server = http.createServer(handler); server.timeout = 10000; server.maxConnections = 8;
       server.on('connection', function (socket) { sockets.push(socket); socket.on('close', function () { var i = sockets.indexOf(socket); if (i >= 0) sockets.splice(i, 1); }); });
       server.once('error', function () { if (g === generation) { running = false; mqttStop(); server = null; starting = null; rejectStart = null; } reject(new Error('Bridge listen failed')); });
-      server.listen(port, address, function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; mqttConnect(); resolve(); });
+      server.listen(port, address, function () { if (g !== generation) { reject(new Error('Bridge stopped')); return; } rejectStart = null; mqttConnect(); homeStart(); resolve(); });
     });
     return starting;
   }
   function stop() {
     running = false; generation++; current = null; revisions = []; lastRead = 0; lastError = false; lookError = null; look = null; lookAt = 0; lookTried = 0; lookRead = null; lightsBusy = false;
-    mqttStop();
+    mqttStop(); homeStop();
     var old = server; server = null; starting = null;
     if (rejectStart) { rejectStart(new Error('Bridge stopped')); rejectStart = null; }
     sockets.slice().forEach(function (socket) { socket.destroy(); });
     return new Promise(function (resolve) { if (old) old.close(resolve); else resolve(); });
   }
   return { start: start, stop: stop,
-    status: function () { return { running: running, keyed: !!keyDigest, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError, doorbell: { listening: pipState.connected, configured: !!pipConfig().stream, error: pipState.installError || pipState.lastError } }; },
+    status: function () { return { running: running, keyed: !!keyDigest, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError, doorbell: { listening: pipState.connected, configured: !!pipConfig().stream, error: pipState.installError || pipState.lastError }, home: { configured: !!homeConfig(), running: homeState.running, error: homeState.error } }; },
     route: function (req, res) { res.writeHead(404); res.end(); },
     // Offline harness hooks; Vetro never calls these.
-    _test: { unpackPip: unpackPip, ring: ring, pipDir: pipDir, pipHashes: function () { return pipHashes; }, mqttTimers: function () { return { retry: !!mqTimer, ping: !!mqPing, socket: !!mq }; } }
+    _test: { unpackPip: unpackPip, ring: ring, homeStart: homeStart, pipDir: pipDir, pipHashes: function () { return pipHashes; }, mqttTimers: function () { return { retry: !!mqTimer, ping: !!mqPing, socket: !!mq }; } }
   };
 }
 module.exports = moduleFactory;

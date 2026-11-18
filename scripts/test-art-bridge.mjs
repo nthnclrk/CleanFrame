@@ -558,3 +558,45 @@ test('a configured key is required on every request except preflight', async () 
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('home.app runs the helper in Home mode from its own root folder, restarted by systemd, and stops with the bridge', async () => {
+  const APP = 'fRnosDXxcr.CleanFrame', sh = shellExecute(['rm', 'cut', 'mkdir', 'cat', 'chmod', 'mv', 'pkill', 'sha256sum']);
+  try {
+    const dir0 = realpathSync(mkdtempSync(join(tmpdir(), 'cleanframe-home-'))), root = join(dir0, 'home-root');
+    try {
+      await withBridge({ config: { home: { app: APP } }, execute: sh.execute, homeRoot: root }, async ({ bridge, calls }) => {
+        for (let i = 0; i < 50 && !bridge.status().home.running; i++) await sleep(20);
+        assert.deepEqual(bridge.status().home, { configured: true, running: true, error: null });
+        const cmd = calls.find(c => c.includes('--unit=cleanframe-home'));
+        assert.ok(cmd.includes("/usr/bin/dotnet '" + join(root, 'cleanframe-pip.dll') + "' --home '" + APP + "' --log '" + join(root, 'home.log') + "'"), cmd);
+        assert.ok(cmd.includes('-p Restart=always -p RestartSec=2'));
+        for (const [name, data] of Object.entries(PIP)) assert.ok(cmd.includes(`test "$(cfsum '${join(root, name)}')" = ${sha256(data)}`), name);
+        assert.ok(cmd.indexOf('cfsum \'') < cmd.indexOf('systemd-run'));
+        assert.ok(sh.started().some(l => l.includes('--unit=cleanframe-home')));
+        // A ring never stops the Home helper: their pkill patterns name different folders.
+        assert.ok(!cmd.includes(join(dir0, 'pip-root')));
+        await bridge.stop();
+        const stops = calls.filter(c => c.startsWith('systemctl stop cleanframe-home'));
+        assert.equal(stops.length >= 1, true); assert.ok(stops[stops.length - 1].includes('pkill -f') && stops[stops.length - 1].includes(join(root, 'cleanframe-pip.dll').replace(/\./g, '\\.')));
+        assert.equal(bridge.status().home.running, false);
+      });
+    } finally { rmSync(dir0, { recursive: true, force: true }); }
+  } finally { rmSync(sh.bin, { recursive: true, force: true }); }
+});
+
+test('without a valid home.app the bridge never runs or stops a Home helper', async () => {
+  for (const home of [undefined, {}, { app: 'CleanFrame' }, { app: "fRnosDXxcr.Clean'Frame" }, { app: 42 }]) {
+    await withBridge({ config: home ? { home } : {} }, async ({ bridge, calls }) => {
+      await sleep(50);
+      assert.equal(bridge.status().home.configured, false); assert.equal(bridge.status().home.running, false);
+      await bridge.stop();
+      assert.ok(!calls.some(c => c.includes('cleanframe-home')), JSON.stringify(home));
+    });
+  }
+});
+
+test('Program.cs accepts the same Home app ids as the bridge', () => {
+  const cs = readFileSync(new URL('../native/doorbell-pip/Program.cs', import.meta.url), 'utf8');
+  const js = readFileSync(new URL('../vetro/cleanframe-art/index.js', import.meta.url), 'utf8');
+  assert.equal(/Regex\.IsMatch\(_homeApp, @"([^"]+)"\)/.exec(cs)[1], /\/(\^\[A-Za-z0-9\]\{10\}[^/]+)\/\.test\(app\)/.exec(js)[1]);
+});

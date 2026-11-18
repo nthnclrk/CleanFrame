@@ -9,6 +9,11 @@
 // Usage: dotnet cleanframe-pip.dll --url <mjpeg stream url> [--seconds 30] [--x 1408] [--y 32]
 //        [--w 480] [--h 640] [--fps 4] [--stop <path>]
 // The url must be http on a private address; the stop file, if it appears, closes the window.
+//
+// Home mode: dotnet cleanframe-pip.dll --home <app id> [--log <path>]
+// Claims the remote's Home key exclusively from the window system, so Samsung's Home never
+// opens (no flash before the launcher), and opens the app on every press. If that launch fails,
+// Samsung's Home opens instead, so Home never does nothing. Exiting gives the key back.
 using System;
 using System.IO;
 using System.Net.Http;
@@ -55,6 +60,14 @@ namespace CleanFramePip
         [DllImport(Ecore)] public static extern IntPtr ecore_timer_add(double seconds, TaskCb func, IntPtr data);
         [DllImport(EflUtil)] public static extern int efl_util_set_notification_window_level(IntPtr win, int level);
         [DllImport("libc")] public static extern int setenv(string name, string value, int overwrite);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate byte EventCb(IntPtr data, int type, IntPtr ev);
+        public const int KeygrabExclusive = 1024;   // ELM_WIN_KEYGRAB_EXCLUSIVE
+        [DllImport(Elm)] [return: MarshalAs(UnmanagedType.U1)] public static extern bool elm_win_keygrab_set(IntPtr win, string key, ulong modifiers, ulong notModifiers, int priority, int mode);
+        [DllImport(Ecore)] public static extern IntPtr ecore_event_handler_add(int type, EventCb func, IntPtr data);
+        // Launching through aul starts no child process: .NET and EFL would both try to reap it.
+        [DllImport("libaul.so.0")] public static extern int aul_launch_app_for_uid(string appid, IntPtr bundle, uint uid);
+        [DllImport("libbundle.so.0")] public static extern IntPtr bundle_create();
+        [DllImport("libbundle.so.0")] public static extern int bundle_free(IntPtr bundle);
         [DllImport("libc")] public static extern uint getuid();
     }
 
@@ -186,6 +199,50 @@ namespace CleanFramePip
 
         private static byte End(IntPtr data) { Efl.elm_exit(); return 0; }
 
+        private const uint OwnerUid = 5001;   // The TV's signed-in user, who owns the apps.
+        private const string SamsungHome = "com.samsung.tv.csfs";
+        private static string _homeApp;
+        private static DateTime _homeAt;
+        private static readonly Efl.EventCb HomeCb = OnHomeKey;
+        private static int Launch(string app)
+        {
+            IntPtr b = Efl.bundle_create();
+            try { return Efl.aul_launch_app_for_uid(app, b, OwnerUid); } finally { Efl.bundle_free(b); }
+        }
+        private static byte OnHomeKey(IntPtr data, int type, IntPtr ev)
+        {
+            string key;
+            try { key = Marshal.PtrToStringAnsi(Marshal.ReadIntPtr(ev)); } catch (Exception) { return 1; }
+            if (key != "XF86Home" || (DateTime.UtcNow - _homeAt).TotalMilliseconds < 700) return 1;   // One launch per press.
+            _homeAt = DateTime.UtcNow;
+            try
+            {
+                int r = Launch(_homeApp);
+                if (r < 0) { Log("launch " + r + ", opening Samsung Home"); Launch(SamsungHome); }
+            }
+            catch (Exception e) { Log("launch failed: " + e.GetType().Name); try { Launch(SamsungHome); } catch (Exception) { } }
+            return 1;
+        }
+        private static int HomeKey(string[] args)
+        {
+            _homeApp = Arg(args, "--home", "");
+            _log = Arg(args, "--log", null);
+            if (!Regex.IsMatch(_homeApp, @"^[A-Za-z0-9]{10}\.[A-Za-z0-9_-]{1,64}$")) { Console.Error.WriteLine("--home must be an app id"); return 2; }
+            SetupEnvironment();
+            Efl.elm_init(0, IntPtr.Zero);
+            // An unshown 1x1 window: the grab needs a window, but nothing ever appears on screen.
+            IntPtr win = Efl.elm_win_add(IntPtr.Zero, "cleanframe-home", 0);
+            if (win == IntPtr.Zero) { Log("elm_win_add failed"); return 3; }
+            Efl.evas_object_resize(win, 1, 1);
+            if (!Efl.elm_win_keygrab_set(win, "XF86Home", 0, 0, 0, Efl.KeygrabExclusive)) { Log("Home key grab refused"); return 4; }
+            IntPtr input = NativeLibrary.Load("libecore_input.so.1");
+            Efl.ecore_event_handler_add(Marshal.ReadInt32(NativeLibrary.GetExport(input, "ECORE_EVENT_KEY_DOWN")), HomeCb, IntPtr.Zero);
+            Log("Home key opens " + _homeApp);
+            Efl.elm_run();
+            Efl.elm_shutdown();
+            return 0;
+        }
+
         // The PiP takes the remote while it shows; any key (Back, OK or an arrow) closes it and
         // returns the remote to the app underneath, so the remote never feels stuck.
         private static void OnKey(IntPtr data, IntPtr evas, IntPtr obj, IntPtr eventInfo)
@@ -196,6 +253,7 @@ namespace CleanFramePip
 
         public static int Main(string[] args)
         {
+            if (Arg(args, "--home", null) != null) return HomeKey(args);
             _url = Arg(args, "--url", "");
             if (!Regex.IsMatch(_url, @"^http://(10(\.\d{1,3}){3}|(192\.168|172\.(1[6-9]|2\d|3[01]))(\.\d{1,3}){2}):\d{2,5}/[A-Za-z0-9/._?=&%-]{1,200}$"))
             { Console.Error.WriteLine("--url must be http on a private address"); return 2; }
