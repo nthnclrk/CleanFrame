@@ -12,5 +12,7 @@
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
   <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+  <!-- addStorageStateChangeListener needs externalstorage; filesystem.read alone is refused on Tizen 5.5. -->
+  <tizen:privilege name="http://tizen.org/privilege/externalstorage"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>
