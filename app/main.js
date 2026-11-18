@@ -23,7 +23,7 @@
     { id: 'abciview', name: 'ABC iview', mark: true, appId: 'mWK87Xghap.ABCiview' },
     { id: 'sbs', name: 'SBS On Demand', mark: true, appId: 'OyE7OuxlUi.SBSOnDemand' },
     { id: 'applemusic', name: 'Apple Music', mark: true, appId: 'org.tizen.apple.apple-music' },
-    { id: 'ps5', name: 'PS5', port: 2 }
+    { id: 'ps5', name: 'Gaming', port: 2 }
   ];
   var PRIMARY = PRIMARY_APPS.map(function (a) { return a.id; }), APPS = PRIMARY_APPS.slice(), ALPHA = [];
   var WALLS = window.CleanFrameWallpapers || [{ id: 'misty', name: 'Misty coast', tone: 'light', ut: { tr: 'mist', br: 'mist' }, frostVeil: .20 }];
@@ -67,6 +67,7 @@
     down: '<path d="m5 8.5 7 7 7-7"/>',
     updown: '<path d="m7.5 9.5 4.5-4.5 4.5 4.5M7.5 14.5l4.5 4.5 4.5-4.5"/>',
     tv: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7"/>',
+    gamepad: '<path d="M7.5 9h9a4.5 4.5 0 0 1 4.3 5.8l-.7 2.5a2.1 2.1 0 0 1-3.8.5l-1-1.5a2 2 0 0 0-1.7-.9h-2.2a2 2 0 0 0-1.7.9l-1 1.5a2.1 2.1 0 0 1-3.8-.5l-.7-2.5A4.5 4.5 0 0 1 7.5 9Z"/><path d="M7 12.2v2.4M5.8 13.4h2.4"/><circle cx="15.6" cy="12.8" r=".95"/><circle cx="17.4" cy="14.5" r=".95"/>',
     warn: '<path d="M12 4 2.8 19.5h18.4Z"/><path d="M12 10v4.5M12 17.3v.1"/>'
   };
 
@@ -140,6 +141,7 @@
   }
   function appMark(a, w, h, size) {
     if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
+    if (typeof a.port === 'number') return '<span class="mark monogram" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span class="glyph">' + icon('gamepad') + '</span></span>';
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
     return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
       + (a.icon ? '<img alt="" data-native-icon="true" src="' + esc(a.icon) + '">' : '') + '</span>';
