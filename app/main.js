@@ -67,7 +67,7 @@
     down: '<path d="m5 8.5 7 7 7-7"/>',
     updown: '<path d="m7.5 9.5 4.5-4.5 4.5 4.5M7.5 14.5l4.5 4.5 4.5-4.5"/>',
     tv: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7"/>',
-    gamepad: '<path d="M7.5 9h9a4.5 4.5 0 0 1 4.3 5.8l-.7 2.5a2.1 2.1 0 0 1-3.8.5l-1-1.5a2 2 0 0 0-1.7-.9h-2.2a2 2 0 0 0-1.7.9l-1 1.5a2.1 2.1 0 0 1-3.8-.5l-.7-2.5A4.5 4.5 0 0 1 7.5 9Z"/><path d="M7 12.2v2.4M5.8 13.4h2.4"/><circle cx="15.6" cy="12.8" r=".95"/><circle cx="17.4" cy="14.5" r=".95"/>',
+    gamepad: '<path d="M7.5 6.5h9a5.5 5.5 0 0 1 5.3 7l-1 3.4a2.6 2.6 0 0 1-4.7.6l-1.2-1.9a2.4 2.4 0 0 0-2-1.1h-2.8a2.4 2.4 0 0 0-2 1.1l-1.2 1.9a2.6 2.6 0 0 1-4.7-.6l-1-3.4A5.5 5.5 0 0 1 7.5 6.5Z"/><path d="M6.8 10.5v3.2M5.2 12.1h3.2"/><circle cx="15.8" cy="10.9" r="1.15"/><circle cx="17.9" cy="13" r="1.15"/>',
     warn: '<path d="M12 4 2.8 19.5h18.4Z"/><path d="M12 10v4.5M12 17.3v.1"/>'
   };
 
@@ -141,7 +141,7 @@
   }
   function appMark(a, w, h, size) {
     if (a.mark && (maskSupport || S.c.bg !== 'light')) return markHtml(a.brand || a.id, w, h, size);
-    if (typeof a.port === 'number') return '<span class="mark monogram" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span class="glyph">' + icon('gamepad') + '</span></span>';
+    if (typeof a.port === 'number') return '<span class="mark game-mark" style="width:' + w + 'px;height:' + h + 'px">' + icon('gamepad') + '</span>';
     var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
     return '<span class="mark monogram' + (a.icon ? ' native-icon' : '') + '" style="width:' + w + 'px;height:' + h + 'px;font-size:' + Math.round(size * .65) + 'px"><span>' + esc(letters.toUpperCase()) + '</span>'
       + (a.icon ? '<img alt="" data-native-icon="true" src="' + esc(a.icon) + '">' : '') + '</span>';
