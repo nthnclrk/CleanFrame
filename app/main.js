@@ -44,9 +44,9 @@
     newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
+  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], src: ['gallery', 'usb'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
+  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', gallery: 'Gallery', usb: 'USB drive' };
   var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
@@ -77,6 +77,7 @@
     undo: [], removedAt: {}, note: null, err: null,
     writes: 0, failed: 0, log: [], logN: 0, lastLaunch: null, press: null,
     wallShown: null, wallPending: null, wallError: null,
+    usb: { scanning: false, loaded: false, error: null, drive: '', photos: [] }, usbScanToken: 0, bundleSlide: null,
     shown: null, pending: null, lookError: null, bundleKey: null, previewBundle: null, reflow: false, fontSwitch: false
   };
   var scroll = { first: 0, off: 0, photo: 0, photoArrange: 0 };
@@ -85,8 +86,44 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
+  function lookOf(c) { return { bg: c.bg, wall: c.wall, src: c.src, usbAt: c.usbAt, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
   function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
+  function usbPos(v) { v = Math.floor(Number(v)); return isFinite(v) && v >= 0 ? v : 0; }
+  function usbReady() { return !!S.usb.photos.length; }
+  function usbActive() { return S.c.bg === 'photo' && S.c.src === 'usb'; }
+  /* A USB picture is wall-like so tone, veil and ink rules apply unchanged. Unknown photos take the
+     strongest stock scrims; the soft surfaces are drawn once per slide (see softSurface). */
+  function usbSlide(photo, index) {
+    return { id: 'usb:' + index, key: 'usb:' + photo.uri, name: photo.name, photo: photo.uri,
+      live: true, tone: 'light', ut: { tr: 'mist', br: 'mist' }, frostVeil: .20, listColumn: 0, dockQuiet: false, clockMist: true };
+  }
+  /* A gallery slide is its catalogue entry (tone, ink, veil) plus the asset paths for the chosen material. */
+  function gallerySlide(id, material) {
+    var w = wall(id), out = {}, k;
+    for (k in w) if (w.hasOwnProperty(k)) out[k] = w[k];
+    out.key = id; out.photo = WP + id + '.jpg'; out.panel = WP + id + '-panel.jpg'; out.mat = matSrc(id, material); out.field = fieldSrc(id, material);
+    return out;
+  }
+  /* usbAt may run past the end (a cold-start advance happens before the drive is read); it wraps here. */
+  function usbIndex(look) { return usbPos(look.usbAt) % S.usb.photos.length; }
+  function slideOf(look) {
+    return look.src === 'usb' && usbReady() ? S.usb.photos[usbIndex(look)] : gallerySlide(look.wall, look.material);
+  }
+  function usbSummary() {
+    if (S.usb.scanning) return 'Reading the USB drive\u2026';
+    if (usbReady()) return S.usb.photos.length + (S.usb.photos.length === 1 ? ' photo' : ' photos') + ' from ' + FrameDevice.PHOTO_DIR + '/ on ' + S.usb.drive;
+    if (S.usb.error) return S.usb.error;
+    if (S.usb.drive) return 'No pictures were found in ' + FrameDevice.PHOTO_DIR + '/ on ' + S.usb.drive;
+    return 'No USB drive was found';
+  }
+  function advanceSlide() {
+    var failed;
+    if (S.c.src === 'usb' && usbReady()) {
+      // An unreadable picture is stepped over rather than retried on every tick.
+      failed = S.lookError && S.lookError.type === 'load' ? S.lookError.patch.usbAt : undefined;
+      setLook({ usbAt: ((typeof failed === 'number' ? failed : usbIndex(S.c)) + 1) % S.usb.photos.length }, { row: 'bg' });
+    } else setLook({ wall: WALLS[(wallIndex(S.c.wall) + 1) % WALLS.length].id }, { row: 'bg' });
+  }
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
@@ -346,6 +383,7 @@
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
       font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
+      src: pick(modern.src, LOOK_VALUES.src, 'gallery'), usbAt: usbPos(modern.usbAt),
       mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
     };
   }
@@ -365,19 +403,24 @@
     var saved = load(), initial; S.c = clean(saved); initial = next(S.c.home.slice(), S.c.recent.slice());
     S.stack = [{ id: 'home', f: { zone: 'apps', u: 0 } }];
     S.sel = S.c.lastApp; S.selIdx = S.c.home.indexOf(S.sel);
-    if (saved && initial.mode === 'open') initial.wall = WALLS[(wallIndex(initial.wall) + 1) % WALLS.length].id;
+    if (saved && initial.mode === 'open') advanceInto(initial);
     // Keep the old schema keys alongside the builder values for in-place updates.
     try { localStorage.setItem(KEY, JSON.stringify(serialise(initial))); S.c = initial; storageOk = true; } catch (e) { storageOk = false; }
   }
   function clearSession() { S.undo = []; S.removedAt = {}; S.note = null; S.err = null; }
   function begin() { S.note = null; }
+  /* "Each time Home opens" advances whichever source is active. The drive has not been read yet, so usbAt wraps on use. */
+  function advanceInto(look) {
+    if (look.src === 'usb') look.usbAt = usbPos(look.usbAt) + 1;
+    else look.wall = WALLS[(wallIndex(look.wall) + 1) % WALLS.length].id;
+  }
   function next(home, recent) { var c = lookOf(S.c); c.home = home; c.recent = recent; c.lastApp = S.c.lastApp; c.mode = S.c.mode; return c; }
   function snap() { return { home: S.c.home.slice(), recent: S.c.recent.slice() }; }
   function pushRecent(list, id) { return [id].concat(without(list, id)).slice(0, 5); }
   function write(c, label) {
     try { localStorage.setItem(KEY, JSON.stringify(serialise(c))); }
     catch (e) { storageOk = false; S.failed++; S.err = label; log('Not saved: ' + label); return false; }
-    if (c.wall !== S.c.wall || c.mode !== S.c.mode) resetRotation();
+    if (c.wall !== S.c.wall || c.mode !== S.c.mode || c.usbAt !== S.c.usbAt) resetRotation();
     storageOk = true; S.c = c; S.writes++; S.err = null; log('Saved: ' + label);
     return true;
   }
@@ -504,9 +547,10 @@
   }
   function addAppsRoute() { openEditor('home'); }
   function openSettings() { push({ id: 'settings', f: { id: S.settingsFocus } }); }
+  var GROUP_AXIS = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode', source: 'src' };
   function openAppearance(group) {
-    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
-    var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'samsung.home');
+    var axis = GROUP_AXIS[group], action = S.detailFocus[group] || (axis ? choice(axis, S.c[axis]).action : 'samsung.home');
+    if ((group === 'background' || group === 'source') && usbActive()) scanUsb();
     push({ id: 'appearance', group: group, f: { action: action } });
   }
   function openMessage(key) { push({ id: 'message', msg: key, f: { b: 0 } }); }
@@ -816,7 +860,7 @@
   function mode() { for (var i = 0; i < MODES.length; i++) if (MODES[i].id === S.c.mode) return MODES[i]; return MODES[0]; }
   function settingsRows() {
     var n = S.c.home.length;
-    return [{ id: 'background', label: 'Background', value: S.c.bg === 'photo' ? wall(S.c.wall).name : VALUE_NAMES[S.c.bg] },
+    return [{ id: 'background', label: 'Background', value: S.c.bg === 'photo' ? (S.c.src === 'usb' ? VALUE_NAMES.usb : wall(S.c.wall).name) : VALUE_NAMES[S.c.bg] },
       { id: 'layout', label: 'Layout', value: VALUE_NAMES[S.c.layout] },
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
@@ -841,10 +885,24 @@
     if (id === 'editor') openEditor('settings');
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', source: 'Photo source', samsung: 'Samsung', inputs: 'Inputs' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
+  }
+  /* Each source says what it shows; the USB choice reports what was read once it is the active source. */
+  function sourceItems(flat) {
+    return LOOK_VALUES.src.map(function (value) {
+      var item = choice('src', value);
+      item.description = item.value === 'gallery' ? 'The fifteen built-in photographs'
+        : S.c.src === 'usb' && !flat ? usbSummary() : 'Your own pictures from a USB drive';
+      return item;
+    });
+  }
+  function sourceHelp(flat) {
+    if (flat) return 'Choose Photo in Background to choose a photo source.';
+    return 'Create a folder named ' + FrameDevice.PHOTO_DIR + ' at the top of a USB drive, add JPEG, PNG, WebP or BMP pictures and insert the drive. Only that folder is read, up to '
+      + FrameDevice.PHOTO_LIMIT + ' pictures in name order.';
   }
   function detailSections(t) {
     var flat = S.c.bg !== 'photo', inactive = !materialApplies();
@@ -855,9 +913,12 @@
       reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
     if (t.group === 'background') return [
       { id: 'bg', title: 'Background type', items: options('bg', ['photo', 'light', 'dark']) },
+      { id: 'src', title: 'Photo source', items: [{ action: 'background.source', label: VALUE_NAMES[S.c.src], description: S.c.src === 'usb' ? usbSummary() : 'Or show your own pictures from a USB drive', disabled: flat }] },
       { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: flat }] },
       { id: 'rotation', title: 'Rotation', items: [{ action: 'background.rotation', label: mode().name, disabled: flat }], reason: flat ? 'Choose Photo to use wallpaper and rotation.' : '' }
     ];
+    if (t.group === 'source') return [{ id: 'src', title: 'Photo source', items: sourceItems(flat), reason: sourceHelp(flat) }].concat(
+      S.c.src === 'usb' ? [{ id: 'retry', title: '', items: [{ action: 'source.retry', label: S.usb.scanning ? 'Reading\u2026' : 'Try again', disabled: S.usb.scanning }] }] : []);
     if (t.group === 'layout') return [
       { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
       { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
@@ -870,15 +931,16 @@
         reason: inactive ? flat ? 'Materials are available with a Photo background.' : 'Choose Glass focus or the Dock layout to use materials.' : '' }
     ];
     if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
-      reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
+      reason: flat ? 'Choose Photo in Background to use rotation.' : (S.c.src === 'usb' ? 'Timed changes step through the USB pictures. ' : '') + 'Timed changes pause while Settings or another panel is open.' }];
     return [{ id: 'samsung', title: '', items: [
       { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' },
       { action: 'samsung.inputs', label: 'Inputs', description: 'Choose an HDMI input' }
     ] }];
   }
+  function detailBackLabel(t) { return t.group === 'rotation' || t.group === 'source' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings'; }
   function detailRows(t) {
-    var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }]];
+    var rows = [[{ action: 'settings.back', label: detailBackLabel(t) }]];
     detailSections(t).forEach(function (section) {
       var enabled = section.items.filter(function (item) { return !item.disabled; });
       if (section.horizontal && enabled.length) rows.push(enabled);
@@ -906,6 +968,26 @@
     c = next(S.c.home.slice(), S.c.recent.slice()); c.mode = value;
     if (!write(c, 'Wallpaper rotation')) S.lookError = { type: 'save', patch: { mode: value }, row: 'mode', transient: false };
   }
+  /* ---------- USB photo source ---------- */
+  function scanUsb(force) {
+    var token;
+    if (S.usb.scanning && !force) return;
+    token = ++S.usbScanToken;
+    S.usb.scanning = true; S.usb.error = null;
+    FrameDevice.usbPhotos(function (err, result) {
+      if (token !== S.usbScanToken) return;
+      result = err ? {} : result;
+      S.usb = { scanning: false, loaded: true, error: err ? err.message || 'The USB drive could not be read.' : null,
+        drive: result.drive || '', photos: (result.photos || []).map(usbSlide) };
+      reconcileLook();
+    });
+  }
+  /* Bring the stage in line with the committed look after the drive changed, unless the owner is mid-change. */
+  function reconcileLook() {
+    var busy = S.pending && !S.pending.transient || S.previewBundle || S.lookError;
+    if (S.c.bg === 'photo' && !busy && S.bundleKey !== bundleKey(S.c)) setLook({}, { transient: true, startup: !S.shown });
+    else after();
+  }
   function loadInputs(t) {
     t.loading = true; t.inputError = null;
     FrameDevice.sources(function (err, list) {
@@ -926,9 +1008,14 @@
       if (error && error.row === 'mode') applyRotation(error.patch.mode);
       else if (error) setLook(error.patch, { row: error.row });
     } else if (item.axis === 'mode') applyRotation(item.value);
-    else if (item.axis) { patch[item.axis] = item.value; setLook(patch, { row: item.axis }); }
+    else if (item.axis) {
+      patch[item.axis] = item.value; setLook(patch, { row: item.axis });
+      if (item.axis === 'src' && item.value === 'usb') scanUsb();
+    }
     else if (item.action === 'background.wallpaper') openWallpaper();
     else if (item.action === 'background.rotation') openAppearance('rotation');
+    else if (item.action === 'background.source') openAppearance('source');
+    else if (item.action === 'source.retry') scanUsb(true);
     else if (item.action === 'samsung.home') perform('Samsung Home', FrameDevice.home);
     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
     else if (item.action === 'samsung.inputs') openInputs();
@@ -943,7 +1030,7 @@
   V.appearance = {
     norm: function (t) {
       var rows = detailRows(t), exists = false, applied = null;
-      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode' }[t.group];
+      var axis = GROUP_AXIS[t.group];
       rows.forEach(function (items) { items.forEach(function (item) {
         if (item.action === t.f.action) exists = true;
         if (item.axis === axis && item.value === S.c[axis]) applied = item;
@@ -1039,7 +1126,7 @@
     }).join('');
   }
   function render() {
-    var t = top(), sheet = !!V[t.id].sheet, shown = wall(S.shown ? S.shown.wall : S.c.wall), palette = ADAPTIVE_INK[shown.id];
+    var t = top(), sheet = !!V[t.id].sheet, shown = S.shown ? S.shown.slide : slideOf(S.c), palette = ADAPTIVE_INK[shown.id];
     var adaptive = applyAdaptiveInk(palette), tr = adaptive && palette.tr ? palette.tr.pol : shown.ut.tr, br = adaptive && palette.br ? palette.br.pol : shown.ut.br;
     stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
     if (!adaptive && shown.clockInk) stage.style.setProperty('--clock-ink', shown.clockInk);
@@ -1418,7 +1505,7 @@
         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
         + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
     }
-    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') + '</span>', 'setting-back'));
+    setHTML(appearanceBack, command({ action: 'settings.back', label: detailBackLabel(t) }, icon('left') + '<span>' + detailBackLabel(t) + '</span>', 'setting-back'));
     setHTML(appearanceRows, detailSections(t).map(function (section) {
       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
@@ -1441,7 +1528,7 @@
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
+    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + detailBackLabel(t) : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : selected.action === 'background.source' ? 'Choose Gallery or USB drive' : selected.action === 'source.retry' ? 'Read the USB drive again' : 'Open on the TV';
     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
   }
   function renderWallpaper(t) {
@@ -1646,6 +1733,31 @@
   function matSrc(id, material) { return 'assets/materials/' + id + (material === 'soft' ? '-study-soft.jpg' : material === 'tint' ? '-field-clear.jpg' : '-field-frost.jpg'); }
   function fieldSrc(id, material) { return 'assets/materials/' + id + (material === 'soft' ? '-field-blur.jpg' : material === 'tint' ? '-field-clear.jpg' : '-field-frost.jpg'); }
   function makeImg(cls, src) { var im = document.createElement('img'); im.className = cls; im.alt = ''; im._src = src; im.src = src; return im; }
+  /*
+   * USB pictures have no pre-rendered surfaces. Once per slide the loaded photo is cover-cropped into
+   * a small canvas and averaged, and each surface is a copy that the browser upscales smoothly.
+   * No CSS filter reaches the animation path and no pixels are read back, so file URIs need no CORS.
+   */
+  var SOFT = { w: 96, h: 54, passes: [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 2], [-2, -2]] };
+  function softSurface(photo) {
+    var w = photo.naturalWidth, h = photo.naturalHeight, scale = Math.max(1920 / w, 1080 / h), sw = 1920 / scale, sh = 1080 / scale;
+    var mid = document.createElement('canvas'), out = document.createElement('canvas'), ctx;
+    mid.width = SOFT.w * 4; mid.height = SOFT.h * 4;
+    ctx = mid.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(photo, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, mid.width, mid.height);
+    out.width = SOFT.w; out.height = SOFT.h;
+    ctx = out.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(mid, 0, 0, SOFT.w, SOFT.h);
+    ctx.globalAlpha = .5;
+    SOFT.passes.forEach(function (d) { ctx.drawImage(out, d[0], d[1]); });
+    return out;
+  }
+  function softCopy(cls, soft, src) {
+    var c = document.createElement('canvas');
+    c.width = soft.width; c.height = soft.height; c.getContext('2d').drawImage(soft, 0, 0);
+    c.className = cls + ' is-soft'; c.setAttribute('aria-hidden', 'true'); c.setAttribute('data-src', src);
+    return c;
+  }
   function whenReady(im, done) {
     var fin = false, timer = setTimeout(function () { finish(!!(im.complete && im.naturalWidth)); }, document.hidden ? 20000 : 8000);
     function finish(ok) { if (fin) return; fin = true; clearTimeout(timer); done(ok); }
@@ -1658,27 +1770,35 @@
     else { im.onload = ready; im.onerror = function () { finish(false); }; }
   }
   function swapImg(k, im) { var old = IMG[k]; if (old === im) return; im.style.cssText = old.style.cssText; if (old.id) im.id = old.id; old.parentNode.replaceChild(im, old); IMG[k] = im; }
-  function bundleKey(look) { return look.wall + '|' + look.material; }
+  function bundleKey(look) { return slideOf(look).key + '|' + look.material; }
+  var SURFACES = { bg: 'sheet-bg', mat: 'mat-img', field: 'ph-field-img', fieldAlt: 'ph-field-img', utility: 'ph-field-img', utilityAlt: 'ph-field-img' };
   function loadBundle(look, token, done) {
-    var imgs = { photo: makeImg('photo', WP + look.wall + '.jpg'), bg: makeImg('sheet-bg', WP + look.wall + '-panel.jpg') }, keys, left, allOk = true;
-    imgs.mat = makeImg('mat-img', matSrc(look.wall, look.material));
-    imgs.field = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.fieldAlt = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.utility = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
-    imgs.utilityAlt = makeImg('ph-field-img', fieldSrc(look.wall, look.material));
+    var slide = slideOf(look), imgs = { photo: makeImg('photo', slide.photo) }, keys, left, allOk = true;
+    function settle(ok) { if (token === wallToken) done(ok ? { key: bundleKey(look), slide: slide, imgs: imgs } : null); }
+    if (slide.live) {
+      whenReady(imgs.photo, function (ok) {
+        var soft = null;
+        if (ok) { try { soft = softSurface(imgs.photo); } catch (err) { ok = false; } }
+        if (ok) Object.keys(SURFACES).forEach(function (k) { imgs[k] = softCopy(SURFACES[k], soft, slide.photo); });
+        settle(ok);
+      });
+      return;
+    }
+    Object.keys(SURFACES).forEach(function (k) { imgs[k] = makeImg(SURFACES[k], k === 'bg' ? slide.panel : k === 'mat' ? slide.mat : slide.field); });
     keys = Object.keys(imgs); left = keys.length;
     keys.forEach(function (k) { whenReady(imgs[k], function (ok) {
       allOk = allOk && ok;
-      if (--left || token !== wallToken) return;
-      done(allOk ? { key: bundleKey(look), imgs: imgs } : null);
+      if (!--left) settle(allOk);
     }); });
   }
   function installBundle(bundle, look, previewOnly) {
     if (bundle) {
       Object.keys(bundle.imgs).forEach(function (k) { if (!previewOnly || k !== 'bg') swapImg(k, bundle.imgs[k]); });
-      S.bundleKey = bundle.key;
+      S.bundleKey = bundle.key; S.bundleSlide = bundle.slide;
     }
-    S.shown = { bg: look.bg, wall: look.wall, material: look.material, font: look.font };
+    // shown.slide is what the surfaces actually hold; shown.wall is its id for checks.
+    var slide = S.bundleSlide || slideOf(look);
+    S.shown = { bg: look.bg, wall: slide.id, slide: slide, material: look.material, font: look.font };
     phFields.concat(utFields).forEach(function (el) { var p = el._placement; if (p) fieldTransform(el, p.x, p.y, p.width, p.height); });
     S.wallShown = look.wall; S.wallPending = null; S.wallError = null;
   }
@@ -1687,6 +1807,8 @@
     if (!patch || typeof patch !== 'object') throw new Error('look needs an appearance patch');
     for (k in patch) if (patch.hasOwnProperty(k)) {
       if (k === 'wall') { if (!wall(patch[k])) throw new Error('Unknown wallpaper: ' + patch[k]); }
+      else if (k === 'usbAt') { if (typeof patch[k] !== 'number' || Math.floor(patch[k]) !== patch[k] || patch[k] < 0) throw new Error('Invalid USB photo: ' + patch[k]); }
+      else if (k === 'src') { if (LOOK_VALUES.src.indexOf(patch[k]) < 0) throw new Error('Unknown photo source: ' + patch[k]); }
       else if (k === 'font') { if (!FONTS[patch[k]] || patch[k] !== 'manrope' && PRIVATE_FONTS.indexOf(patch[k]) < 0) throw new Error('Unavailable font: ' + patch[k]); }
       else if (!LOOK_VALUES[k] || LOOK_VALUES[k].indexOf(patch[k]) < 0) throw new Error('Invalid appearance value: ' + k);
       out[k] = patch[k];
@@ -1723,7 +1845,7 @@
     function fail(type, reason) {
       if (token !== wallToken || failed) return;
       failed = true; S.pending = null; S.wallPending = null;
-      if (type === 'load') S.wallError = target.wall;
+      if (type === 'load' && !slideOf(target).live) S.wallError = target.wall;
       S.lookError = { type: type, reason: reason || null, patch: changes, row: opts.row || (type === 'font' ? 'font' : S.appearanceFocus), transient: !!opts.transient, wall: target.wall, font: target.font };
       if (type === 'font') log((opts.startup ? 'font fallback: ' : 'Font kept: ') + (opts.startup ? target.font : FONTS[S.c.font].name) + (opts.startup ? '' : ' (' + reason + ')'));
       if (type === 'font' && opts.startup && target.font !== 'manrope') { setLook({ font: 'manrope' }, { transient: true }); return; }
@@ -1734,7 +1856,7 @@
       if (document.hidden) { finish(loadedBundle); return; }
       window.requestAnimationFrame(function () { if (!failed && token === wallToken) finish(loadedBundle); });
     }
-    needs = target.bg === 'photo' && S.bundleKey !== bundleKey(target) && (!S.shown || S.shown.bg !== 'photo' || target.wall !== S.c.wall || materialApplies(target));
+    needs = target.bg === 'photo' && S.bundleKey !== bundleKey(target) && (!S.shown || S.shown.bg !== 'photo' || !S.bundleSlide || S.bundleSlide.key !== slideOf(target).key || materialApplies(target));
     needsFont = !fontMetrics[target.font]; imageDone = !needs; fontDone = !needsFont;
     if (!needs && !needsFont) { finish(null); return; }
     S.pending = { patch: changes, target: target, row: opts.row || (needsFont ? 'font' : S.appearanceFocus), transient: !!opts.transient, preview: false };
@@ -1753,7 +1875,7 @@
   }
   function showWall(id, done) {
     var target = lookOf(S.c), token;
-    target.bg = 'photo'; target.wall = id;
+    target.bg = 'photo'; target.wall = id; target.src = 'gallery'; // The picker previews gallery photos even while USB is the source.
     cancelLook(); token = wallToken; S.wallError = null;
     S.pending = { patch: { wall: id }, target: target, row: 'bg', preview: true, transient: false }; S.wallPending = id;
     loadBundle(target, token, function (bundle) {
@@ -1779,14 +1901,14 @@
   }
   function resetRotation() { pauseRotation(); activeMs = 0; rotationKey = ''; }
   function syncRotation() {
-    var key = S.c.wall + '|' + S.c.mode;
+    var key = slideOf(S.c).key + '|' + S.c.mode;
     pauseRotation();
     if (key !== rotationKey) { activeMs = 0; rotationKey = key; }
     if (!rotationActive()) return;
     activeSince = Date.now();
     rotationTimer = setTimeout(function () {
       pauseRotation(); activeMs = 0;
-      if (rotationActive()) setLook({ wall: WALLS[(wallIndex(S.c.wall) + 1) % WALLS.length].id }, { row: 'bg' });
+      if (rotationActive()) advanceSlide();
     }, Math.max(10, mode().min * QA.minuteMs - activeMs));
   }
   function updateClock() {
@@ -1878,6 +2000,7 @@
     if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
     else {
       release();
+      if (usbActive()) scanUsb();
       if (S.c.bg === 'photo' && !S.pending && !S.previewBundle && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
       refreshInputsOnReturn(); after(); updateClock(); focusStage();
     }
@@ -1893,6 +2016,9 @@
     out.catalog = { loading: catalog.loading, loaded: catalog.loaded, error: catalog.error, ids: ALPHA.slice() };
     out.fonts = { available: LOOK_VALUES.font.slice(), loaded: Object.keys(fontMetrics).filter(function (id) { return !fontMetrics[id].fallback; }), baselineFallback: !!(fontMetrics.manrope && fontMetrics.manrope.fallback), error: S.lookError && S.lookError.type === 'font' ? S.lookError : null };
     out.rotation = { activeMs: activeMs + (activeSince ? Date.now() - activeSince : 0), active: !!activeSince };
+    out.usb = { scanning: S.usb.scanning, loaded: S.usb.loaded, error: S.usb.error, drive: S.usb.drive,
+      count: S.usb.photos.length, names: S.usb.photos.map(function (s) { return s.name; }), at: usbReady() ? usbIndex(S.c) : 0,
+      slide: slideOf(S.c).id, summary: usbSummary() };
     out.draft = t.lifted ? { id: t.lifted.id, order: t.lifted.order.slice() } : null;
     out.settingsGroup = t.id === 'wallpaper' ? 'wallpaper' : t.id === 'appearance' ? t.group : null;
     out.focusedChoice = item && item.axis ? { axis: item.axis, value: item.value, action: item.action, disabled: item.disabled } : null;
@@ -1907,7 +2033,7 @@
     Array.prototype.forEach.call(active, function (el) { if (renderedAction(el)) { count++; if (el.getAttribute('data-action') === action) name = el.getAttribute('aria-label') || el.textContent.replace(/\s+/g, ' ').trim(); } });
     return { view: top().id, settingsGroup: top().id === 'wallpaper' ? 'wallpaper' : top().id === 'appearance' ? top().group : null, focus: name, focusAction: action, focusCount: count, wallpaper: S.wallShown, zone: top().f.zone || null };
   };
-  QA.ready = function () { return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === S.c.wall && S.shown.font === S.c.font; };
+  QA.ready = function () { var slide = slideOf(S.c); return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === slide.id && S.shown.material === S.c.material && S.shown.font === S.c.font; };
   QA.nav = function () { var keys = arguments.length === 1 && Array.isArray(arguments[0]) ? arguments[0] : Array.prototype.slice.call(arguments); keys.forEach(function (key) { if (!NAV[key]) throw new Error('Unknown key'); press(NAV[key]); }); return QA.state(); };
   QA.look = function (patch) { setLook(patch, {}); return QA.state(); };
   QA.scene = function (name) { if (['home', 'apps', 'settings', 'appearance', 'editor'].indexOf(name) < 0) throw new Error('Unknown view'); goScene(name); return QA.state(); };
@@ -1917,6 +2043,11 @@
   /* ---------- Start ---------- */
   cueL.innerHTML = icon('left'); cueR.innerHTML = icon('right');
   initialise();
-  setLook({}, { transient: true, startup: true });
+  FrameDevice.watchStorage(function () { if (!document.hidden) scanUsb(true); });
+  if (usbActive()) {
+    // Wait briefly for the drive so start-up does not flash a gallery photo; the scan's own reconcile shows the result.
+    scanUsb();
+    setTimeout(function () { if (!S.shown && !S.pending) setLook({}, { transient: true, startup: true }); }, 1500);
+  } else setLook({}, { transient: true, startup: true });
   norm(); render(); fit(); focusStage(); updateClock(); syncRotation();
 })();

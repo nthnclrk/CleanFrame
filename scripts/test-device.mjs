@@ -5,9 +5,9 @@ import vm from 'node:vm';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../app/device.js', import.meta.url), 'utf8');
-function harness({ supported = true, throwSource = false } = {}) {
+function harness({ supported = true, throwSource = false, storages, folders, storageFailure, holdStorage = false, throwList, noFilesystem = false } = {}) {
   let now = 0, next = 0;
-  const timers = new Map(), requests = [], launches = [], sourceRequests = [], changes = [];
+  const timers = new Map(), requests = [], launches = [], sourceRequests = [], changes = [], dirs = [], storageRequests = [], listeners = [];
   let current = { type: 'HDMI', number: 2 };
   const application = {
     getCurrentApplication: () => ({ appInfo: { id: 'Owner12345.Home' } }),
@@ -20,6 +20,20 @@ function harness({ supported = true, throwSource = false } = {}) {
     window.tizen.tvwindow = { getSource: (...args) => { assert.equal(args.length, 0); return current; },
       setSource: (source, ok, fail) => { if (throwSource) throw Error('Synthetic SDK failure'); changes.push({ source, ok, fail }); } };
   }
+  if (!noFilesystem) {
+    window.tizen.filesystem = {
+      listStorages: (ok, fail) => { storageRequests.push({ ok, fail }); if (!storageFailure && !holdStorage) ok((storages || []).map(unit => ({ ...unit }))); },
+      listDirectory: (path, ok, fail) => {
+        dirs.push({ path });
+        if (throwList) throw Error('Synthetic directory failure');
+        const entries = folders && folders[path];
+        if (!entries) fail({ name: 'NotFoundError', message: 'No ' + path });
+        else ok(entries.slice());
+      },
+      toURI: path => 'file:///opt/media/USBDriveA1/' + path,
+      addStorageStateChangeListener: cb => { listeners.push(cb); return listeners.length; }
+    };
+  }
   vm.runInNewContext(source, {
     window, tizen: window.tizen,
     setTimeout: (callback, delay) => { const id = ++next; timers.set(id, { callback, at: now + delay }); return id; },
@@ -29,7 +43,7 @@ function harness({ supported = true, throwSource = false } = {}) {
     now += ms;
     for (const [id, timer] of timers) if (timer.at <= now) { timers.delete(id); timer.callback(); }
   }
-  return { device: window.FrameDevice, requests, launches, sourceRequests, changes, advance, setCurrent: value => { current = value; } };
+  return { device: window.FrameDevice, requests, launches, sourceRequests, changes, dirs, storageRequests, listeners, advance, setCurrent: value => { current = value; } };
 }
 
 test('a 500-app catalogue can arrive after the old eight-second deadline', () => {
@@ -160,4 +174,94 @@ test('unknown and invalid ports cannot be substituted and a newer request cancel
   assert.equal(results[0].cancelled, true);
   h.sourceRequests[0].ok(video); assert.equal(h.changes.length, 0);
   h.sourceRequests[1].ok(video); assert.equal(h.changes[0].source.number, 2);
+});
+
+const MOUNTED = [{ label: 'internal0', type: 'INTERNAL', state: 'MOUNTED' },
+  { label: 'removable_sdb2', type: 'EXTERNAL', state: 'MOUNTED' },
+  { label: 'removable_sda1', type: 'EXTERNAL', state: 'MOUNTED' }];
+// Results come from the adapter's context, so compare plain JSON rather than identities.
+const json = value => JSON.stringify(JSON.parse(JSON.stringify(value)));
+
+test('USB pictures come from the CleanFrame folder in a stable, filtered order', () => {
+  const h = harness({ storages: MOUNTED, folders: {
+    'removable_sda1/CleanFrame': ['IMG_02.jpg', 'IMG_10.JPG', 'notes.txt', 'IMG_01.jpeg', 'shot.webp', 'frame.BMP', '.jpg']
+  } }), results = [];
+  h.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(results.length, 1);
+  assert.equal(results[0].error, null);
+  const scan = JSON.parse(json(results[0].value));
+  assert.equal(scan.drive, 'removable_sda1');
+  assert.deepEqual(scan.photos.map(p => p.name), ['frame.BMP', 'IMG_01.jpeg', 'IMG_02.jpg', 'IMG_10.JPG', 'shot.webp']);
+  assert.equal(scan.photos[1].uri, 'file:///opt/media/USBDriveA1/removable_sda1/CleanFrame/IMG_01.jpeg');
+  assert.equal(h.dirs[0].path, 'removable_sda1/CleanFrame');
+});
+
+test('only the CleanFrame folder is read, on each mounted drive in turn', () => {
+  const results = [];
+  const elsewhere = harness({ storages: MOUNTED, folders: { 'removable_sda1/Photos': ['a.jpg'], 'removable_sda1/': ['b.jpg'] } });
+  elsewhere.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(json(results[0].value), json({ drive: 'removable_sda1', photos: [] }), 'pictures outside CleanFrame are ignored');
+  assert.deepEqual(elsewhere.dirs.map(d => d.path), ['removable_sda1/CleanFrame', 'removable_sdb2/CleanFrame']);
+  const second = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['notes.txt'], 'removable_sdb2/CleanFrame': ['z.png'] } });
+  second.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(results[1].value.drive, 'removable_sdb2');
+  assert.deepEqual(JSON.parse(json(results[1].value.photos)), [{ name: 'z.png', uri: 'file:///opt/media/USBDriveA1/removable_sdb2/CleanFrame/z.png' }]);
+});
+
+test('only mounted external storage counts and no drive is an empty slideshow, not an error', () => {
+  for (const storages of [[{ label: 'internal0', type: 'INTERNAL', state: 'MOUNTED' }],
+    [{ label: 'removable_sda1', type: 'EXTERNAL', state: 'REMOVED' }], []]) {
+    const h = harness({ storages }), results = [];
+    h.device.usbPhotos((error, value) => results.push({ error, value }));
+    assert.equal(results.length, 1);
+    assert.equal(results[0].error, null);
+    assert.equal(json(results[0].value), json({ drive: '', photos: [] }));
+    assert.equal(h.storageRequests.length, 1);
+    assert.equal(h.dirs.length, 0);
+  }
+});
+
+test('a denied API and a silent TV each give one honest error', () => {
+  const denied = harness({ storages: MOUNTED, storageFailure: true }), results = [];
+  denied.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(results.length, 0);
+  denied.storageRequests[0].fail({ name: 'SecurityError', message: 'Storage is busy' });
+  assert.equal(results.length, 1);
+  assert.match(results[0].error.message, /USB drive could not be read/i);
+  assert.match(results[0].error.detail, /Storage is busy/);
+  const preview = harness({ supported: false, noFilesystem: true }), previewResults = [];
+  preview.device.usbPhotos((error, value) => previewResults.push({ error, value }));
+  assert.equal(previewResults.length, 1);
+  assert.match(previewResults[0].error.message, /Open CleanFrame on the TV/);
+  assert.match(previewResults[0].error.detail, /preview/);
+  const silent = harness({ storages: MOUNTED, holdStorage: true }), late = [];
+  silent.device.usbPhotos((error, value) => late.push({ error, value }));
+  silent.advance(11999);
+  assert.equal(late.length, 0);
+  silent.advance(1);
+  assert.equal(late.length, 1);
+  assert.match(late[0].error.message, /did not respond/);
+  silent.storageRequests[0].ok(MOUNTED);
+  assert.equal(late.length, 1);
+});
+
+test('an unreadable folder moves on to the next drive and resolves once', () => {
+  const h = harness({ storages: MOUNTED, folders: { 'removable_sda1/CleanFrame': ['a.jpg'] }, throwList: true }), results = [];
+  h.device.usbPhotos((error, value) => results.push({ error, value }));
+  assert.equal(results.length, 1);
+  assert.equal(results[0].error, null);
+  assert.equal(results[0].value.photos.length, 0);
+  assert.equal(h.dirs.length, 2);
+});
+
+test('a storage listener reports drive changes and is optional', () => {
+  const h = harness({ storages: MOUNTED });
+  let seen = 0;
+  h.device.watchStorage(() => { seen++; });
+  assert.equal(h.listeners.length, 1);
+  h.listeners[0]({ label: 'removable_sdc3', state: 'MOUNTED' });
+  h.listeners[0](null);
+  assert.equal(seen, 2);
+  const preview = harness({ noFilesystem: true });
+  assert.doesNotThrow(() => preview.device.watchStorage(() => {}));
 });
