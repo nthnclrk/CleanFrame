@@ -584,6 +584,31 @@ test('home.app runs the helper in Home mode from its own root folder, restarted 
   } finally { rmSync(sh.bin, { recursive: true, force: true }); }
 });
 
+test('a Home helper start that fails (root shell not back yet) is retried until it works, and stop() ends the retries', async () => {
+  let fails = 2, starts = 0;
+  const execute = async cmd => {
+    if (!cmd.includes('--unit=cleanframe-home')) return ok;
+    starts++;
+    if (fails-- > 0) throw Error('agent not connected');
+    return ok;
+  };
+  await withBridge({ config: { home: { app: 'fRnosDXxcr.CleanFrame' } }, execute, homeRetryMs: 20 }, async ({ bridge }) => {
+    await until(() => bridge.status().home.running);
+    assert.equal(starts, 3); assert.deepEqual(bridge.status().home, { configured: true, running: true, error: null });
+    assert.equal(bridge._test.homeRetrying(), false);
+  });
+  // Failing for good: stop() clears the pending retry, so nothing runs after the bridge is gone.
+  starts = 0; fails = Infinity;
+  let stopped;
+  await withBridge({ config: { home: { app: 'fRnosDXxcr.CleanFrame' } }, execute, homeRetryMs: 20 }, async ({ bridge }) => {
+    await until(() => starts >= 2 && bridge._test.homeRetrying());
+    assert.equal(bridge.status().home.error, 'Home helper start failed');
+    await bridge.stop(); stopped = starts;
+    assert.equal(bridge._test.homeRetrying(), false);
+  });
+  await sleep(150); assert.equal(starts, stopped);
+});
+
 test('without a valid home.app the bridge never runs or stops a Home helper', async () => {
   for (const home of [undefined, {}, { app: 'CleanFrame' }, { app: "fRnosDXxcr.Clean'Frame" }, { app: 42 }]) {
     await withBridge({ config: home ? { home } : {} }, async ({ bridge, calls }) => {

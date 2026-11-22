@@ -403,22 +403,30 @@ function moduleFactory(ctx) {
      With private config home.app set, the same program runs in Home mode from its own root
      folder: it claims the remote's Home key, so Samsung's Home never flashes up, and opens the
      app. systemd restarts it if it dies; stopping the bridge stops it and Samsung gets the key back. */
-  var homeState = { running: false, error: null };
+  // A start can fail when the bridge comes up before Vetro's root shell has reconnected (after a
+  // TV restart or a Vetro update), so a failed start is tried again until it works.
+  var homeState = { running: false, error: null }, homeTimer = null, homeRetry = ctx.homeRetryMs || 5000, homeWait = homeRetry;
   function homeConfig() {
     var app = ((ctx.config.get() || {}).home || {}).app;
     return typeof app === 'string' && /^[A-Za-z0-9]{10}\.[A-Za-z0-9_-]{1,64}$/.test(app) ? app : null;
   }
   function homeStart() {
     var app = homeConfig(), g = generation;
-    homeState.running = false; homeState.error = null;
+    homeTimer = null; homeState.running = false; homeState.error = null;
     if (!app) return Promise.resolve(false);
     if (!pipHashes) { homeState.error = 'Home helper not installed'; return Promise.resolve(false); }
     return execute(rootRun('cleanframe-home', ctx.homeRoot || HOME_ROOT, pipDir(), pipHashes, '--home ' + quote(app), '-p Restart=always -p RestartSec=2 -p KillSignal=SIGKILL'))
-      .then(function () { if (g === generation) homeState.running = true; return true; },
-        function () { if (g === generation) homeState.error = 'Home helper start failed'; return false; });
+      .then(function () { if (g === generation) { homeState.running = true; homeWait = homeRetry; } return true; },
+        function () {
+          if (g !== generation) return false;
+          homeState.error = 'Home helper start failed';
+          if (running && !homeTimer) { homeTimer = setTimeout(homeStart, homeWait); homeWait = Math.min(homeWait * 2, 60000); }
+          return false;
+        });
   }
   function homeStop() {
     var was = homeState.running || !!homeConfig();
+    clearTimeout(homeTimer); homeTimer = null; homeWait = homeRetry;
     homeState.running = false;
     return was ? execute(stopRun('cleanframe-home', ctx.homeRoot || HOME_ROOT)).catch(function () { /* Best effort. */ }) : Promise.resolve();
   }
@@ -572,7 +580,7 @@ function moduleFactory(ctx) {
     status: function () { return { running: running, keyed: !!keyDigest, available: !!current, refreshing: !!inflight, error: lastError ? 'Art unavailable' : null, look: look, lookError: lookError, doorbell: { listening: pipState.connected, configured: !!pipConfig().stream, error: pipState.installError || pipState.lastError }, home: { configured: !!homeConfig(), running: homeState.running, error: homeState.error } }; },
     route: function (req, res) { res.writeHead(404); res.end(); },
     // Offline harness hooks; Vetro never calls these.
-    _test: { unpackPip: unpackPip, ring: ring, homeStart: homeStart, pipDir: pipDir, pipHashes: function () { return pipHashes; }, mqttTimers: function () { return { retry: !!mqTimer, ping: !!mqPing, socket: !!mq }; } }
+    _test: { unpackPip: unpackPip, ring: ring, homeStart: homeStart, homeRetrying: function () { return !!homeTimer; }, pipDir: pipDir, pipHashes: function () { return pipHashes; }, mqttTimers: function () { return { retry: !!mqTimer, ping: !!mqPing, socket: !!mq }; } }
   };
 }
 module.exports = moduleFactory;
