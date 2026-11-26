@@ -11,5 +11,9 @@
   <tizen:privilege name="http://tizen.org/privilege/application.info"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
+  <!-- Minimal weather only: approximate location (GeoJS) and forecast (Open-Meteo), over HTTPS. -->
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <access origin="https://get.geojs.io" subdomains="false"/>
+  <access origin="https://api.open-meteo.com" subdomains="false"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>

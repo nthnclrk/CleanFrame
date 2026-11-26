@@ -300,8 +300,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 
 /* Settings overview: each group carries one short, committed summary. */
 .settings-overview{position:absolute;left:112px;top:212px;width:1056px}
-.settings-group{width:100%;height:112px;padding:12px 32px 12px 28px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;color:var(--ink);transition:background-color 140ms linear,color 140ms linear}
-.settings-group+.settings-group{margin-top:8px}
+.settings-group{width:100%;height:100px;padding:7px 32px 7px 28px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;color:var(--ink);transition:background-color 140ms linear,color 140ms linear}
+.settings-group+.settings-group{margin-top:4px}
 .settings-group-copy{min-width:0;display:flex;flex-direction:column}
 .settings-group-name{font-size:40px;line-height:48px;font-weight:500;letter-spacing:-.6px}
 .settings-group-value{font-size:26px;line-height:34px;color:var(--mute);white-space:nowrap}
@@ -633,3 +633,56 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .l-list .quiet-utils.is-text .u-content>*+*{margin-left:0;margin-right:0}
 .quiet-utils.is-text .u-content>*+*{margin-left:0}
 .l-list .quiet-utils.is-text .u .u-content>*+*{margin-right:0}
+
+/* ---------- Minimal: cinematic wallpaper, oversized clock and date ----------
+   Minimal carries both l-list (its navigation and app column) and l-minimal (this composition).
+   No live blur or blending: a static veil, translucent ink and an optional pre-rendered foreground matte. */
+.wall-video{position:absolute;left:0;top:0;width:1920px;height:1080px;max-width:none;object-fit:cover;object-position:50% 50%;opacity:0;visibility:hidden;transition:opacity 1200ms var(--ease),visibility 0s linear 1200ms}
+.wall-video.is-playing{opacity:1;visibility:visible;transition:opacity 1200ms var(--ease),visibility 0s}
+.lock,.lock-veil{display:none}
+.l-minimal .lock{display:block;position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;color:#fff}
+.l-minimal .lock-date,.l-minimal .lock-time{animation:lock-in 1100ms var(--ease) both}
+.l-minimal .lock-time{animation-delay:80ms}
+.bg-photo.l-minimal .lock-veil{display:block;position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;background:radial-gradient(ellipse 1200px 420px at 960px 330px,rgba(6,8,10,.14),rgba(6,8,10,.05) 60%,rgba(6,8,10,0)),linear-gradient(to right,rgba(6,8,10,.24),rgba(6,8,10,0) 380px),radial-gradient(ellipse 760px 360px at 1720px 960px,rgba(6,8,10,.26),rgba(6,8,10,0))}
+.bg-photo.l-minimal.tone-light .lock-veil{background:radial-gradient(ellipse 1200px 420px at 960px 330px,rgba(6,8,10,.26),rgba(6,8,10,.10) 60%,rgba(6,8,10,0)),linear-gradient(to right,rgba(6,8,10,.32),rgba(6,8,10,0) 380px),radial-gradient(ellipse 760px 360px at 1720px 960px,rgba(6,8,10,.34),rgba(6,8,10,0))}
+/* Minimal replaces the List and Dock furniture and their photo shades with its own column, clock and corner. */
+.bg-photo.l-minimal .bg>.shade,.bg-photo.l-minimal .bg>.scrim,.bg-photo.l-minimal .bg>.ut-dim,.l-minimal .caption,.l-minimal .utils,.l-minimal .util-focus-label,.l-minimal .app-focus-name,.l-minimal .ut-lens,.l-minimal .dock,.l-minimal .cue,.l-minimal .dock-action,.l-minimal .ph-scene{display:none}
+.lock-date{position:absolute;left:0;top:126px;width:1920px;padding-left:.55em;text-align:center;white-space:nowrap;font-family:var(--font-ui-family),Manrope,Arial,sans-serif;font-size:28px;line-height:32px;font-weight:400;letter-spacing:.55em;color:rgba(255,255,255,.92);text-shadow:0 1px 16px rgba(0,0,0,.16)}
+.lock-time{position:absolute;left:0;top:171px;width:1920px;text-align:center;white-space:nowrap;font-family:var(--font-thin-family),Manrope,Arial,sans-serif;font-weight:var(--font-thin-weight);font-size:433px;line-height:433px;letter-spacing:-.022em;padding-right:.022em;font-variant-numeric:lining-nums;--lock-ink:rgba(255,255,255,.9);color:var(--lock-ink)}
+.lock-colon{position:relative;display:inline-block;width:.3em;text-align:center;color:transparent}
+.lock-colon i{position:absolute;left:50%;width:.083em;height:.083em;margin-left:-.0415em;border-radius:50%;background:var(--lock-ink)}
+.lock-colon i:first-child{top:.31em}
+.lock-colon i+i{top:.638em}
+.font-newsreader .lock-time{font-variation-settings:"opsz" 72;font-optical-sizing:none}
+.lock-depth{position:absolute;left:0;top:0;width:1920px;height:1080px;max-width:none;object-fit:cover;object-position:50% 50%;opacity:0;visibility:hidden;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;transition:opacity 700ms var(--ease),visibility 0s linear 700ms}
+.lock-depth.is-ready{opacity:1;visibility:visible;transition:opacity 700ms var(--ease),visibility 0s}
+.bg-light.l-minimal .lock{color:#141618}
+.bg-light.l-minimal .lock-date{color:rgba(20,22,24,.72);text-shadow:none}
+.bg-light.l-minimal .lock-time{--lock-ink:rgba(20,22,24,.62)}
+.bg-dark.l-minimal .lock-date{text-shadow:none}
+.bg-dark.l-minimal .lock-time{--lock-ink:rgba(255,255,255,.78)}
+@keyframes lock-in{from{opacity:0;transform:translate3d(0,10px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+/* Reduced motion: the global stage rule removes these transitions, and main.js keeps the still in place of video. */
+
+/* Minimal icon column: monochrome marks, no plates or names. Focus brightens and enlarges the mark. */
+.mc-item{position:absolute;left:37px;width:120px;display:flex;align-items:center;justify-content:center;color:#fff;opacity:.74;pointer-events:auto;transition:opacity 260ms var(--ease),transform 260ms var(--ease)}
+.mc-item.is-focus{opacity:1;transform:scale(1.22)}
+.mc-item .ico{width:38px;height:38px;stroke-width:1.4}
+.mc-monogram{display:flex;align-items:center;justify-content:center;width:96px;height:52px;font-size:30px;line-height:1;font-weight:500;letter-spacing:.04em;color:currentColor;background:none}
+.bg-light.l-minimal .mc-item{color:#141618}
+@media(prefers-reduced-motion:reduce){.mc-item.is-focus{transform:none!important}}
+
+/* Minimal weather corner, right edge 72px in, as in the design reference. No container. */
+.lock-weather{display:none;position:absolute;right:72px;top:858px;color:#fff;text-align:right;white-space:nowrap;text-shadow:0 1px 14px rgba(0,0,0,.18);animation:lock-in 900ms var(--ease) both}
+.lock-weather.is-on{display:block}
+.lw-main{display:flex;align-items:center;justify-content:flex-end}
+.lw-icon{flex:none;width:92px;height:92px;fill:none;stroke:currentColor;stroke-width:1.05;stroke-linecap:round;stroke-linejoin:round}
+.lw-rule{flex:none;width:2px;height:88px;margin-left:30px;margin-right:36px;background:rgba(255,255,255,.62)}
+.lw-now{display:block;text-align:left}
+.lw-temp{display:block;font-family:var(--font-thin-family),Manrope,Arial,sans-serif;font-weight:400;font-size:72px;line-height:72px;letter-spacing:-.01em}
+.lw-place{display:block;margin-top:2px;padding-left:.1em;font-family:var(--font-ui-family),Manrope,Arial,sans-serif;font-size:21px;line-height:26px;font-weight:400;letter-spacing:.4em}
+.lw-detail{margin-top:26px;margin-right:-.24em;font-family:var(--font-ui-family),Manrope,Arial,sans-serif;font-size:21px;line-height:26px;font-weight:400;letter-spacing:.24em}
+.lw-detail span+span{margin-left:.9em}
+.bg-light.l-minimal .lock-weather{color:#141618;text-shadow:none}
+.bg-light.l-minimal .lw-rule{background:rgba(20,22,24,.4)}
+

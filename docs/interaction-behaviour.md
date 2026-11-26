@@ -3,6 +3,7 @@
 ## Home
 
 - Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
+- Minimal: the iOS lock-screen-style layout from the design reference. A single column of small monochrome app marks sits vertically centred on the left, followed after a small gap by Art Mode, All apps and Settings. There are no plates and no visible names; each item keeps its accessible name. Up/Down runs through the apps and on into the controls without wrapping. Left or Back from a control returns to the selected app; Back from an app opens the Samsung Home choice. Focus brightens and enlarges the mark; with reduced motion it only brightens. Brand marks draw through their masks; other apps show their initials rather than a coloured installed icon. The date and clock are centred above the photo, and weather sits in the bottom-right corner.
 - List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
 - OK opens the selected item. Focus alone never launches an app.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
@@ -12,20 +13,21 @@
 
 ## Settings and appearance
 
-Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps on Home and Samsung. OK opens a group. Appearance groups use a two-pane screen with visible choices on the left and the committed Home preview on the right.
+Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps on Home, Weather and Samsung. OK opens a group. Appearance groups use a two-pane screen with visible choices on the left and the committed Home preview on the right.
 
 | Group | Choices |
 | --- | --- |
 | Background | Photo, Light, Dark; Wallpaper and Rotation when Photo is active |
-| Layout | List or Dock; independent Text, Icons or Both choices for apps and Home controls |
+| Layout | List, Dock or Minimal; independent Text, Icons or Both choices for apps and Home controls |
 | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
 | Focus | Type or Glass; Soft, Frost or Clear tint material |
 | Apps on Home | Membership and arrangement editor |
+| Weather | On or Off; °C or °F, inactive while weather is off |
 | Samsung | Samsung Home, TV settings and Inputs |
 
 Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. Wallpaper has its own temporary photo preview, described below. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
 
-Material applies to a photographic Dock, or Glass focus on a photographic List. Inactive material choices remain visible with an explanation and are skipped during navigation. Their stored value is retained. Wallpaper and rotation are also inactive on flat backgrounds.
+Material applies to a photographic Dock, or Glass focus on a photographic List. Minimal has no focus plates, so it uses no material whatever the Focus choice. Inactive material choices remain visible with an explanation and are skipped during navigation. Their stored value is retained. Wallpaper and rotation are also inactive on flat backgrounds.
 
 A font or photo change applies only after its resources are ready and storage succeeds. A load or storage failure keeps the previous appearance and checkmark, with a Try again action. Back cancels a pending change, leaves the group and keeps completed changes. Late load callbacks cannot apply a cancelled choice. There is no Save button. Returning to a group restores its last choice focus; returning to Settings restores its category focus. Rotation is nested within Background, and Back returns to its Rotation row.
 
@@ -89,9 +91,19 @@ Launcher wallpaper is separate from native Art Mode. Runtime photos, materials a
 
 The native Home operation and startup configuration from 19 October remain separate from this app update. Home from Netflix was confirmed for that configuration; power-on after Netflix remains provisional. Streaming apps retain their own Back navigation. Netflix did not exit on repeated Back in the observed test, so there was no app-exit destination to verify. No global Back interception or key-filter hook was installed. See [TV status](tv-status.md) for device evidence; this behaviour specification is not an installation or visual-verification record for 0.6.0.
 
+## Minimal weather
+
+Weather is on by default and appears only in the Minimal layout. While Minimal is visible with weather on, the app looks up an approximate location from the TV's internet address through [GeoJS](https://www.geojs.io/) (kept for a day) and current conditions with today's high and low from [Open-Meteo](https://open-meteo.com/) (refreshed every 30 minutes). Both are HTTPS requests with a 10-second limit. Nothing is requested in List or Dock, with weather off, or while the launcher is hidden, including hidden startup. The last reading and place are cached under the separate local key `cleanframe.weather.v1` and shown for up to three hours. Changing °C/°F converts the cached reading without a new request.
+
+The corner shows a line icon, the temperature with the place below it, and the condition with the high and low, for example SUNNY H: 30° L: 22°. Without a usable reading the corner stays empty and Home is unaffected; Settings → Weather then says weather is unavailable. Place names are shown as text only. The location is approximate and may name a nearby city or the internet provider's location. The TV build needs the internet privilege and the two HTTPS origins declared in `config.xml`; this has not yet been checked on the reference TV.
+
 ## Clock and rendering
 
-Both layouts show the TV's local time in 12-hour format, without AM/PM or seconds. It updates at the minute boundary and on return to the launcher. No date or clock panel is shown.
+List and Dock show the TV's local time in 12-hour format, without AM/PM or seconds; Minimal uses 24-hour time. It updates at the minute boundary and on return to the launcher. List and Dock show no date.
+
+Minimal follows the design reference: a centred 24-hour clock (for example 16:24) at 433px in the thinnest available weight of the Home font, with proportional figures and a colon drawn as two round dots. Manrope uses its bundled 200 weight through the `Manrope Clock` face. Above it sits the date as an uppercase weekday, day and month with wide tracking (for example THURSDAY, 26 NOVEMBER). List and Dock keep their 12-hour clock. Day and month names are fixed English strings rather than TV locale output. The date and clock fade and rise in once when Minimal appears; minute changes are not animated. A light static veil behind them replaces List's full-frame dims on photos; flat Light and Dark backgrounds use matching translucent ink.
+
+A wallpaper may declare an optional `depth` mask and `video` loop in `catalog.js`. Alpine glow has a depth mask; no wallpaper has a video yet. The depth layer is the wallpaper photo itself, shown above the clock and below the apps and controls through the mask, so the foreground subject stands in front of the time. The video is muted, looped and inline; it fades in over the still only once frames are playing, and only on visible Home in Minimal with Type focus. Settings and other panels, wallpaper previews, a hidden launcher, a pending appearance change, Glass focus (whose materials come from the still) and reduced motion all show the still instead. A missing or undecodable video leaves the still in place for that wallpaper. Neither layer is computed on the TV.
 
 Photographic materials and blurred panel backgrounds are generated before packaging and stay aligned with the full-screen image. Photo colour and contrast metadata are also prepared offline. Navigation does not sample image pixels, run an optics engine or apply live backdrop blur. Flat backgrounds use matching light or dark panel colours. Focus feedback uses transforms and opacity; reduced motion removes animated scaling and movement while retaining opacity feedback.
 

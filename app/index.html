@@ -14,6 +14,8 @@
         <div class="scene" id="scene">
         <div class="bg" id="bg" aria-hidden="true">
           <img class="photo" id="photo" alt="">
+          <video class="wall-video" id="wallVideo" preload="none" muted loop playsinline></video>
+          <div class="lock-veil"></div>
           <div class="scrim"></div>
           <div class="shade"></div>
           <div class="ph-dim"></div>
@@ -23,6 +25,13 @@
         </div>
 
         <div class="home" id="home">
+          <div class="lock" id="lock">
+            <div class="lock-date" id="lockDate"></div>
+            <div class="lock-time" id="lockTime"></div>
+            <img class="lock-depth" id="lockDepth" alt="" aria-hidden="true">
+            <nav class="mc-column" id="lockColumn" aria-label="Apps and Home controls"></nav>
+            <div class="lock-weather" id="lockWeather" role="img"></div>
+          </div>
           <div class="caption" id="caption"></div>
           <nav class="utils" id="utils" aria-label="Home controls"></nav>
           <div class="util-focus-label" id="utilFocusLabel" aria-hidden="true"></div>
@@ -91,6 +100,8 @@
 <script src="assets/wallpapers/catalog.js"></script>
 <script src="assets/adaptive-ink.js"></script>
 <script src="assets/font-catalog.js"></script>
+<script src="weather.js"></script>
+<script src="minimal.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
