@@ -225,6 +225,7 @@ window.CleanFrameWallpapers = [
     "frostVeil": 0.2,
     "listColumn": 0,
     "dockQuiet": false,
-    "clockMist": false
+    "clockMist": false,
+    "depth": "assets/wallpapers/alpine-depth.png"
   }
 ];

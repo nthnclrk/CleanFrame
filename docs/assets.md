@@ -21,6 +21,15 @@ All fields use the centred 1920 x 1080 crop. The small panel backdrop comes from
 
 `app/assets/wallpapers/catalog.js` stores names and surface parameters; `app/assets/adaptive-ink.js` stores offline colour choices. New photographs need a rendered review of their List, Dock, clock, controls and all three materials before their metadata is accepted. An average image colour alone does not establish readable text.
 
+## Minimal depth mattes and wallpaper video
+
+Both are optional catalogue fields on a wallpaper entry in `app/assets/wallpapers/catalog.js`, and `npm run check` rejects a declared file that is missing.
+
+- `depth`: `assets/wallpapers/<id>-depth.png`, a 1920 x 1080 PNG whose alpha marks the photo's foreground (colour is ignored). The runtime shows `<id>.jpg` through it above the clock, so it is always registered to the photo and stays small (Alpine's is 16 KB). `python3 scripts/build-depth-masks.py alpine` traces a skyline against a smooth sky and writes the mask plus a review composite to ignored `.local/materials/depth/`; review it at the clock position before copying it in. The trace suits clean skies only: Summit was rejected because its shaded slopes match its hazy sky, so it needs a hand-cut mask. Keep it within the same crop as every other asset for that photo.
+- `video`: `assets/wallpapers/<id>.mp4` (H.264, the TV's dependable codec) or `.webm`, a seamless 1920 x 1080 loop whose first frame matches `<id>.jpg`, which remains the poster, fallback and material source. Keep it short and modest in bitrate, as it is bundled in the widget. A matte stays valid only if the video's foreground does not move.
+
+Record the source and licence for any new video or matte with the photo credits, and run the browser checks; they exercise both paths with synthetic media generated in the page.
+
 ## Icon metrics
 
 `node scripts/build-icon-metrics.mjs` measures the SVGs in an aspect-preserved 240px viewport, matching the CSS mask renderer. Output is ignored `.local/materials/metrics.js`; review before copying it into `app/assets/icons/metrics.js`. The TV reads these bounds and does not scan icon pixels.

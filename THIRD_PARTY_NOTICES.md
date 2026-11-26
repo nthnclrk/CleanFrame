@@ -28,6 +28,10 @@ The fifteen photo pages were individually checked on 20 October 2026. Each displ
 
 Photographers retain their rights. Wallpapers, thumbnails, panel backgrounds and material fields derive from the credited photographs and retain their terms. The Unsplash licence permits copying, modification and distribution subject to its restrictions, including on selling unmodified images and building a competing image service.
 
+## Weather services
+
+The Minimal layout requests weather data from [Open-Meteo](https://open-meteo.com/), published under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); attribution: "Weather data by Open-Meteo.com". Settings → Weather credits it on screen. Approximate location comes from [GeoJS](https://www.geojs.io/). No weather data or location is bundled; both services set their own terms and availability, and Open-Meteo's free API is offered for non-commercial use.
+
 ## Development dependencies and exports
 
 Development dependencies retain the licences in their npm packages. They are not copied into the TV JavaScript runtime.

@@ -36,17 +36,17 @@
   var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = { minuteMs: window.ShoreQA && window.ShoreQA.minuteMs || 60000 };
   var FONTS = {
-    manrope: { name: 'Manrope', family: 'Manrope', display: 600, ui: 500, clock: 500 },
-    montreal: { name: 'Neue Montreal', family: 'Study Montreal', display: 300, ui: 400, clock: 300 },
-    mori: { name: 'Mori', family: 'Study Mori', display: 200, ui: 400, clock: 200 },
-    pangram: { name: 'Pangram Sans', family: 'Study Pangram', display: 300, ui: 400, clock: 300 },
-    geist: { name: 'Geist', family: 'Study Geist', display: 300, ui: 400, clock: 300 },
-    newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400 }
+    manrope: { name: 'Manrope', family: 'Manrope', display: 600, ui: 500, clock: 500, thin: 200, thinFamily: 'Manrope Clock' },
+    montreal: { name: 'Neue Montreal', family: 'Study Montreal', display: 300, ui: 400, clock: 300, thin: 300 },
+    mori: { name: 'Mori', family: 'Study Mori', display: 200, ui: 400, clock: 200, thin: 200 },
+    pangram: { name: 'Pangram Sans', family: 'Study Pangram', display: 300, ui: 400, clock: 300, thin: 300 },
+    geist: { name: 'Geist', family: 'Study Geist', display: 300, ui: 400, clock: 300, thin: 300 },
+    newsreader: { name: 'Newsreader', family: 'Study Newsreader', display: 400, ui: 400, clock: 400, thin: 400 }
   };
   var PRIVATE_FONTS = window.CleanFramePrivateFontIDs || [], fontMetrics = {}, unavailableFonts = {}, widthCache = {}, fontRevision = 0, fontsReady = false;
-  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
-  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
-  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
+  var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock', 'minimal'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'], weather: ['on', 'off'], units: ['c', 'f'] };
+  var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material', weather: 'Weather', units: 'Units' };
+  var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', minimal: 'Minimal', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text', on: 'On', off: 'Off', c: '\u00b0C', f: '\u00b0F' };
   var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
@@ -85,8 +85,10 @@
     for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === v) return list[i];
     return fallback;
   }
-  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material }; }
-  function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && (c.layout === 'dock' || c.focus === 'glass'); }
+  function lookOf(c) { return { bg: c.bg, wall: c.wall, layout: c.layout, apps: c.apps, font: c.font, controls: c.controls, focus: c.focus, material: c.material, weather: c.weather, units: c.units }; }
+  function listNav(c) { c = c || S.c; return c.layout === 'list'; }
+  /* Minimal has no focus plates, so it never uses glass materials (and its video can always play). */
+  function materialApplies(c) { c = c || S.c; return c.bg === 'photo' && c.layout !== 'minimal' && (c.layout === 'dock' || c.focus === 'glass'); }
 
   /* ---------- Helpers ---------- */
   function app(id) { for (var i = 0; i < APPS.length; i++) if (APPS[i].id === id) return APPS[i]; return null; }
@@ -344,7 +346,7 @@
       bg: pick(modern.bg, LOOK_VALUES.bg, legacyList ? 'dark' : 'photo'), layout: pick(modern.layout, LOOK_VALUES.layout, legacyList ? 'list' : 'dock'),
       apps: pick(modern.apps, LOOK_VALUES.apps, legacyList ? 'text' : 'both'), controls: pick(modern.controls, LOOK_VALUES.controls, 'both'),
       focus: pick(modern.focus, LOOK_VALUES.focus, legacyList ? 'type' : 'glass'), material: pick(modern.material, LOOK_VALUES.material, 'soft'),
-      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
+      font: pick(modern.font, LOOK_VALUES.font, 'manrope'), weather: pick(modern.weather, LOOK_VALUES.weather, 'on'), units: pick(modern.units, LOOK_VALUES.units, 'c'), wall: wall(modern.wall || s.wallpaper) ? modern.wall || s.wallpaper : WALLS[0].id,
       home: h, recent: recent, lastApp: h.indexOf(s.lastApp) >= 0 ? s.lastApp : h[0],
       mode: pick(s.mode, MODES.map(function (m) { return m.id; }), 'fixed')
     };
@@ -353,7 +355,7 @@
     var out = {};
     Object.keys(c).forEach(function (key) { out[key] = c[key]; });
     out.version = 2; out.look = lookOf(c); out.dock = c.home.slice(); out.wallpaper = c.wall;
-    out.theme = c.layout === 'list' ? 'list' : 'shore';
+    out.theme = c.layout === 'dock' ? 'shore' : 'list';
     out.appRecords = [];
     c.home.concat(c.recent).forEach(function (key) {
       var a = app(key);
@@ -494,7 +496,7 @@
   function utils() { return ['art', 'apps', 'settings']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
-    var v = S.c.layout === 'list';
+    var v = listNav();
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
   function utilAction(u) {
@@ -505,7 +507,7 @@
   function addAppsRoute() { openEditor('home'); }
   function openSettings() { push({ id: 'settings', f: { id: S.settingsFocus } }); }
   function openAppearance(group) {
-    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
+    var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', weather: 'weather' }[group];
     var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'samsung.home');
     push({ id: 'appearance', group: group, f: { action: action } });
   }
@@ -534,7 +536,8 @@
   V.home = {
     key: function (t, k) {
       var f = t.f, h = S.c.home, U = utils(), x = axes(), i = ensureSel();
-      if (S.c.layout === 'list') { listHomeKey(t, k, i, U); return; }
+      if (S.c.layout === 'minimal') { minimalHomeKey(t, k, i, U); return; }
+      if (listNav()) { listHomeKey(t, k, i, U); return; }
       if (f.zone === 'util') {
         f.u = clamp(f.u, 0, U.length - 1);
         if (k === x.prev && f.u > 0) f.u--;
@@ -577,6 +580,25 @@
     else if (k === 'down' && i < h.length - 1) setSel(h[i + 1]);
     else if (k === 'back') openMessage('leave');
     else if (k === 'ok') { if (h.length) launch(S.sel); else addAppsRoute(); }
+  }
+
+  /* Minimal: one column of apps, then Home controls. Up/Down runs through both without wrapping;
+     Left or Back from a control returns to the selected app, as in List. OK never acts on focus alone. */
+  function minimalHomeKey(t, k, i, U) {
+    var f = t.f, h = S.c.home, n = h.length, idx;
+    if (!n) f.zone = 'util';
+    f.u = clamp(f.u || 0, 0, U.length - 1);
+    idx = f.zone === 'util' ? n + f.u : i;
+    if (k === 'up' || k === 'down') {
+      idx = clamp(idx + (k === 'up' ? -1 : 1), 0, n + U.length - 1);
+      if (idx < n) { f.zone = 'apps'; setSel(h[idx]); }
+      else { f.zone = 'util'; f.u = idx - n; S.lastUtil = f.u; }
+    } else if (f.zone === 'util') {
+      if ((k === 'left' || k === 'back') && n) f.zone = 'apps';
+      else if (k === 'back') openMessage('leave');
+      else if (k === 'ok') { S.lastUtil = f.u; utilAction(U[f.u]); }
+    } else if (k === 'back') openMessage('leave');
+    else if (k === 'ok') launch(S.sel);
   }
 
   /* ---------- Wallpaper child: focus previews, activation applies ---------- */
@@ -821,6 +843,7 @@
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
+      { id: 'weather', label: 'Weather', value: S.c.weather === 'on' ? VALUE_NAMES[S.c.units] : 'Off' },
       { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
@@ -841,7 +864,13 @@
     if (id === 'editor') openEditor('settings');
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', weather: 'Weather', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
+  function weatherReason() {
+    var w = weather.state();
+    if (S.c.weather === 'off') return 'Turn weather on to show it in the corner of the Minimal layout.';
+    return (S.c.layout !== 'minimal' ? 'Weather shows on the Minimal layout. ' : w.failed && !weather.view(S.c.units) ? 'Weather is unavailable right now; Home keeps working without it. ' : '')
+      + 'Approximate location from your internet address by GeoJS. Weather data by Open-Meteo.com.';
+  }
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
@@ -859,7 +888,7 @@
       { id: 'rotation', title: 'Rotation', items: [{ action: 'background.rotation', label: mode().name, disabled: flat }], reason: flat ? 'Choose Photo to use wallpaper and rotation.' : '' }
     ];
     if (t.group === 'layout') return [
-      { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock']) },
+      { id: 'layout', title: 'Layout', horizontal: true, items: options('layout', ['list', 'dock', 'minimal']) },
       { id: 'apps', title: 'App display', horizontal: true, items: options('apps', ['text', 'icons', 'both']) },
       { id: 'controls', title: 'Home controls', horizontal: true, items: options('controls', ['text', 'icons', 'both']) }
     ];
@@ -867,7 +896,11 @@
     if (t.group === 'focus') return [
       { id: 'focus', title: 'Focus style', horizontal: true, items: options('focus', ['type', 'glass']) },
       { id: 'material', title: 'Material', horizontal: true, items: options('material', ['soft', 'frost', 'tint'], inactive),
-        reason: inactive ? flat ? 'Materials are available with a Photo background.' : 'Choose Glass focus or the Dock layout to use materials.' : '' }
+        reason: inactive ? flat ? 'Materials are available with a Photo background.' : S.c.layout === 'minimal' ? 'Minimal has no focus plates, so it uses no materials.' : 'Choose Glass focus or the Dock layout to use materials.' : '' }
+    ];
+    if (t.group === 'weather') return [
+      { id: 'weather', title: 'Weather', horizontal: true, items: options('weather', ['on', 'off']) },
+      { id: 'units', title: 'Units', horizontal: true, items: options('units', ['c', 'f'], S.c.weather === 'off'), reason: weatherReason() }
     ];
     if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
       reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
@@ -943,7 +976,7 @@
   V.appearance = {
     norm: function (t) {
       var rows = detailRows(t), exists = false, applied = null;
-      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode' }[t.group];
+      var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', weather: 'weather', rotation: 'mode' }[t.group];
       rows.forEach(function (items) { items.forEach(function (item) {
         if (item.action === t.f.action) exists = true;
         if (item.axis === axis && item.value === S.c[axis]) applied = item;
@@ -1012,6 +1045,8 @@
   var IMG = { photo: $('photo'), mat: $('matImg'), bg: $('sheetBg'), field: $('phFieldImg'), fieldAlt: $('phFieldImgAlt'), utility: $('utFieldImg'), utilityAlt: $('utFieldImgAlt') };
   var sheetKey = '', slotEls = {}, dockEdgeFrame = 0, dockEdgeUntil = 0, dockAnchorCenter = 960;
   var appliedPalette = null, appliedPhoto = null, appliedFont = null, appliedFontMetrics = null;
+  var minimal = window.CleanFrameMinimal.create({ time: $('lockTime'), date: $('lockDate'), depth: $('lockDepth'), video: $('wallVideo'), column: $('lockColumn'), weather: $('lockWeather') });
+  var weather = window.CleanFrameWeather.create({ key: 'cleanframe.weather.v1', onChange: function () { render(); } });
 
   /* Curated locked palettes keep the existing rendering path exactly. */
   function applyAdaptiveInk(palette) {
@@ -1041,12 +1076,13 @@
   function render() {
     var t = top(), sheet = !!V[t.id].sheet, shown = wall(S.shown ? S.shown.wall : S.c.wall), palette = ADAPTIVE_INK[shown.id];
     var adaptive = applyAdaptiveInk(palette), tr = adaptive && palette.tr ? palette.tr.pol : shown.ut.tr, br = adaptive && palette.br ? palette.br.pol : shown.ut.br;
-    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
+    stage.className = 'stage bg-' + S.c.bg + ' l-' + S.c.layout + ' wx-' + S.c.weather + ' un-' + S.c.units + ' v-' + S.variant + ' m-' + (materialApplies() ? S.c.material : 'none') + ' f-' + S.c.focus + ' a-' + S.c.apps + ' u-' + S.c.controls + ' g-' + S.geom + ' tone-' + shown.tone + ' tr-' + tr + ' br-' + br + wallClasses(shown) + inkRungClasses(palette, adaptive) + ' at-' + t.id + ' font-' + homeFont() + (homeFont() !== 'manrope' ? ' font-custom' : '') + (S.fontSwitch ? ' is-font-switch' : '') + (adaptive ? ' has-adaptive-ink adaptive-tl-' + palette.tl.pol : '') + (!adaptive && shown.clockInk ? ' has-clock-ink' : '') + (!adaptive && shown.dockClockInk ? ' has-dock-clock-ink' : '') + (registeredMaterial(shown.id) ? ' registered-material' : '') + (sheet ? ' is-sheet' : '') + (S.reflow ? ' is-reflow' : '');
     if (!adaptive && shown.clockInk) stage.style.setProperty('--clock-ink', shown.clockInk);
     else stage.style.removeProperty('--clock-ink');
     if (!adaptive && shown.dockClockInk) stage.style.setProperty('--dock-clock-ink', shown.dockClockInk);
     else stage.style.removeProperty('--dock-clock-ink');
     applyHomeFont();
+    renderLock(t);
     if (!sheet) renderHome(t);
     renderSheet(t, sheet);
     renderAppearance(t);
@@ -1057,7 +1093,7 @@
     var id = homeFont(), f = FONTS[id], primary = fontRole(id, 'primary'), ui = fontRole(id, 'ui'), metrics = fontMetrics[id];
     if (appliedFont === id && appliedFontMetrics === metrics) return;
     appliedFont = id; appliedFontMetrics = metrics;
-    var values = { 'display-family': '"' + f.family + '"', 'ui-family': '"' + ui.family + '"', 'primary-family': '"' + primary.family + '"', 'display-weight': f.display, 'ui-weight': ui.weight, 'primary-weight': primary.weight, 'clock-weight': f.clock,
+    var values = { 'display-family': '"' + f.family + '"', 'ui-family': '"' + ui.family + '"', 'primary-family': '"' + primary.family + '"', 'display-weight': f.display, 'ui-weight': ui.weight, 'primary-weight': primary.weight, 'clock-weight': f.clock, 'thin-family': '"' + (f.thinFamily || f.family) + '"', 'thin-weight': f.thin || f.clock,
       'clock-shift': px(fontShift('clock', 48)), 'utility-shift': px(fontShift('ui', 28)), 'action-shift': px(fontShift('ui', 30)), 'heading-shift': px(fontShift('ui', 48)), 'full-name-shift': px(fontShift('primary', 30)), 'clock-digit': px(metrics ? metrics.digitCell : 0) };
     Object.keys(values).forEach(function (key) { homeEl.style.setProperty('--font-' + key, String(values[key])); });
   }
@@ -1071,13 +1107,37 @@
 
   function renderHome(t) {
     var hs = homeState(t);
+    if (S.c.layout === 'minimal') { photoMode = null; renderMinimalColumn(hs); return; }
     renderCaption(t, hs);
     renderUtils(hs);
-    if (S.c.layout === 'list') renderList(hs);
+    if (listNav()) renderList(hs);
     else { photoMode = null; renderDock(hs); }
     renderAppFocusName(hs);
   }
 
+  /* Minimal's wallpaper extras follow the photo actually shown, so a Settings preview never mixes two photos.
+     Video plays only on visible Home, without live glass (its materials come from the still) or reduced motion. */
+  function renderLock(t) {
+    var active = S.c.layout === 'minimal', entry = active && S.c.bg === 'photo' && S.shown && S.shown.bg === 'photo' ? wall(S.shown.wall) : null;
+    minimal.render({ active: active, photo: entry ? WP + entry.id + '.jpg' : '', depth: entry && entry.depth || '', video: entry && entry.video || '',
+      play: !!entry && t.id === 'home' && !document.hidden && !S.pending && !REDUCED_MOTION });
+    weather.update(S.c.weather === 'on', active && !document.hidden);
+    minimal.renderWeather(active && S.c.weather === 'on' ? weather.view(S.c.units) : null);
+  }
+  /* Brand marks are drawn monochrome through their masks; other apps use initials, never a coloured native icon. */
+  function minimalMark(a) {
+    if (a.mark && maskSupport) return markHtml(a.brand || a.id, 96, 48, 38);
+    var words = a.name.split(/\s+/), letters = words[0].charAt(0) + (words.length > 1 ? words[1].charAt(0) : '');
+    return '<span class="mark monogram mc-monogram"><span>' + esc(letters.toUpperCase()) + '</span></span>';
+  }
+  function renderMinimalColumn(hs) {
+    var items = [], focus = -1;
+    hs.items.forEach(function (it, n) { var a = app(it.id); items.push({ key: 'a:' + it.id, action: 'home.app.' + it.id, z: 'app', i: n, label: a.name, html: minimalMark(a) }); });
+    utils().forEach(function (u, n) { items.push({ key: 'u:' + u, action: 'util.' + u, z: 'util', i: n, label: UTIL[u][0], html: icon(UTIL[u][1]), control: true }); });
+    if (hs.zone === 'apps') focus = hs.i;
+    else if (hs.zone === 'util') focus = hs.items.length + clamp(hs.u || 0, 0, utils().length - 1);
+    minimal.renderColumn(items, focus);
+  }
   function clockText() {
     var d = new Date(), h = d.getHours() % 12 || 12, m = d.getMinutes();
     return h + ':' + (m < 10 ? '0' : '') + m;
@@ -1089,7 +1149,7 @@
   }
   function renderCaption(t, hs) {
     var html = '<span class="clock">' + clockHtml() + '</span>';
-    if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
+    if (S.c.apps !== 'icons' && hs.items[hs.i] && (listNav() ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
     setHTML(caption, html);
   }
 
@@ -1122,9 +1182,9 @@
     }
     r = button.getBoundingClientRect(); sr = sceneEl.getBoundingClientRect(); scale = sr.width / 1920 || 1;
     width = Math.ceil(textWidth(text, 28, 500, -.2) + 8); x = (r.left + r.width / 2 - sr.left) / scale - width / 2;
-    if (S.c.layout === 'list') x = 1730 - width;
+    if (listNav()) x = 1730 - width;
     utilFocusLabel.style.width = width + 'px'; utilFocusLabel.style.left = clamp(x, 112, 1808 - width) + 'px';
-    utilFocusLabel.style.top = ((S.c.layout === 'list' ? (r.top + r.height / 2 - sr.top) / scale - 19 : 140) + fontShift('ui', 28)) + 'px';
+    utilFocusLabel.style.top = ((listNav() ? (r.top + r.height / 2 - sr.top) / scale - 19 : 140) + fontShift('ui', 28)) + 'px';
     utilFocusLabel.className = 'util-focus-label is-on';
   }
   function renderUtilityLens(button, iconsOnly) {
@@ -1136,7 +1196,7 @@
     }
     r = button.getBoundingClientRect(); sr = sceneEl.getBoundingClientRect(); scale = sr.width / 1920 || 1;
     y = (r.top - sr.top) / scale + 2;
-    if (S.c.layout === 'list') {
+    if (listNav()) {
       label = iconsOnly ? utilFocusLabel : button.querySelector('.u-label');
       x = (label.getBoundingClientRect().left - sr.left) / scale - 24;
       width = 1800 - x;
@@ -1161,15 +1221,15 @@
     var it = hs.items[hs.i], width, x, y, placement;
     if (S.c.apps !== 'icons' || hs.mode !== 'browse' || hs.zone !== 'apps' || !it) { appFocusName.className = 'app-focus-name'; return; }
     appFocusName.textContent = app(it.id).name;
-    width = Math.min(S.c.layout === 'list' ? 1056 : 1640, Math.ceil(textWidth(app(it.id).name, S.c.layout === 'list' ? 40 : 36, 500, -.6, 'primary') + 8));
+    width = Math.min(listNav() ? 1056 : 1640, Math.ceil(textWidth(app(it.id).name, listNav() ? 40 : 36, 500, -.6, 'primary') + 8));
     appFocusName.style.width = width + 'px';
-    if (S.c.layout === 'list') {
+    if (listNav()) {
       x = 280; placement = phFields[photoPlateIndex]._placement;
       y = placement.y + placement.height / 2 - 24;
     } else {
       x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 932;
     }
-    appFocusName.style.left = x + 'px'; appFocusName.style.top = (y + fontShift('primary', S.c.layout === 'list' ? 40 : 36)) + 'px';
+    appFocusName.style.left = x + 'px'; appFocusName.style.top = (y + fontShift('primary', listNav() ? 40 : 36)) + 'px';
     appFocusName.className = 'app-focus-name is-on';
   }
 
@@ -1496,8 +1556,8 @@
     if (!target || !text) { focusStatus.className = 'focus-status'; return; }
     if (target.parentNode === utilsEl && utilsEl.className.indexOf('is-icons') >= 0) { renderUtilFocusLabel(target); focusStatus.className = 'focus-status'; return; }
     // Photo action pills stay on one line; the header already carries this status.
-    if (S.c.layout === 'list' && t.id === 'arrange' && !t.lifted && (t.f.zone === 'act' || t.f.zone === 'tiles')) { focusStatus.className = 'focus-status'; return; }
-    photoRow = S.c.layout === 'list' && target.className.indexOf('ph-row') >= 0;
+    if (listNav() && t.id === 'arrange' && !t.lifted && (t.f.zone === 'act' || t.f.zone === 'tiles')) { focusStatus.className = 'focus-status'; return; }
+    photoRow = listNav() && target.className.indexOf('ph-row') >= 0;
     if (photoRow && phAction.className.indexOf('is-on') >= 0) target = phAction;
     else if (photoRow) photoFree = true;
     target.className += ' has-local-status';
@@ -1505,6 +1565,7 @@
     r = target.getBoundingClientRect(); sr = stage.getBoundingClientRect(); scale = sr.width / 1920 || 1;
     x = (r.left - sr.left) / scale; y = (r.top - sr.top) / scale; w = r.width / scale;
     if (photoFree) { x = 112 + parseFloat(phPlates[photoPlateIndex].style.width) + 24; y += (r.height / scale - 28) / 2; w = 400; }
+    else if (target.className.indexOf('mc-item') >= 0) { x = 184; y += (r.height / scale - 28) / 2; w = 600; photoFree = true; }
     else if (action.indexOf('home.app.') === 0 || action.indexOf('arrange.tile.') === 0 || action.indexOf('arrange.placeholder.') === 0) y += 171;
     else if (action.indexOf('apps.order.') === 0) y += 86;
     else if (action.indexOf('apps.toggle.') === 0 || action.indexOf('apps.add.') === 0) y += 164;
@@ -1792,7 +1853,7 @@
   function updateClock() {
     clearTimeout(clockTimer);
     if (document.hidden) return;
-    if (top().id === 'home' || isSettingsDetail(top())) renderCaption(top(), homeState(top()));
+    if (top().id === 'home' || isSettingsDetail(top())) { renderCaption(top(), homeState(top())); renderLock(top()); }
     clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
   }
   function focusStage() { try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
@@ -1875,7 +1936,7 @@
   window.addEventListener('focus', function () { FrameDevice.cancelSource(); release(); refreshInputsOnReturn(); focusStage(); after(); updateClock(); });
   document.addEventListener('visibilitychange', function () {
     heldKeys = {};
-    if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); }
+    if (document.hidden) { FrameDevice.cancelSource(); pauseRotation(); clearTimeout(clockTimer); renderLock(top()); }
     else {
       release();
       if (S.c.bg === 'photo' && !S.pending && !S.previewBundle && (!committedBundle || S.bundleKey !== bundleKey(S.c))) setLook({}, { transient: true, startup: true });
@@ -1899,7 +1960,7 @@
     out.candidate = out.focusedChoice ? { axis: item.axis, value: item.value, action: item.action, pending: !!S.pending, pendingTarget: S.pending ? S.pending.target : null } : null;
     out.wallpaperPicker = t.id === 'wallpaper' ? { candidate: WALLS[t.i].id, applied: S.c.wall, shown: S.wallShown, pending: t.previewDue || S.wallPending,
       queuedApplying: !!t.applyPending, applyPending: t.applyPending, failed: t.failedId, zone: t.f.zone, top: t.top, visible: WALL_VISIBLE, backdrop: IMG.bg.src } : null;
-    out.undo = S.undo.map(function (u) { return u.label; }); out.storageOk = storageOk;
+    out.undo = S.undo.map(function (u) { return u.label; }); out.storageOk = storageOk; out.minimal = minimal.state(); out.weather = weather.state();
     return JSON.parse(JSON.stringify(out));
   };
   QA.where = function () {

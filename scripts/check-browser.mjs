@@ -17,10 +17,12 @@ const CATALOG = IDS.map((id, i) => ({ id, name: NAMES[i], show: true, iconPath: 
   { id: 'AbCdEf1234.worker', name: 'Background worker', show: true },
   { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true }
 ]);
+const WEATHER_GEO = { city: 'Dubai', latitude: '25.2048', longitude: '55.2708' };
+const WEATHER_FORECAST = { current: { temperature_2m: 27.6, weather_code: 0, is_day: 1 }, daily: { temperature_2m_max: [30.2], temperature_2m_min: [21.8] } };
 const walls = JSON.parse(readFileSync(root + 'app/assets/wallpapers/SOURCES.json', 'utf8'));
 const out = root + '.local/qa/';
 mkdirSync(out, { recursive: true });
-const sourceFiles = ['app/main.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/config.xml', 'app/assets/wallpapers/SOURCES.json', 'app/assets/wallpapers/catalog.js', 'app/assets/adaptive-ink.js', 'app/assets/icons/metrics.js'];
+const sourceFiles = ['app/main.js', 'app/minimal.js', 'app/weather.js', 'app/device.js', 'app/index.html', 'app/style.css', 'app/config.xml', 'app/assets/wallpapers/SOURCES.json', 'app/assets/wallpapers/catalog.js', 'app/assets/adaptive-ink.js', 'app/assets/icons/metrics.js'];
 const hashes = () => Object.fromEntries(sourceFiles.map(f => [f, createHash('sha256').update(readFileSync(root + f)).digest('hex')]));
 const report = { scope: 'Production UI in Chromium; mock public Tizen API only; no TV contacted.', sourceBefore: hashes(), checks: [], failures: [], pageErrors: [], expectedNetworkFailures: [] };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -129,6 +131,10 @@ async function page(options = {}, setup) {
     else if (failure.error !== 'net::ERR_ABORTED') report.pageErrors.push(failure);
   });
   await current.addInitScript(installHarness, { mock: true, catalog: CATALOG, minuteMs: 60000, seed: baseline(), ...options });
+  // Weather services are always mocked; a test may register a later route to override these fixtures.
+  owner.__weather = { geo: 0, forecast: 0 };
+  await current.route('https://get.geojs.io/**', route => { owner.__weather.geo++; return route.fulfill({ json: WEATHER_GEO }); });
+  await current.route('https://api.open-meteo.com/**', route => { owner.__weather.forecast++; return route.fulfill({ json: WEATHER_FORECAST }); });
   if (setup) await setup(current);
   await current.goto(preview.baseURL + '/home/', { waitUntil: options.settleNetwork === false ? 'domcontentloaded' : 'load' });
   if (options.waitReady !== false) await ready();
@@ -149,7 +155,7 @@ async function group(name) {
 }
 const settingsSnapshot = () => current.evaluate(() => {
   const s = ShoreQA.state();
-  const rendered = [...document.getElementById('stage').classList].filter(c => /^(bg|l|a|u|f|m|font)-/.test(c)).sort();
+  const rendered = [...document.getElementById('stage').classList].filter(c => /^(bg|l|a|u|f|m|font|wx|un)-/.test(c)).sort();
   return { stored: localStorage.getItem('cleanframe.home.v1'), committed: s.committed, shown: s.shown, rendered, writes: s.writes, storageAttempts: window.__storageAttempts };
 });
 const choice = (axis, value) => act('choice.' + axis + '.' + value);
@@ -402,7 +408,7 @@ try {
         const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
         return elements.map(e => (e.querySelector('.ico').getBoundingClientRect().left - e.querySelector('.settings-group-copy').getBoundingClientRect().right) / scale);
       });
-      check('Settings group arrows stay separate from their copy at ' + width, groups.length === 6 && groups.every(gap => gap >= 31.5), groups);
+      check('Settings group arrows stay separate from their copy at ' + width, groups.length === 7 && groups.every(gap => gap >= 31.5), groups);
       await wallpaper();
       const caption = await current.locator('.wallpaper-preview-name').evaluate(e => {
         const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -561,7 +567,7 @@ try {
   });
   await run('Appearance axes, fonts, scaling and matching materials', async () => {
     await page();
-    for (const bg of ['dark', 'light', 'photo']) for (const layout of ['list', 'dock']) for (const focus of ['type', 'glass']) {
+    for (const bg of ['dark', 'light', 'photo']) for (const layout of ['list', 'dock', 'minimal']) for (const focus of ['type', 'glass']) {
       await look({ bg, layout, focus }); const s = await state();
       check('Independent axes ' + [bg, layout, focus].join('/'), s.look.bg === bg && s.look.layout === layout && s.look.focus === focus && s.shown.bg === bg, s.look);
     }
@@ -581,7 +587,7 @@ try {
     }
     await look({ font: 'manrope' });
     for (const wall of walls) { await look({ wall: wall.id }); check('Wallpaper ' + wall.id + ' has matching bundle', (await state()).shown.wall === wall.id && (await state()).wallpaper === wall.id); }
-    for (const layout of ['list', 'dock']) for (const width of [1920, 1280]) {
+    for (const layout of ['list', 'dock', 'minimal']) for (const width of [1920, 1280]) {
       await current.setViewportSize({ width, height: width * 9 / 16 }); await look({ layout });
       await current.waitForFunction(w => Math.abs(document.getElementById('stage').getBoundingClientRect().width - w) < 1, width);
       const g = await current.evaluate(() => { const b = document.getElementById('stage').getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, focus: ShoreQA.where().focusCount }; });
@@ -592,15 +598,165 @@ try {
     check('No prototype lab controls in production', await current.evaluate(() => !document.querySelector('[data-lab], #lab, #side') && !document.querySelector('script[src*="prototype"]')));
     const before = (await state()).look; await current.reload(); await ready(); check('Appearance survives reload', same((await state()).look, before));
   });
+  await run('Minimal wallpaper, clock and date', async () => {
+    await page({}, p => { p.__expectedFailures.push('qa-missing'); return p.route('**/qa-missing.webm', route => route.fulfill({ status: 404, body: '' })); });
+    const minimal = async () => (await state()).minimal;
+    await look({ bg: 'photo', layout: 'minimal', apps: 'icons', controls: 'icons', focus: 'type', wall: walls[0].id });
+    let s = await state();
+    check('Minimal persists and keeps a List-compatible legacy theme', s.look.layout === 'minimal' && (await stored()).look.layout === 'minimal' && (await stored()).theme === 'list', s.look);
+    check('Minimal renders its own layout without List or Dock furniture', await current.evaluate(() => {
+      const stage = document.getElementById('stage');
+      return stage.classList.contains('l-minimal') && !stage.classList.contains('l-list') && ['.ph-scene', '.utils', '.dock', '.caption'].every(q => !document.querySelector(q).getClientRects().length);
+    }));
+    const text = await current.evaluate(() => ({ time: document.getElementById('lockTime').textContent, date: document.getElementById('lockDate').textContent, now: new Date().toString() }));
+    check('Minimal shows 24-hour time without seconds', /^([01]\d|2[0-3]):[0-5]\d$/.test(text.time), text);
+    check('Minimal draws its colon as two round dots', await current.evaluate(() => [...document.querySelectorAll('#lockTime .lock-colon i')].filter(e => e.getClientRects().length && parseFloat(getComputedStyle(e).borderTopLeftRadius) > 0).length === 2 && getComputedStyle(document.querySelector('#lockTime .lock-colon')).color === 'rgba(0, 0, 0, 0)'));
+    check('Minimal shows an uppercase weekday, day and month', /^(SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY), ([1-9]|[12]\d|3[01]) (JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)$/.test(text.date), text);
+    check('Date and clock formatters are deterministic', await current.evaluate(() => CleanFrameMinimal.dateText(new Date(2026, 0, 5, 0, 7)) === 'MONDAY, 5 JANUARY' && CleanFrameMinimal.timeText(new Date(2026, 0, 5, 0, 7)) === '00:07' && CleanFrameMinimal.timeText(new Date(2026, 0, 5, 13, 30)) === '13:30'));
+    check('Minimal hides the corner clock and uses no live filters', await current.evaluate(() => [...document.querySelectorAll('.caption .clock')].every(e => !e.getClientRects().length)) && (await noLiveFilters()).length === 0);
+    for (const width of [1920, 1280]) {
+      await current.setViewportSize({ width, height: width * 9 / 16 });
+      await current.waitForFunction(w => Math.abs(document.getElementById('stage').getBoundingClientRect().width - w) < 1, width);
+      const g = await current.evaluate(() => {
+        const stage = document.getElementById('stage').getBoundingClientRect();
+        // Visible glyph centre: the text run minus the tracking after its last letter.
+        const centre = id => { const el = document.getElementById(id), range = document.createRange(); range.selectNodeContents(el); const r = range.getBoundingClientRect(); return (r.left + r.right - parseFloat(getComputedStyle(el).letterSpacing) * stage.width / 1920) / 2; };
+        return { scale: stage.width / 1920, stageCentre: stage.left + stage.width / 2, time: centre('lockTime'), date: centre('lockDate'), timeTop: document.getElementById('lockTime').offsetTop, focus: ShoreQA.where().focusCount };
+      });
+      check('Minimal clock and date are centred and scale at ' + width, Math.abs(g.time - g.stageCentre) < 3 && Math.abs(g.date - g.stageCentre) < 3 && Math.abs(g.timeTop - 171) < 1 && g.focus === 1, g);
+      await current.screenshot({ path: out + 'minimal-' + width + '.jpg', quality: 85 });
+    }
+    await current.setViewportSize({ width: 1920, height: 1080 });
+    await look({ wall: 'alpine' }); await current.waitForFunction(() => ShoreQA.state().minimal.depthReady);
+    check('Alpine shows its bundled depth mask over the clock', await current.evaluate(() => {
+      const d = document.getElementById('lockDepth'), m = ShoreQA.state().minimal;
+      return m.depth === 'assets/wallpapers/alpine-depth.png' && /alpine\.jpg$/.test(d.getAttribute('src')) && /alpine-depth\.png/.test(d.style.webkitMaskImage || d.style.maskImage) && getComputedStyle(d).visibility === 'visible';
+    }));
+    await current.waitForFunction(() => document.getAnimations().every(a => a.playState !== 'running'));
+    await current.screenshot({ path: out + 'minimal-alpine-depth.jpg', quality: 85 });
+    await look({ wall: walls[0].id });
+    // The layer fades out over 700ms before it is hidden.
+    await current.waitForFunction(() => getComputedStyle(document.getElementById('lockDepth')).visibility === 'hidden', null, { timeout: 3000 }).catch(() => {});
+    check('Wallpapers without a mask hide the depth layer', await current.evaluate(() => !document.getElementById('lockDepth').hasAttribute('src') && getComputedStyle(document.getElementById('lockDepth')).visibility === 'hidden'));
+    const route = [], start = PRIMARY.indexOf((await state()).selected), appAt = i => 'home.app.' + PRIMARY[i];
+    const keys = ['down', 'up', ...Array(PRIMARY.length - start).fill('down'), 'down', 'down', 'down', 'right', 'up', 'left'];
+    for (const key of keys) { await nav(key); route.push((await state()).focusAction); }
+    const expected = [appAt(start + 1), appAt(start), ...PRIMARY.slice(start + 1).map(id => 'home.app.' + id), 'util.art', 'util.apps', 'util.settings', 'util.settings', 'util.settings', 'util.apps', appAt(PRIMARY.length - 1)];
+    check('Minimal runs one column from apps into Home controls without wrapping', start >= 0 && same(route, expected), { start, route, expected });
+    await nav('back'); check('Back from Minimal apps offers Samsung Home', (await state()).view === 'message'); await nav('back');
+    for (const bg of ['dark', 'light']) {
+      await look({ bg });
+      check('Minimal keeps its clock on a ' + bg + ' background', await current.evaluate(() => document.getElementById('lockTime').getClientRects().length === 1 && document.querySelector('.bg .lock-veil').getClientRects().length === 0));
+    }
+    await look({ bg: 'photo' });
+    // Synthetic media generated in the page: a recorded canvas loop and an alpha mask.
+    const media = await current.evaluate(async () => {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 320, height: 180 }), ctx = canvas.getContext('2d');
+      const recorder = new MediaRecorder(canvas.captureStream(24), { mimeType: 'video/webm' }), parts = [];
+      recorder.ondataavailable = e => parts.push(e.data);
+      let frame = 0; const draw = setInterval(() => { ctx.fillStyle = 'hsl(' + (frame++ * 12) + ',60%,40%)'; ctx.fillRect(0, 0, 320, 180); }, 40);
+      recorder.start(); await new Promise(r => setTimeout(r, 700)); recorder.stop(); await new Promise(r => { recorder.onstop = r; }); clearInterval(draw);
+      const matte = Object.assign(document.createElement('canvas'), { width: 1920, height: 1080 }), m = matte.getContext('2d');
+      m.fillStyle = '#222'; m.fillRect(860, 200, 200, 880);
+      return { video: URL.createObjectURL(new Blob(parts, { type: 'video/webm' })), depth: matte.toDataURL('image/png') };
+    });
+    await current.evaluate(({ id, media }) => { const w = CleanFrameWallpapers.find(x => x.id === id); w.video = media.video; w.depth = media.depth; }, { id: walls[0].id, media });
+    await look({ wall: walls[1].id }); await look({ wall: walls[0].id });
+    await current.waitForFunction(() => ShoreQA.state().minimal.videoPlaying && ShoreQA.state().minimal.depthReady);
+    check('Looping video plays muted and inline above the still', await current.evaluate(() => { const v = document.getElementById('wallVideo'); return v.muted && v.loop && v.hasAttribute('playsinline') && !v.paused && document.getElementById('photo').naturalWidth > 0; }));
+    check('Depth layer sits above the clock and below the icon column and weather', await current.evaluate(() => {
+      const [time, depth, column, weather] = ['lockTime', 'lockDepth', 'lockColumn', 'lockWeather'].map(id => document.getElementById(id)), after = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return after(time, depth) && after(depth, column) && after(depth, weather);
+    }));
+    await scene('settings');
+    check('Video pauses under Settings', (await minimal()).videoPlaying === false && await current.evaluate(() => document.getElementById('wallVideo').paused));
+    await nav('back'); await current.waitForFunction(() => ShoreQA.state().minimal.videoPlaying);
+    await current.evaluate(() => window.__setHidden(true));
+    check('Video pauses while the launcher is hidden', await current.evaluate(() => document.getElementById('wallVideo').paused));
+    await current.evaluate(() => window.__setHidden(false)); await current.waitForFunction(() => ShoreQA.state().minimal.videoPlaying);
+    await look({ focus: 'glass' }); await current.waitForFunction(() => ShoreQA.state().minimal.videoPlaying);
+    check('Minimal has no glass plates, so Glass focus neither uses materials nor pauses video', await current.evaluate(() => document.getElementById('stage').classList.contains('m-none') && !document.getElementById('wallVideo').paused));
+    await look({ focus: 'type' });
+    await look({ layout: 'list' });
+    check('Other layouts release the video and depth layer', same([(await minimal()).video, (await minimal()).depth], ['', '']) && await current.evaluate(() => !document.getElementById('wallVideo').hasAttribute('src') && getComputedStyle(document.getElementById('lock')).display === 'none'));
+    await current.evaluate(id => { CleanFrameWallpapers.find(x => x.id === id).video = 'assets/wallpapers/qa-missing.webm'; }, walls[1].id);
+    await look({ layout: 'minimal', wall: walls[1].id });
+    await current.waitForFunction(() => !!ShoreQA.state().minimal.videoFailed);
+    check('A missing video leaves the still wallpaper in place', await current.evaluate(() => !document.getElementById('wallVideo').hasAttribute('src') && document.getElementById('photo').naturalWidth > 0) && (await state()).look.wall === walls[1].id);
+    const before = (await state()).look; await current.reload(); await ready();
+    check('Minimal survives reload', same((await state()).look, before));
+  });
+  await run('Minimal icon column and weather corner', async () => {
+    await page();
+    const counts = () => current.__weather;
+    await look({ layout: 'dock' }); await look({ layout: 'list' });
+    check('Weather is not requested outside Minimal', counts().geo === 0 && counts().forecast === 0, counts());
+    await look({ bg: 'photo', layout: 'minimal', focus: 'glass', wall: walls[0].id, units: 'c', weather: 'on' });
+    await current.waitForFunction(() => document.getElementById('lockWeather').classList.contains('is-on'));
+    const column = await current.evaluate(() => [...document.querySelectorAll('#lockColumn .mc-item')].map(e => {
+      const cs = getComputedStyle(e), mk = e.querySelector('.mk');
+      return { action: e.dataset.action, label: e.getAttribute('aria-label'), text: e.textContent.trim(), top: e.offsetTop, bottom: e.offsetTop + e.offsetHeight, centre: e.offsetLeft + e.offsetWidth / 2, background: cs.backgroundColor, shadow: cs.boxShadow, border: cs.borderTopWidth, img: !!e.querySelector('img'), ink: mk ? getComputedStyle(mk).backgroundColor : cs.color, focus: e.classList.contains('is-focus') };
+    }));
+    const home = (await state()).dock;
+    check('Column lists every Home app, then Art Mode, All apps and Settings', same(column.map(c => c.action), home.map(id => 'home.app.' + id).concat(['util.art', 'util.apps', 'util.settings'])), column.map(c => c.action));
+    check('Column has no plates or visible names, only accessible names', column.every(c => c.label && !c.text && c.background === 'rgba(0, 0, 0, 0)' && c.shadow === 'none' && c.border === '0px'), column);
+    check('Column marks are monochrome, with no coloured native icons', column.every(c => !c.img && c.ink === 'rgb(255, 255, 255)'), column);
+    check('Column is vertically centred on the left', Math.abs((column[0].top + column[column.length - 1].bottom) / 2 - 540) < 2 && column.every(c => Math.abs(c.centre - 97) < 1), column.map(c => [c.top, c.centre]));
+    check('Exactly one column item is focused', column.filter(c => c.focus).length === 1 && (await call('where')).focusCount === 1);
+    check('Minimal never uses glass materials', await current.evaluate(() => document.getElementById('stage').classList.contains('m-none') && !document.querySelector('.ph-plate.is-on, .ut-lens.is-on')));
+    const weatherText = () => current.evaluate(() => { const w = document.getElementById('lockWeather'), r = w.getBoundingClientRect();
+      return { temp: w.querySelector('.lw-temp').textContent, place: w.querySelector('.lw-place').textContent, detail: [...w.querySelectorAll('.lw-detail span')].map(e => e.textContent), right: r.right, bottom: r.bottom, label: w.getAttribute('aria-label') }; });
+    let w = await weatherText();
+    check('Weather shows temperature, place, condition, high and low', w.temp === '28°' && w.place === 'DUBAI' && same(w.detail, ['SUNNY', 'H: 30°', 'L: 22°']) && /DUBAI, 28°, SUNNY, high 30°, low 22°/.test(w.label), w);
+    check('Weather sits in the bottom-right corner', Math.abs(w.right - 1848) < 3 && w.bottom > 990 && w.bottom < 1040, w);
+    const fetched = { ...counts() };
+    await group('weather'); await choice('units', 'f'); await ready(); await nav('back'); await nav('back');
+    w = await weatherText();
+    check('Fahrenheit converts the cached reading without a new request', w.temp === '82°' && same(w.detail, ['SUNNY', 'H: 86°', 'L: 71°']) && same(counts(), fetched), { w, counts: counts() });
+    await look({ units: 'c', weather: 'off' });
+    check('Weather off hides the corner', await current.evaluate(() => !document.getElementById('lockWeather').getClientRects().length));
+    await current.reload(); await ready(); await current.evaluate(() => new Promise(r => setTimeout(r, 300)));
+    check('Weather off makes no requests', same(counts(), fetched) && (await state()).look.weather === 'off', counts());
+    await look({ weather: 'on' }); await current.waitForFunction(() => document.getElementById('lockWeather').classList.contains('is-on'));
+    check('A fresh cached reading is reused after reload', same(counts(), fetched), counts());
+    await current.click('#lockColumn [data-action="util.settings"]');
+    check('Clicking a column control activates it', (await state()).view === 'settings');
+  });
+  await run('Minimal weather failure, hidden start and unsafe place names', async () => {
+    await page({ seed: baseline({ look: { bg: 'photo', layout: 'minimal', wall: walls[0].id } }), initiallyHidden: true, waitReady: false, settleNetwork: false }, p => {
+      p.__expectedFailures.push('open-meteo');
+      return p.route('https://api.open-meteo.com/**', route => { p.__weather.forecast++; return route.fulfill({ status: 500, body: '' }); });
+    });
+    await current.evaluate(() => new Promise(r => setTimeout(r, 400)));
+    check('No weather request while the launcher starts hidden', current.__weather.geo === 0 && current.__weather.forecast === 0, current.__weather);
+    await current.evaluate(() => window.__setHidden(false)); await ready();
+    await current.waitForFunction(() => ShoreQA.state().weather.failed);
+    check('A failed forecast leaves the corner empty and Home usable', await current.evaluate(() => !document.getElementById('lockWeather').getClientRects().length) && (await nav('down')).view === 'home');
+    await group('weather');
+    check('Weather settings report the failure honestly', /unavailable right now/.test(await current.locator('.appearance').innerText()));
+    await closePage();
+    await page({ seed: baseline({ look: { bg: 'photo', layout: 'minimal', wall: walls[0].id } }) }, p => p.route('https://get.geojs.io/**', route => route.fulfill({ json: { ...WEATHER_GEO, city: '<img src=x onerror="window.__weatherXss=1">Town' } })));
+    await current.waitForFunction(() => document.getElementById('lockWeather').classList.contains('is-on'));
+    check('Place names are shown as text, never markup', await current.evaluate(() => !window.__weatherXss && !document.querySelector('#lockWeather img') && /<IMG SRC=X/.test(document.querySelector('.lw-place').textContent)));
+  });
+  await run('Minimal respects reduced motion', async () => {
+    await page({}, p => p.emulateMedia({ reducedMotion: 'reduce' }));
+    await look({ bg: 'photo', layout: 'minimal', focus: 'type', wall: walls[0].id });
+    await current.evaluate(id => { CleanFrameWallpapers.find(x => x.id === id).video = 'assets/wallpapers/qa-unused.webm'; }, walls[0].id);
+    await look({ apps: 'text' });
+    check('Reduced motion keeps the still wallpaper', (await state()).minimal.videoPlaying === false && await current.evaluate(() => document.getElementById('wallVideo').paused));
+    check('Reduced motion shows the clock without an entrance animation', await current.evaluate(() => getComputedStyle(document.getElementById('lockTime')).animationName === 'none' && getComputedStyle(document.getElementById('wallVideo')).transitionDuration === '0s'));
+  });
   await run('Settings overview and visible choices', async () => {
     await page(); await scene('settings');
     const expected = ['settings.group.background', 'settings.group.layout', 'settings.group.typography', 'settings.group.focus', 'settings.editor', 'settings.group.samsung'];
     check('Overview has all six settings groups', same((await call('actions')).filter(a => expected.includes(a)).sort(), expected.slice().sort()));
     const specs = {
       background: { bg: ['dark', 'light', 'photo'] },
-      layout: { layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], controls: ['icons', 'both', 'text'] },
+      layout: { layout: ['list', 'dock', 'minimal'], apps: ['icons', 'both', 'text'], controls: ['icons', 'both', 'text'] },
       typography: { font: (await state()).fonts.available },
-      focus: { focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] }
+      focus: { focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] },
+      weather: { weather: ['on', 'off'], units: ['c', 'f'] }
     };
     for (const [name, axes] of Object.entries(specs)) {
       await group(name);
@@ -667,12 +823,14 @@ try {
     await page();
     const specs = [
       ['background', 'bg', ['dark', 'light', 'photo']],
-      ['layout', 'layout', ['list', 'dock']],
+      ['layout', 'layout', ['minimal', 'list', 'dock']],
       ['layout', 'apps', ['icons', 'text', 'both']],
       ['layout', 'controls', ['text', 'both', 'icons']],
       ['typography', 'font', (await state()).fonts.available],
       ['focus', 'focus', ['type', 'glass']],
-      ['focus', 'material', ['frost', 'tint', 'soft']]
+      ['focus', 'material', ['frost', 'tint', 'soft']],
+      ['weather', 'units', ['f', 'c']],
+      ['weather', 'weather', ['off', 'on']]
     ];
     for (const [name, axis, values] of specs) {
       await group(name);
@@ -683,7 +841,7 @@ try {
         const after = await settingsSnapshot(), rows = await radios();
         const expectedWrites = before.writes + (before.committed[axis] === value ? 0 : 1);
         const untouched = { ...after.committed, [axis]: before.committed[axis] };
-        const prefix = { bg: 'bg', layout: 'l', apps: 'a', controls: 'u', focus: 'f', material: 'm', font: 'font' }[axis];
+        const prefix = { bg: 'bg', layout: 'l', apps: 'a', controls: 'u', focus: 'f', material: 'm', font: 'font', weather: 'wx', units: 'un' }[axis];
         const shown = !Object.hasOwn(after.shown, axis) || after.shown[axis] === value;
         check(axis + ' OK applies ' + value + ' once', after.committed[axis] === value && shown && after.rendered.includes(prefix + '-' + value) && same(untouched, before.committed) && expectedWrites === after.writes && after.storageAttempts - before.storageAttempts === expectedWrites - before.writes && rows.some(r => r.action === 'choice.' + axis + '.' + value && r.checked === 'true'), { before, after, rows });
       }
